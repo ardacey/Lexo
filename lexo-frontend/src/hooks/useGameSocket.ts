@@ -1,4 +1,3 @@
-// src/hooks/useGameSocket.ts
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useGameReducer } from './useGameReducer';
@@ -11,11 +10,9 @@ export function useGameSocket() {
   const [webSocketUrl, setWebSocketUrl] = useState<string | null>(null);
   const { state, dispatch } = useGameReducer();
 
-  // Bildirim ve zamanlayıcı hook'larını state ve dispatch ile besle
   useGameNotifications(state);
   useGameTimer(state, dispatch);
 
-  // WebSocket event'leri için callback fonksiyonları
   const onOpen = useCallback(() => dispatch({ type: 'CONNECTION_SUCCESS' }), [dispatch]);
   const onClose = useCallback((event: CloseEvent) => {
     if (!event.wasClean) {
@@ -23,7 +20,7 @@ export function useGameSocket() {
     } else {
       dispatch({ type: 'CONNECTION_CLOSED' });
     }
-    setWebSocketUrl(null); // Bağlantı kapandığında URL'yi sıfırla
+    setWebSocketUrl(null);
   }, [dispatch]);
   const onError = useCallback(() => dispatch({ type: 'CONNECTION_ERROR', payload: 'WebSocket connection failed.' }), [dispatch]);
   const onMessage = useCallback((event: MessageEvent) => {
@@ -35,7 +32,6 @@ export function useGameSocket() {
     }
   }, [dispatch]);
 
-  // WebSocket hook'unu başlat
   const { sendMessage, closeConnection } = useWebSocket({
     url: webSocketUrl,
     onOpen,
@@ -44,16 +40,16 @@ export function useGameSocket() {
     onMessage
   });
 
-  // Dışarıdan çağrılacak fonksiyonlar
   const connectToRoom = (roomId: string, username: string) => {
     if (!roomId || !username) return;
-    const wsUrl = `ws://localhost:8000/api/ws/${roomId}?username=${encodeURIComponent(username)}`;
-    setWebSocketUrl(wsUrl); // URL'yi ayarlayarak WebSocket bağlantısını tetikle
+    const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL || "ws://localhost:8000/api/ws";
+    const wsUrl = `${wsBaseUrl}/${roomId}?username=${encodeURIComponent(username)}`;
+    setWebSocketUrl(wsUrl);
   };
 
   const disconnect = () => {
-    closeConnection(); // WebSocket'i kapat
-    dispatch({ type: 'CONNECTION_CLOSED' }); // State'i hemen temizle
+    closeConnection();
+    dispatch({ type: 'CONNECTION_CLOSED' });
     setWebSocketUrl(null);
   };
 

@@ -4,13 +4,18 @@ from api.websocket import router as websocket_router
 from api.lobby import router as lobby_router
 from game.word_list import load_wordlist
 
-app = FastAPI(title="Real-Time Word Game")
+app = FastAPI(title="Word Game")
+
+origins = [
+    "http://localhost:5173",
+    # "https://lexo-frontend.onrender.com"
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
