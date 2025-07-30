@@ -1,198 +1,197 @@
 import uuid
-import threading
-from typing import Dict, Tuple, List, Set
-from fastapi import WebSocket
-from .models import Room, Player, RoomStatus
-import asyncio
 import time
-
+from typing import Dict, List, Tuple, cast
+from fastapi import WebSocket
+from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from .models_db import RoomDB, PlayerDB, RoomStatus
+from .logic import calculate_score, has_letters_in_pool, generate_letter_pool
+from .word_list import is_word_valid
 class ConnectionManager:
     def __init__(self):
-        self.rooms: Dict[str, Room] = {}
-        self.countdown_rooms: Set[str] = set()
-        self._lock = threading.Lock()
+        self.active_connections: Dict[str, Dict[str, WebSocket]] = {}
 
-    def create_room(self, name: str) -> Room:
-        with self._lock:
-            room_id = str(uuid.uuid4())
-            room = Room(room_id=room_id, name=name)
-            self.rooms[room_id] = room
-            print(f"Room '{name}' ({room_id}) created.")
-            return room
+    async def connect(self, ws: WebSocket, room_id: str, player_id: str):
+        await ws.accept()
+        if room_id not in self.active_connections:
+            self.active_connections[room_id] = {}
+        self.active_connections[room_id][player_id] = ws
+
+    def disconnect(self, room_id: str, player_id: str):
+        if room_id in self.active_connections and player_id in self.active_connections[room_id]:
+            del self.active_connections[room_id][player_id]
+            if not self.active_connections[room_id]:
+                del self.active_connections[room_id]
     
-    def get_active_rooms(self) -> List[dict]:
-        with self._lock:
-            active_rooms = [
-                room.to_dict() for room in self.rooms.values() 
-                if not room.is_full() and room.status != RoomStatus.FINISHED
-            ]
-        return active_rooms
+    async def broadcast_to_room(self, room_id: str, message: dict):
+        if room_id in self.active_connections:
+            for ws in self.active_connections[room_id].values():
+                await ws.send_json(message)
 
-    async def connect(self, websocket: WebSocket, room_id: str, username: str) -> Tuple[Room, Player]:
-        with self._lock:
-            if room_id not in self.rooms:
-                raise ValueError("Room not found.")
-            room = self.rooms[room_id]
-            if room.is_full():
-                raise ValueError("This room is full.")
+connection_manager = ConnectionManager()
+class RoomService:
+    def __init__(self, db: Session):
+        self.db = db
 
-        await websocket.accept()
+    def get_room(self, room_id: str) -> RoomDB | None:
+        return self.db.query(RoomDB).filter(RoomDB.id == room_id).first()
+
+    def get_active_rooms(self) -> List[RoomDB]:
+        subquery = (
+            select(PlayerDB.room_id, func.count(PlayerDB.id).label("player_count"))
+            .group_by(PlayerDB.room_id)
+            .subquery()
+        )
+
+        return (
+            self.db.query(RoomDB)
+            .outerjoin(subquery, RoomDB.id == subquery.c.room_id)
+            .filter(RoomDB.status == RoomStatus.WAITING)
+            .filter(func.coalesce(subquery.c.player_count, 0) < 2)
+            .all()
+        )
+
+    def create_room(self, name: str, username: str) -> Tuple[RoomDB, PlayerDB]:
+        room_id = str(uuid.uuid4())
+        player_id = str(uuid.uuid4())
         
-        player = Player(websocket, username)
-        with self._lock:
-            if len(room.players) >= room.get_max_players():
-                await websocket.close(code=4010, reason="Room became full just before you joined.")
-                raise ValueError("Room became full just before joining.")
-            
-            room.add_player(player)
+        new_room = RoomDB(
+            id=room_id, name=name, status=RoomStatus.WAITING,
+            letter_pool=generate_letter_pool(22), used_words=[]
+        )
+        new_player = PlayerDB(
+            id=player_id, username=username, room_id=room_id, words=[]
+        )
+        self.db.add(new_room)
+        self.db.add(new_player)
+        self.db.commit()
+        self.db.refresh(new_room)
+        self.db.refresh(new_player)
+        return new_room, new_player
 
-        print(f"Player '{username}' ({player.id}) connected to room '{room.name}'. Total players: {len(room.players)}")
-        return room, player
+    def join_room(self, room_id: str, username: str) -> Tuple[RoomDB, PlayerDB]:
+        room = self.get_room(room_id)
+        if not room: raise ValueError("Room not found")
+        if len(room.players) >= 2: raise ValueError("Room is full")
 
-    async def disconnect(self, room: Room, player: Player):
-        leaver_username = player.username
-        room_id = room.id
-        room_name = room.name
+        player_id = str(uuid.uuid4())
+        new_player = PlayerDB(id=player_id, username=username, room_id=room_id, words=[])
+        self.db.add(new_player)
+        self.db.commit()
+        self.db.refresh(room)
+        return room, new_player
 
-        print(f"[DISCONNECT_START] Player: {leaver_username}, Room: {room_name} ({room_id}), Status: {room.status.value}")
+    def start_game_for_room(self, room: RoomDB):
+        setattr(room, 'started', True)
+        setattr(room, 'status', RoomStatus.IN_PROGRESS)
+        setattr(room, 'time_left', 30)
+        setattr(room, 'used_words', [])
         
-        was_in_progress = room.status == RoomStatus.IN_PROGRESS
-        was_in_countdown = room_id in self.countdown_rooms
+        for player in room.players:
+            setattr(player, 'score', 0)
+            setattr(player, 'words', [])
 
-        room.remove_player(player.id)
+        self.db.commit()
+        self.db.refresh(room)
 
-        if room.is_empty():
-            with self._lock:
-                print(f"[DISCONNECT_CLEANUP] Room '{room.name}' is empty. Deleting.")
-                if room.id in self.rooms:
-                    del self.rooms[room.id]
-            return
+    def process_word(self, room_id: str, player_id: str, word: str) -> Tuple[bool, dict]:
+        room = self.get_room(room_id)
+        player = self.db.query(PlayerDB).filter(PlayerDB.id == player_id).first()
 
-        print(f"[DISCONNECT_CONTINUE] Room '{room_name}' not empty. Players left: {len(room.players)}. Was in progress: {was_in_progress}")
-
-        if (was_in_progress or was_in_countdown) and len(room.players) == 1:
-            winner = list(room.players.values())[0]
-            print(f"[DISCONNECT_WALKOVER] Player left during game/countdown. {winner.username} wins.")
-            
-            if was_in_countdown and room_id in self.countdown_rooms:
-                self.countdown_rooms.remove(room_id)
-            
-            await self.end_game_by_walkover(room, winner)
-            
-            await winner.ws.send_json({
-                "type": "player_left",
-                "message": f"Player '{leaver_username}' left the game.",
-                "players": [p.username for p in room.players.values()]
-            })
-            return
-
-        else:
-            print(f"[DISCONNECT_INFO] Game was not in progress/countdown. Broadcasting player_left.")
-            await self.broadcast_to_room(room, {
-                "type": "player_left",
-                "message": f"Player '{leaver_username}' has left.",
-                "players": [p.username for p in room.players.values()]
-            })
-            
-        print(f"[DISCONNECT_END] Finished handling disconnection for {leaver_username} in '{room_name}'.")
-
-    async def end_game_by_walkover(self, room: Room, winner: Player):
-        room.status = RoomStatus.FINISHED
-        room.started = False
+        if not player or not room:
+            return False, {"type": "error", "message": "Player or Room not found."}
         
-        scores = room.get_scores()
+        if not room.started or room.status != RoomStatus.IN_PROGRESS: # type: ignore
+            return False, {"type": "error", "message": "Game is not currently in progress."}
+
+        lower_word = word.lower()
+
+        room_used_words = cast(List[str], room.used_words)
+        room_letter_pool = cast(List[str], room.letter_pool)
+        player_words = cast(List[str], player.words)
         
-        message = {
-            "type": "game_over",
-            "scores": scores,
-            "winner_data": {"usernames": [winner.username], "score": winner.score},
-            "is_tie": False,
-            "reason": f"You won! Your opponent left the game."
+        if lower_word in room_used_words:
+            return False, {"type": "error", "message": f'"{lower_word}" has already been played.'}
+        
+        if not has_letters_in_pool(lower_word, room_letter_pool):
+            return False, {"type": "error", "message": f'Not enough letters for "{lower_word}".'}
+        
+        if not is_word_valid(lower_word):
+            return False, {"type": "word_result", "word": lower_word, "valid": False, "message": f'"{lower_word}" is not a valid word.'}
+
+        score = calculate_score(lower_word)
+
+        new_letter_pool = list(room_letter_pool)
+        for letter in lower_word:
+            new_letter_pool.remove(letter)
+        new_letter_pool.extend(generate_letter_pool(len(lower_word)))
+        
+        setattr(player, 'score', player.score + score)
+        setattr(player, 'words', player_words + [lower_word])
+        setattr(room, 'used_words', room_used_words + [lower_word])
+        setattr(room, 'letter_pool', new_letter_pool)
+        
+        self.db.commit()
+        self.db.refresh(room)
+        self.db.refresh(player)
+        
+        success_data = {
+            "word": lower_word,
+            "score": score,
+            "player_total_score": player.score,
+            "new_letter_pool": room.letter_pool,
+            "current_scores": [{"username": p.username, "score": p.score} for p in room.players]
         }
         
-        await winner.ws.send_json(message)
-        print(f"Game ended in '{room.name}'. {winner.username} won by walkover.")
+        return True, success_data
 
-    async def end_game_and_show_results(self, room: Room):
-        room.status = RoomStatus.FINISHED
-        room.started = False
+    def end_game(self, room_id: str) -> Tuple[RoomDB, dict]:
+        room = self.get_room(room_id)
+        if not room: raise ValueError("Cannot end a non-existent room.")
+            
+        setattr(room, 'started', False)
+        setattr(room, 'status', RoomStatus.FINISHED)
         
-        scores = room.get_scores()
+        scores = sorted([{"username": p.username, "score": p.score} for p in room.players], key=lambda x: x["score"], reverse=True)
+        winner_data, is_tie = None, False
         
-        winner_data = None
-        is_tie = False
-        
-        if not scores:
-            print(f"Game ended in room '{room.name}'. No players to determine a winner.")
-        elif len(scores) == 1:
-            winner_data = {"usernames": [scores[0]["username"]], "score": scores[0]["score"]}
-            print(f"Game ended in room '{room.name}'. Winner: {scores[0]['username']}")
-        else:
+        if scores:
             highest_score = scores[0]["score"]
-            winners = [player for player in scores if player["score"] == highest_score]
-            
-            if len(winners) > 1:
-                is_tie = True
-                winner_data = {"usernames": [w["username"] for w in winners], "score": highest_score}
-                print(f"Game ended in room '{room.name}'. It's a tie between: {winner_data['usernames']}")
-            else:
-                winner_data = {"usernames": [winners[0]["username"]], "score": highest_score}
-                print(f"Game ended in room '{room.name}'. Winner: {winners[0]['username']}")
+            winners = [p for p in scores if p["score"] == highest_score]
+            if len(winners) > 1: is_tie = True
+            winner_data = {"usernames": [w["username"] for w in winners], "score": highest_score}
 
-        message = {
-            "type": "game_over",
-            "scores": scores,
-            "winner_data": winner_data,
-            "is_tie": is_tie
-        }
-        await self.broadcast_to_room(room, message)
-
-    async def start_game_countdown(self, room: Room):
-        if room.id in self.countdown_rooms or room.started:
-            return
-
-        print(f"Room '{room.name}' is full. Starting countdown.")
-        self.countdown_rooms.add(room.id)
-
-        try:
-            for i in range(5, 0, -1):
-                if room.id not in self.rooms or not room.is_full():
-                    print(f"Countdown for room '{room.name}' aborted as a player left.")
-                    return
-                
-                await self.broadcast_to_room(room, {
-                    "type": "countdown",
-                    "time": i,
-                    "message": f"Game starting in {i}..."
-                })
-                await asyncio.sleep(1)
-
-            if room.id in self.rooms and room.is_full() and not room.started:
-                room.start_game()
-                print(f"Game started in room '{room.name}'.")
-
-                end_time = time.time() + room.time_left
-
-                await self.broadcast_to_room(room, {
-                    "type": "start_game",
-                    "letterPool": room.letter_pool,
-                    "duration": room.time_left,
-                    "endTime": end_time,
-                })
-
-                asyncio.create_task(self.run_game_timer(room))
-
-        finally:
-            if room.id in self.countdown_rooms:
-                self.countdown_rooms.remove(room.id)
-
-    async def run_game_timer(self, room: Room):
-        await asyncio.sleep(room.time_left)
+        self.db.commit()
+        self.db.refresh(room)
         
-        if room.status == RoomStatus.IN_PROGRESS:
-            await self.end_game_and_show_results(room)
-    
-    async def broadcast_to_room(self, room: Room, message: dict):
-        await room.broadcast(message)
+        return room, {"scores": scores, "winner_data": winner_data, "is_tie": is_tie}
 
-manager = ConnectionManager()
+    def handle_disconnect(self, room_id: str, player_id: str) -> Tuple[RoomDB | None, PlayerDB | None, bool]:
+        room = self.get_room(room_id)
+        if not room:
+            return None, None, False
+            
+        player_leaving = self.db.query(PlayerDB).filter(PlayerDB.id == player_id).first()
+        if not player_leaving:
+            return room, None, False
+
+        if room.status == RoomStatus.IN_PROGRESS and len(room.players) == 2: # type: ignore
+            
+            self.db.delete(player_leaving)
+            self.db.commit()
+            
+            updated_room = self.get_room(room_id)
+            if updated_room and len(updated_room.players) == 1:
+                setattr(updated_room, 'started', False)
+                setattr(updated_room, 'status', RoomStatus.FINISHED)
+                self.db.commit()
+                return updated_room, player_leaving, True
+            
+        self.db.delete(player_leaving)
+        self.db.commit()
+        
+        final_room_state = self.get_room(room_id)
+        if not final_room_state:
+            return None, player_leaving, False
+            
+        return final_room_state, player_leaving, False

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchRooms, createRoom } from '../api/rooms';
+import { fetchRooms, createRoom, joinRoom } from '../api/rooms';
+import { useGameStore } from '../store/useGameStore';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,11 +11,11 @@ import { Loader2 } from 'lucide-react';
 
 interface Props {
   username: string;
-  onJoinRoom: (roomId: string) => void;
 }
 
-const Lobby: React.FC<Props> = ({ username, onJoinRoom }) => {
+const Lobby: React.FC<Props> = ({ username }) => {
   const [newRoomName, setNewRoomName] = useState('');
+  const connect = useGameStore(state => state.connect);
   const queryClient = useQueryClient();
 
   const { 
@@ -28,30 +29,50 @@ const Lobby: React.FC<Props> = ({ username, onJoinRoom }) => {
     refetchInterval: 5000,
   });
 
-const createRoomMutation = useMutation({
-    mutationFn: createRoom,
-    onSuccess: (newRoom) => {
-      toast.success(`Room "${newRoom.name}" created! Joining...`);
-      queryClient.invalidateQueries({ queryKey: ['rooms'] }).then(() => {
-        onJoinRoom(newRoom.id);
-      }).catch(err => {
-        console.error("Failed to invalidate queries, joining anyway.", err);
-        onJoinRoom(newRoom.id);
-      });
+  const handleSuccessfulJoin = (data: { room_id: string; player_id: string; }) => {
+      connect(data.room_id, data.player_id, username);
+  };
+
+  const createRoomMutation = useMutation({
+    mutationFn: (name: string) => createRoom(name, username),
+    onSuccess: (data) => {
+      toast.success(`Room "${newRoomName}" created! Joining...`);
+      queryClient.invalidateQueries({ queryKey: ['rooms'] });
+      handleSuccessfulJoin(data);
     },
     onError: (err: Error) => {
       toast.error("Failed to create room", { description: err.message });
     }
-});
+  });
+
+  const joinRoomMutation = useMutation({
+    mutationFn: (roomId: string) => joinRoom(roomId, username),
+    onSuccess: (data) => {
+      toast.info(`Joining room...`);
+      queryClient.invalidateQueries({ queryKey: ['rooms'] });
+      handleSuccessfulJoin(data);
+    },
+    onError: (err: Error) => {
+      toast.error("Failed to join room", { description: err.message });
+      queryClient.invalidateQueries({ queryKey: ['rooms'] });
+    }
+  });
 
   const handleCreateRoom = () => {
-    if (!newRoomName.trim()) {
-      toast.error('Please enter a name for your room.');
-      return;
-    }
-    createRoomMutation.mutate(newRoomName.trim());
+    if (!newRoomName.trim()) return;
+
+    const promise = createRoomMutation.mutateAsync(newRoomName.trim());
+
+    toast.promise(promise, {
+      loading: 'Creating room...',
+      success: (data) => {
+        handleSuccessfulJoin(data); 
+        return `Room "${newRoomName}" created!`;
+      },
+      error: (err) => `Failed: ${err.message}`,
+    });
   };
-  
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
@@ -102,7 +123,14 @@ const createRoomMutation = useMutation({
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button onClick={() => onJoinRoom(room.id)} size="sm">Join</Button>
+                    <Button 
+                      onClick={() => joinRoomMutation.mutate(room.id)} 
+                      size="sm" 
+                      disabled={joinRoomMutation.isPending || createRoomMutation.isPending}
+                    >
+                      {joinRoomMutation.isPending && joinRoomMutation.variables === room.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Join
+                    </Button>
                   </TableCell>
                 </TableRow>
               )) : (
@@ -129,12 +157,12 @@ const createRoomMutation = useMutation({
               onChange={(e) => setNewRoomName(e.target.value)}
               placeholder="My Awesome Game"
               onKeyDown={(e) => e.key === 'Enter' && handleCreateRoom()}
-              disabled={createRoomMutation.isPending}
+              disabled={createRoomMutation.isPending || joinRoomMutation.isPending}
             />
             <Button 
               onClick={handleCreateRoom} 
               variant="secondary" 
-              disabled={createRoomMutation.isPending}
+              disabled={createRoomMutation.isPending || joinRoomMutation.isPending}
             >
               {createRoomMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Create & Join

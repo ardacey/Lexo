@@ -1,15 +1,17 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { GameState } from '../types';
+import { useGameStore } from '../store/useGameStore';
 
 interface ScoreboardProps {
-    state: GameState;
-    username: string | null;
+  username: string | null;
 }
 
-const Scoreboard: React.FC<ScoreboardProps> = ({ state, username }) => {
-  const ownScore = state.scores.find(s => s.username === username)?.score ?? 0;
-  const opponent = state.scores.find(s => s.username !== username);
+const Scoreboard: React.FC<ScoreboardProps> = ({ username }) => {
+  const scores = useGameStore(state => state.scores);
+  const timeLeft = useGameStore(state => state.timeLeft);
+
+  const ownScore = scores.find(s => s.username === username)?.score ?? 0;
+  const opponent = scores.find(s => s.username !== username);
 
   const scoreAnimation = {
     initial: { opacity: 0, y: -10 },
@@ -37,15 +39,17 @@ const Scoreboard: React.FC<ScoreboardProps> = ({ state, username }) => {
             </AnimatePresence>
         </div>
       </div>
+
       <div>
         <div className="text-sm text-slate-500">Time Left</div>
-        <div className={`text-3xl font-bold h-10 flex items-center justify-center transition-colors duration-300 ${state.timeLeft <= 10 ? 'text-red-600 animate-pulse' : 'text-slate-800'}`}>
-            {state.timeLeft}s
+        <div className={`text-3xl font-bold h-10 flex items-center justify-center transition-colors duration-300 ${timeLeft <= 10 ? 'text-red-600 animate-pulse' : 'text-slate-800'}`}>
+            {timeLeft}s
         </div>
       </div>
+
       {opponent && (
         <div>
-          <div className="text-sm text-slate-400">{opponent.username}'s Score</div>
+          <div className="text-sm text-slate-500">{opponent.username}'s Score</div>
            <div className="text-3xl font-bold relative h-10 flex items-center justify-center">
                 <AnimatePresence mode="popLayout">
                     <motion.span

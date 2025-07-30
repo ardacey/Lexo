@@ -1,0 +1,158 @@
+import { create } from 'zustand';
+import { toast } from 'sonner';
+import type { GameState, ServerMessage } from '../types';
+
+interface StoreState extends GameState {
+  connect: (roomId: string, playerId: string, username: string) => void;
+  disconnect: () => void;
+  sendWord: (word: string) => void;
+  _handleMessage: (msg: ServerMessage) => void;
+  _resetState: () => void;
+}
+
+let socket: WebSocket | null = null;
+let timerInterval: NodeJS.Timeout | null = null;
+
+const initialState: GameState = {
+  isConnected: false, playerId: null, players: [], letterPool: [], timeLeft: 0,
+  messages: [], score: 0, scores: [], words: [], opponentWords: [], error: null,
+  gameStarted: false, gameFinished: false, finalScores: [], winnerData: null,
+  isTie: false, gameOverReason: null, countdown: null, gameEndTime: null,
+  roomUsedWords: new Set(),
+};
+
+export const useGameStore = create<StoreState>((set, get) => ({
+  ...initialState,
+
+  connect: (roomId, playerId, username) => {
+    if (socket) return;
+
+    const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL;
+    const wsUrl = wsBaseUrl
+      ? `${wsBaseUrl}/${roomId}/${playerId}`
+      : `ws://localhost:8000/api/ws/${roomId}/${playerId}`;
+    socket = new WebSocket(wsUrl);
+
+    socket.onopen = () => {
+      set({ isConnected: true, error: null, playerId, players: [username] });
+      toast.success("Connected to the game!");
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const data: ServerMessage = JSON.parse(event.data);
+        get()._handleMessage(data);
+      } catch (e) {
+        console.error("Failed to parse server message:", e);
+      }
+    };
+
+    socket.onclose = (event) => {
+      if (!event.wasClean) {
+        toast.error("Connection Lost", { description: event.reason || "Server disconnected." });
+        set({ error: event.reason || "Server disconnected." });
+      }
+      get()._resetState();
+    };
+    
+    socket.onerror = () => {
+        toast.error("Connection Failed", { description: "Could not connect to the server."});
+        set({ error: "Could not connect to the server." });
+        get()._resetState();
+    };
+  },
+
+  disconnect: () => {
+    if (socket) {
+      socket.onclose = null;
+      socket.close();
+    }
+    get()._resetState();
+  },
+
+  sendWord: (word) => {
+    if (get().roomUsedWords.has(word.trim().toLowerCase())) {
+        toast.error(`"${word}" has already been played.`);
+        return;
+    }
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'word', word }));
+    }
+  },
+  
+  _resetState: () => {
+      socket = null;
+      if(timerInterval) clearInterval(timerInterval);
+      set(initialState);
+  },
+
+  _handleMessage: (msg) => {
+    switch (msg.type) {
+      case 'player_joined':
+        set({ players: msg.players });
+        toast.info(msg.message);
+        break;
+      case 'player_left':
+        set({ players: msg.players });
+        toast.warning(msg.message);
+        break;
+      case 'countdown':
+        set({ countdown: msg.time });
+        break;
+      case 'start_game': {
+        if(timerInterval) clearInterval(timerInterval);
+        const gameEndTime = msg.endTime ? msg.endTime * 1000 : Date.now() + msg.duration * 1000;
+        set({
+            gameStarted: true, countdown: null, gameFinished: false, words: [], opponentWords: [],
+            scores: [], roomUsedWords: new Set(), letterPool: msg.letterPool, 
+            timeLeft: msg.duration, gameEndTime: gameEndTime
+        });
+        timerInterval = setInterval(() => {
+            const now = Date.now();
+            const newTimeLeft = Math.round((get().gameEndTime! - now) / 1000);
+            if (newTimeLeft <= 0) {
+                if(timerInterval) clearInterval(timerInterval);
+            }
+            set({ timeLeft: Math.max(0, newTimeLeft) });
+        }, 1000);
+        break;
+      }
+      case 'word_result':
+        if(msg.valid) {
+            toast.success(`Correct! "+${msg.score}" for "${msg.word}"`);
+            set(state => ({
+                words: [...state.words, { text: msg.word, valid: true }],
+                scores: msg.scores,
+                letterPool: msg.letterPool,
+                roomUsedWords: new Set(state.roomUsedWords).add(msg.word)
+            }));
+        } else {
+            toast.error(msg.message || "Invalid word");
+        }
+        break;
+      case 'opponent_word':
+        set(state => ({
+            opponentWords: [...state.opponentWords, { text: msg.word, valid: true }],
+            scores: msg.scores,
+            letterPool: msg.letterPool,
+            roomUsedWords: new Set(state.roomUsedWords).add(msg.word)
+        }));
+        break;
+      case 'game_over': {
+        if(timerInterval) clearInterval(timerInterval);
+        let gameOverMessage = "The game has ended!";
+        if (msg.is_tie) gameOverMessage = `It's a tie! Well played.`;
+        else if (msg.winner_data) gameOverMessage = `${msg.winner_data.usernames.join(' & ')} wins!`;
+        toast.info(gameOverMessage, { duration: 5000 });
+        set({
+            gameFinished: true, gameStarted: false, timeLeft: 0, finalScores: msg.scores,
+            winnerData: msg.winner_data, isTie: msg.is_tie, gameOverReason: msg.reason || null
+        });
+        break;
+      }
+      case 'error':
+        toast.error(msg.message);
+        break;
+    }
+  }
+}));
