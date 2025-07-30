@@ -8,7 +8,7 @@ app = FastAPI(title="Word Game")
 
 origins = [
     "http://localhost:5173",
-    "https://lexo-a4ba.onrender.com/"
+    "https://lexo-a4ba.onrender.com"
 ]
 
 app.add_middleware(
