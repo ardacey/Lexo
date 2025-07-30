@@ -1,5 +1,5 @@
 import uuid
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Optional
 from enum import Enum
 from fastapi import WebSocket
 from starlette.websockets import WebSocketState
@@ -45,7 +45,8 @@ class Room:
     def is_empty(self) -> bool:
         return not self.players
     
-    from typing import Optional
+    def get_max_players(self) -> int:
+        return MAX_PLAYERS_PER_ROOM
 
     def get_player(self, player_id: str) -> Optional[Player]:
         return self.players.get(player_id)

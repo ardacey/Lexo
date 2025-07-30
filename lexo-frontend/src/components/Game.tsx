@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useGameSocket } from '../hooks/useGameSocket';
 import type { UserState } from '../types';
 import UsernameEntry from './UsernameEntry';
@@ -7,27 +7,44 @@ import GameBoard from './GameBoard';
 import GameOver from './GameOver';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
+import { Loader2 } from 'lucide-react'; 
 
 const Game: React.FC = () => {
   const [user, setUser] = useState<UserState>({ username: null, currentRoomId: null });
+  const [isConnecting, setIsConnecting] = useState(false);
   const { state, connectToRoom, sendWord, disconnect } = useGameSocket();
 
-  const handleUsernameSubmit = (username: string) => {
-    setUser({ ...user, username });
-  };
+  const handleUsernameSubmit = useCallback((username: string) => {
+    setUser(prevUser => ({ ...prevUser, username }));
+  }, []);
 
-  const handleJoinRoom = (roomId: string) => {
-    if (!user.username) return;
-    setUser({ ...user, currentRoomId: roomId });
-    connectToRoom(roomId, user.username);
-  };
+  const handleJoinRoom = useCallback((roomId: string) => {
+    setUser(prevUser => {
+      if (!prevUser.username) return prevUser;
+      setIsConnecting(true);
+      connectToRoom(roomId, prevUser.username);
+      return { ...prevUser, currentRoomId: roomId };
+    });
+  }, [connectToRoom]);
   
-  const handleLeaveRoom = () => {
+  const handleLeaveRoom = useCallback(() => {
     disconnect();
-    setUser({ ...user, currentRoomId: null });
-  };
+    setUser(prevUser => ({ ...prevUser, currentRoomId: null }));
+    setIsConnecting(false);
+  }, [disconnect]);
 
-  if (state.error) {
+  useEffect(() => {
+    if (isConnecting) {
+      if (state.isConnected) {
+        setIsConnecting(false);
+      }
+      if (state.error) {
+        handleLeaveRoom();
+      }
+    }
+  }, [isConnecting, state.isConnected, state.error, handleLeaveRoom]);
+
+  if (state.error && !isConnecting) {
     return (
       <Alert variant="destructive" className="max-w-md">
         <Terminal className="h-4 w-4" />
@@ -36,6 +53,15 @@ const Game: React.FC = () => {
           {state.error} Please refresh the page and try again.
         </AlertDescription>
       </Alert>
+    );
+  }
+
+  if (isConnecting) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64">
+        <Loader2 className="animate-spin h-8 w-8 text-slate-400" />
+        <p className="mt-4 text-slate-500">Connecting to the room...</p>
+      </div>
     );
   }
 

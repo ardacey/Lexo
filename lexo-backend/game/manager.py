@@ -31,16 +31,21 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket, room_id: str, username: str) -> Tuple[Room, Player]:
         with self._lock:
             if room_id not in self.rooms:
-                raise ValueError("Room not found")
-            
+                raise ValueError("Room not found.")
             room = self.rooms[room_id]
             if room.is_full():
-                raise ValueError("Room is full")
-                
-            player = Player(websocket, username)
-            room.add_player(player)
+                raise ValueError("This room is full.")
 
         await websocket.accept()
+        
+        player = Player(websocket, username)
+        with self._lock:
+            if len(room.players) >= room.get_max_players():
+                await websocket.close(code=4010, reason="Room became full just before you joined.")
+                raise ValueError("Room became full just before joining.")
+            
+            room.add_player(player)
+
         print(f"Player '{username}' ({player.id}) connected to room '{room.name}'. Total players: {len(room.players)}")
         return room, player
 
