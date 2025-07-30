@@ -1,21 +1,23 @@
 services:
   - type: web
     name: lexo-backend
-    env: docker
-    dockerfilePath: ./lexo-backend/Dockerfile
-    dockerContext: ./lexo-backend
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+    rootDir: ./lexo-backend
+    healthCheckPath: /
 
-  - type: web
+  - type: static
     name: lexo-frontend
-    env: docker
-    dockerfilePath: ./lexo-frontend/Dockerfile
-    dockerContext: ./lexo-frontend
-    envVars:
-      - key: VITE_API_BASE_URL
-        fromService:
-          type: web
-          name: lexo-backend
-          property: url
+    plan: free
+    buildCommand: "npm install && npm run build"
+    publishPath: "dist"
+    rootDir: ./lexo-frontend
+    routes:
+      - type: rewrite
+        source: /api/:path
+        destination: https://lexo-backend.onrender.com/api/:path
+      - type: rewrite
+        source: /*
+        destination: /index.html
