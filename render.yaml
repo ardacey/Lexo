@@ -1,5 +1,3 @@
-previews: true
-
 services:
   - type: web
     name: lexo-backend
