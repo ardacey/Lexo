@@ -7,9 +7,6 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11
-    http:
-      port: 8000
-      healthCheckPath: /
 
   - type: web
     name: lexo-frontend
@@ -22,9 +19,3 @@ services:
           type: web
           name: lexo-backend
           property: url
-    http:
-      port: 80
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
