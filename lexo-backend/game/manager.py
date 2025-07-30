@@ -1,4 +1,5 @@
 import uuid
+import threading
 from typing import Dict, Tuple, List, Set
 from fastapi import WebSocket
 from .models import Room, Player, RoomStatus
@@ -9,31 +10,37 @@ class ConnectionManager:
     def __init__(self):
         self.rooms: Dict[str, Room] = {}
         self.countdown_rooms: Set[str] = set()
+        self._lock = threading.Lock()
 
     def create_room(self, name: str) -> Room:
-        room_id = str(uuid.uuid4())
-        room = Room(room_id=room_id, name=name)
-        self.rooms[room_id] = room
-        print(f"Room '{name}' ({room_id}) created.")
-        return room
+        with self._lock:
+            room_id = str(uuid.uuid4())
+            room = Room(room_id=room_id, name=name)
+            self.rooms[room_id] = room
+            print(f"Room '{name}' ({room_id}) created.")
+            return room
     
     def get_active_rooms(self) -> List[dict]:
-        return [
-            room.to_dict() for room in self.rooms.values() 
-            if not room.is_full() and room.status != RoomStatus.FINISHED
-        ]
+        with self._lock:
+            active_rooms = [
+                room.to_dict() for room in self.rooms.values() 
+                if not room.is_full() and room.status != RoomStatus.FINISHED
+            ]
+        return active_rooms
 
     async def connect(self, websocket: WebSocket, room_id: str, username: str) -> Tuple[Room, Player]:
-        if room_id not in self.rooms:
-            raise ValueError("Room not found")
-        
-        room = self.rooms[room_id]
-        if room.is_full():
-            raise ValueError("Room is full")
+        with self._lock:
+            if room_id not in self.rooms:
+                raise ValueError("Room not found")
             
+            room = self.rooms[room_id]
+            if room.is_full():
+                raise ValueError("Room is full")
+                
+            player = Player(websocket, username)
+            room.add_player(player)
+
         await websocket.accept()
-        player = Player(websocket, username)
-        room.add_player(player)
         print(f"Player '{username}' ({player.id}) connected to room '{room.name}'. Total players: {len(room.players)}")
         return room, player
 
@@ -50,11 +57,10 @@ class ConnectionManager:
         room.remove_player(player.id)
 
         if room.is_empty():
-            print(f"[DISCONNECT_CLEANUP] Room '{room_name}' is empty. Deleting.")
-            if was_in_countdown and room_id in self.countdown_rooms:
-                self.countdown_rooms.remove(room_id)
-            if room_id in self.rooms:
-                del self.rooms[room_id]
+            with self._lock:
+                print(f"[DISCONNECT_CLEANUP] Room '{room.name}' is empty. Deleting.")
+                if room.id in self.rooms:
+                    del self.rooms[room.id]
             return
 
         print(f"[DISCONNECT_CONTINUE] Room '{room_name}' not empty. Players left: {len(room.players)}. Was in progress: {was_in_progress}")

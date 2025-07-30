@@ -28,17 +28,21 @@ const Lobby: React.FC<Props> = ({ username, onJoinRoom }) => {
     refetchInterval: 5000,
   });
 
-  const createRoomMutation = useMutation({
+const createRoomMutation = useMutation({
     mutationFn: createRoom,
     onSuccess: (newRoom) => {
       toast.success(`Room "${newRoom.name}" created! Joining...`);
-      queryClient.invalidateQueries({ queryKey: ['rooms'] });
-      onJoinRoom(newRoom.id);
+      queryClient.invalidateQueries({ queryKey: ['rooms'] }).then(() => {
+        onJoinRoom(newRoom.id);
+      }).catch(err => {
+        console.error("Failed to invalidate queries, joining anyway.", err);
+        onJoinRoom(newRoom.id);
+      });
     },
     onError: (err: Error) => {
       toast.error("Failed to create room", { description: err.message });
     }
-  });
+});
 
   const handleCreateRoom = () => {
     if (!newRoomName.trim()) {
