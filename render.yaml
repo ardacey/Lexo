@@ -18,7 +18,4 @@ services:
     rootDir: ./lexo-frontend
     envVars:
       - key: VITE_API_BASE_URL
-        fromService:
-          type: web
-          name: lexo-backend
-          property: url
+        value: "https://lexo-backend.onrender.com" 
