@@ -197,7 +197,6 @@ async def websocket_endpoint(
                                                 "scores": response_data["current_scores"],
                                             })
                                         else:
-                                            # Send regular opponent message
                                             await ws.send_json(opponent_message)
                                     except Exception:
                                         pass
