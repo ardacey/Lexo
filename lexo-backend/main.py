@@ -31,9 +31,15 @@ async def on_startup():
     load_wordlist()
     print("Wordlist loaded.")
     
-    from core.redis_client import message_broker
-    asyncio.create_task(message_broker.listen_for_messages())
-    print("Redis message broker started.")
+    try:
+        from core.redis_client import redis_client, message_broker
+        redis_client.ping()
+        print("Redis connection successful.")
+        asyncio.create_task(message_broker.listen_for_messages())
+        print("Redis message broker started.")
+    except Exception as e:
+        print(f"Redis connection failed: {e}")
+        print("Application will continue without Redis.")
     
     print("Startup complete.")
 
