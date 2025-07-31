@@ -149,7 +149,7 @@ const Lobby: React.FC<Props> = ({ username }) => {
                         {joinRoomMutation.isPending && joinRoomMutation.variables?.roomId === room.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Join
                       </Button>
-                    ) : room.is_viewable ? (
+                    ) : room.is_viewable && room.status !== 'countdown' ? (
                       <Button 
                         onClick={() => joinRoomMutation.mutate({ roomId: room.id, asViewer: true })} 
                         size="sm" 
