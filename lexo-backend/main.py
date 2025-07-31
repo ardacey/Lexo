@@ -9,7 +9,7 @@ from game.models_db import RoomDB, PlayerDB
 
 app = FastAPI(title="Word Game")
 
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,https://lexo-frontend.onrender.com").split(",")
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,https://lexo-frontend.onrender.com,https://lexo-a4ba.onrender.com").split(",")
 
 origins = [origin.strip() for origin in allowed_origins]
 
