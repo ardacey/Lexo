@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+gunicorn
+sqlalchemy
+alembic
+psycopg2-binary
+sqlite3
+pydantic
+python-dotenv
+typing-extensions
+asyncio-compat
