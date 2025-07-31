@@ -9,52 +9,22 @@ from sqlalchemy import func, select
 from .models_db import RoomDB, PlayerDB, RoomStatus
 from .logic import calculate_score, has_letters_in_pool, generate_letter_pool
 from .word_list import is_word_valid
-
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, Dict[str, WebSocket]] = {}
         self.cleanup_tasks: Dict[str, asyncio.Task] = {}
-        self.redis_listeners: Dict[str, bool] = {}
 
     async def connect(self, ws: WebSocket, room_id: str, player_id: str):
         await ws.accept()
         if room_id not in self.active_connections:
             self.active_connections[room_id] = {}
         self.active_connections[room_id][player_id] = ws
-        
-        await self._ensure_redis_listener(room_id)
-
-    async def _ensure_redis_listener(self, room_id: str):
-        if room_id not in self.redis_listeners:
-            self.redis_listeners[room_id] = True
-            from core.redis_client import message_broker
-            await message_broker.subscribe_to_room(room_id, self._handle_redis_message)
-
-    async def _handle_redis_message(self, message: dict):
-        room_id = message.get('room_id')
-        if room_id and room_id in self.active_connections:
-            message_data = message.get('data', {})
-            await self._broadcast_local(room_id, message_data)
-
-    async def _broadcast_local(self, room_id: str, message: dict):
-        if room_id in self.active_connections:
-            disconnected = []
-            for player_id, ws in self.active_connections[room_id].items():
-                try:
-                    await ws.send_json(message)
-                except Exception:
-                    disconnected.append(player_id)
-            
-            for player_id in disconnected:
-                self.disconnect(room_id, player_id)
 
     def disconnect(self, room_id: str, player_id: str):
         if room_id in self.active_connections and player_id in self.active_connections[room_id]:
             del self.active_connections[room_id][player_id]
             if not self.active_connections[room_id]:
                 del self.active_connections[room_id]
-                if room_id in self.redis_listeners:
-                    del self.redis_listeners[room_id]
                 if room_id not in self.cleanup_tasks:
                     self.cleanup_tasks[room_id] = asyncio.create_task(
                         self._cleanup_empty_room(room_id)
@@ -73,11 +43,16 @@ class ConnectionManager:
                 del self.cleanup_tasks[room_id]
     
     async def broadcast_to_room(self, room_id: str, message: dict):
-        from core.redis_client import message_broker
-        await message_broker.publish_to_room(room_id, {
-            'room_id': room_id,
-            'data': message
-        })
+        if room_id in self.active_connections:
+            disconnected = []
+            for player_id, ws in self.active_connections[room_id].items():
+                try:
+                    await ws.send_json(message)
+                except Exception:
+                    disconnected.append(player_id)
+            
+            for player_id in disconnected:
+                self.disconnect(room_id, player_id)
 
     def get_room_connections(self, room_id: str) -> int:
         return len(self.active_connections.get(room_id, {}))

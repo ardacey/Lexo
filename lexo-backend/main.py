@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
-import asyncio
 from api.websocket import router as websocket_router
 from api.lobby import router as lobby_router
 from game.word_list import load_wordlist
@@ -23,24 +22,12 @@ app.add_middleware(
 )
 
 @app.on_event("startup")
-async def on_startup():
+def on_startup():
     print("Application starting up...")
     Base.metadata.create_all(bind=engine)
     print("Database tables created/verified.")
     
     load_wordlist()
-    print("Wordlist loaded.")
-    
-    try:
-        from core.redis_client import redis_client, message_broker
-        redis_client.ping()
-        print("Redis connection successful.")
-        asyncio.create_task(message_broker.listen_for_messages())
-        print("Redis message broker started.")
-    except Exception as e:
-        print(f"Redis connection failed: {e}")
-        print("Application will continue without Redis.")
-    
     print("Startup complete.")
 
 app.include_router(lobby_router, prefix="/api", tags=["Lobby"])
