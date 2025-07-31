@@ -89,7 +89,9 @@ async def websocket_endpoint(
             await websocket.close(code=4004, reason="Player not found in this room.")
             return
 
-        await connection_manager.connect(websocket, room_id, player_id)
+        connection_success = await connection_manager.connect(websocket, room_id, player_id)
+        if not connection_success:
+            return
         
         room_obj = service.get_room(room_id)
         if room_obj:

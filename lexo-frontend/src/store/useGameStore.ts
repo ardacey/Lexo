@@ -83,8 +83,15 @@ export const useGameStore = create<StoreState>((set, get) => ({
   },
   
   _resetState: () => {
-      socket = null;
-      if(timerInterval) clearInterval(timerInterval);
+      if (socket) {
+        socket.onclose = null;
+        socket.close();
+        socket = null;
+      }
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
       set(initialState);
   },
 
@@ -153,7 +160,10 @@ export const useGameStore = create<StoreState>((set, get) => ({
             const now = Date.now();
             const newTimeLeft = Math.round((get().gameEndTime! - now) / 1000);
             if (newTimeLeft <= 0) {
-                if(timerInterval) clearInterval(timerInterval);
+                if(timerInterval) {
+                  clearInterval(timerInterval);
+                  timerInterval = null;
+                }
             }
             set({ timeLeft: Math.max(0, newTimeLeft) });
         }, 1000);
@@ -204,7 +214,10 @@ export const useGameStore = create<StoreState>((set, get) => ({
         break;
       }
       case 'game_over': {
-        if(timerInterval) clearInterval(timerInterval);
+        if(timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
         let gameOverMessage = "The game has ended!";
         if (msg.is_tie) gameOverMessage = `It's a tie! Well played.`;
         else if (msg.winner_data) gameOverMessage = `${msg.winner_data.usernames.join(' & ')} wins!`;

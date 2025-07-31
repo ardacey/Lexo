@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../store/useGameStore';
 
@@ -6,20 +6,27 @@ interface ScoreboardProps {
   username: string | null;
 }
 
-const Scoreboard: React.FC<ScoreboardProps> = ({ username }) => {
+const Scoreboard: React.FC<ScoreboardProps> = React.memo(({ username }) => {
   const scores = useGameStore(state => state.scores);
   const timeLeft = useGameStore(state => state.timeLeft);
   const isViewer = useGameStore(state => state.isViewer);
 
-  const ownScore = scores.find(s => s.username === username)?.score ?? 0;
-  const opponent = scores.find(s => s.username !== username);
+  const ownScore = useMemo(() => 
+    scores.find(s => s.username === username)?.score ?? 0, 
+    [scores, username]
+  );
+  
+  const opponent = useMemo(() => 
+    scores.find(s => s.username !== username),
+    [scores, username]
+  );
 
-  const scoreAnimation = {
+  const scoreAnimation = useMemo(() => ({
     initial: { opacity: 0, y: -10 },
     animate: { opacity: 1, y: 0 },
     exit: { opacity: 0, y: 10 },
     transition: { duration: 0.2 }
-  };
+  }), []);
 
   if (isViewer && scores.length >= 2) {
     return (
@@ -118,6 +125,6 @@ const Scoreboard: React.FC<ScoreboardProps> = ({ username }) => {
       )}
     </div>
   );
-};
+});
 
 export default Scoreboard;

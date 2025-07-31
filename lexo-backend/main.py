@@ -6,6 +6,7 @@ from api.lobby import router as lobby_router
 from game.word_list import load_wordlist
 from core.database import Base, engine
 from game.models_db import RoomDB, PlayerDB
+from game.manager import connection_manager
 
 app = FastAPI(title="Word Game")
 
@@ -36,3 +37,20 @@ app.include_router(websocket_router, prefix="/api", tags=["Game"])
 @app.get("/", tags=["Health Check"])
 async def read_root():
     return {"status": "ok", "message": "Welcome to the Word Game API!"}
+
+@app.get("/health", tags=["Health Check"])
+async def health_check():
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_status = "connected"
+    except Exception:
+        db_status = "error"
+    
+    return {
+        "status": "healthy",
+        "active_rooms": len(connection_manager.active_connections),
+        "db_status": db_status,
+        "total_connections": sum(len(room_conns) for room_conns in connection_manager.active_connections.values())
+    }

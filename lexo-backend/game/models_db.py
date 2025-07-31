@@ -14,13 +14,13 @@ class RoomDB(Base):
     __tablename__ = "rooms"
     id = Column(String, primary_key=True, index=True)
     name = Column(String, index=True)
-    status = Column(SQLAlchemyEnum(RoomStatus), default=RoomStatus.WAITING, nullable=False)
+    status = Column(SQLAlchemyEnum(RoomStatus), default=RoomStatus.WAITING, nullable=False, index=True)
     letter_pool = Column(JSON, default=list)
     used_words = Column(JSON, default=list)
-    started = Column(Boolean, default=False)
+    started = Column(Boolean, default=False, index=True)
     time_left = Column(Integer, default=0)
     game_start_time = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, server_default=func.now(), index=True)
     max_players = Column(Integer, default=2)
     players = relationship("PlayerDB", back_populates="room", cascade="all, delete-orphan")
 
@@ -39,10 +39,10 @@ class RoomDB(Base):
 class PlayerDB(Base):
     __tablename__ = "players"
     id = Column(String, primary_key=True, index=True)
-    username = Column(String, nullable=False)
+    username = Column(String, nullable=False, index=True)
     score = Column(Integer, default=0)
     words = Column(JSON, default=list)
-    room_id = Column(String, ForeignKey("rooms.id"), nullable=False)
-    is_viewer = Column(Boolean, default=False)  # For spectator mode
+    room_id = Column(String, ForeignKey("rooms.id"), nullable=False, index=True)
+    is_viewer = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime, server_default=func.now())
     room = relationship("RoomDB", back_populates="players")

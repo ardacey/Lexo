@@ -4,43 +4,57 @@ import asyncio
 from datetime import datetime
 from typing import Dict, List, Tuple, cast, Optional
 from fastapi import WebSocket
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, select
 from .models_db import RoomDB, PlayerDB, RoomStatus
 from .logic import calculate_score, has_letters_in_pool, generate_letter_pool
 from .word_list import is_word_valid
 class ConnectionManager:
-    def __init__(self):
+    def __init__(self, max_connections_per_room: int = 50):
         self.active_connections: Dict[str, Dict[str, WebSocket]] = {}
         self.cleanup_tasks: Dict[str, asyncio.Task] = {}
+        self.max_connections_per_room = max_connections_per_room
 
     async def connect(self, ws: WebSocket, room_id: str, player_id: str):
+        current_connections = len(self.active_connections.get(room_id, {}))
+        if current_connections >= self.max_connections_per_room:
+            await ws.accept()
+            await ws.close(code=4008, reason="Room connection limit reached")
+            return False
+            
         await ws.accept()
         if room_id not in self.active_connections:
             self.active_connections[room_id] = {}
         self.active_connections[room_id][player_id] = ws
+        return True
 
     def disconnect(self, room_id: str, player_id: str):
         if room_id in self.active_connections and player_id in self.active_connections[room_id]:
             del self.active_connections[room_id][player_id]
             if not self.active_connections[room_id]:
                 del self.active_connections[room_id]
-                if room_id not in self.cleanup_tasks:
-                    self.cleanup_tasks[room_id] = asyncio.create_task(
-                        self._cleanup_empty_room(room_id)
-                    )
+                if room_id in self.cleanup_tasks:
+                    self.cleanup_tasks[room_id].cancel()
+                self.cleanup_tasks[room_id] = asyncio.create_task(
+                    self._cleanup_empty_room(room_id)
+                )
     
     async def _cleanup_empty_room(self, room_id: str):
-        await asyncio.sleep(30)
-        from core.database import SessionLocal
-        db = SessionLocal()
         try:
-            service = RoomService(db)
-            service.cleanup_empty_room(room_id)
-        finally:
-            db.close()
-            if room_id in self.cleanup_tasks:
-                del self.cleanup_tasks[room_id]
+            await asyncio.sleep(30)
+            from core.database import SessionLocal
+            db = SessionLocal()
+            try:
+                service = RoomService(db)
+                service.cleanup_empty_room(room_id)
+            finally:
+                db.close()
+                if room_id in self.cleanup_tasks:
+                    del self.cleanup_tasks[room_id]
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            print(f"Error during room cleanup {room_id}: {e}")
     
     async def broadcast_to_room(self, room_id: str, message: dict):
         if room_id in self.active_connections:
@@ -63,13 +77,13 @@ class RoomService:
         self.db = db
 
     def get_room(self, room_id: str) -> Optional[RoomDB]:
-        return self.db.query(RoomDB).filter(RoomDB.id == room_id).first()
+        return self.db.query(RoomDB).options(joinedload(RoomDB.players)).filter(RoomDB.id == room_id).first()
 
     def get_player(self, player_id: str) -> Optional[PlayerDB]:
         return self.db.query(PlayerDB).filter(PlayerDB.id == player_id).first()
 
     def get_all_rooms(self) -> List[RoomDB]:
-        return self.db.query(RoomDB).all()
+        return self.db.query(RoomDB).options(joinedload(RoomDB.players)).all()
 
     def get_joinable_rooms(self) -> List[RoomDB]:
         return (
@@ -100,8 +114,8 @@ class RoomService:
             print(f"Cleaned up empty room: {room_id}")
 
     def cleanup_finished_rooms(self):
-        finished_rooms = (
-            self.db.query(RoomDB)
+        finished_room_ids = (
+            self.db.query(RoomDB.id)
             .filter(
                 (RoomDB.status == RoomStatus.FINISHED) |
                 (~RoomDB.players.any())
@@ -109,12 +123,13 @@ class RoomService:
             .all()
         )
         
-        for room in finished_rooms:
-            self.db.delete(room)
-        
-        if finished_rooms:
+        if finished_room_ids:
+            room_ids_to_delete = [r.id for r in finished_room_ids]
+            self.db.query(RoomDB).filter(
+                RoomDB.id.in_(room_ids_to_delete)
+            ).delete(synchronize_session=False)
             self.db.commit()
-            print(f"Cleaned up {len(finished_rooms)} finished/empty rooms")
+            print(f"Cleaned up {len(finished_room_ids)} finished/empty rooms")
 
     def create_room(self, name: str, username: str) -> Tuple[RoomDB, PlayerDB]:
         room_id = str(uuid.uuid4())
