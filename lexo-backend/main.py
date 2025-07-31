@@ -1,15 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import os
 from api.websocket import router as websocket_router
 from api.lobby import router as lobby_router
 from game.word_list import load_wordlist
+from core.database import Base, engine
+from game.models_db import RoomDB, PlayerDB
 
 app = FastAPI(title="Word Game")
 
-origins = [
-    "http://localhost:5173",
-    "https://lexo-a4ba.onrender.com"
-]
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,https://lexo-frontend.onrender.com").split(",")
+
+origins = [origin.strip() for origin in allowed_origins]
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,6 +24,9 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     print("Application starting up...")
+    Base.metadata.create_all(bind=engine)
+    print("Database tables created/verified.")
+    
     load_wordlist()
     print("Startup complete.")
 

@@ -1,11 +1,11 @@
 from typing import Dict, Any, Tuple
-from .models import Room, Player
+from .models_db import RoomDB, PlayerDB
 from .logic import calculate_score, has_letters_in_pool, generate_letter_pool
 from .word_list import is_word_valid
 
 ServiceResponse = Tuple[bool, Dict[str, Any]]
 
-def process_word_submission(room: Room, player: Player, word: str) -> ServiceResponse:
+def process_word_submission(room: RoomDB, player: PlayerDB, word: str) -> ServiceResponse:
     lower_word = word.lower()
 
     if room.is_word_used_in_room(lower_word):
@@ -14,7 +14,7 @@ def process_word_submission(room: Room, player: Player, word: str) -> ServiceRes
             "message": f'"{lower_word}" has already been played in this room.'
         }
 
-    if not has_letters_in_pool(lower_word, room.letter_pool):
+    if not has_letters_in_pool(lower_word, room.letter_pool): # type: ignore
         return False, {
             "type": "error",
             "message": f'Not enough letters in the pool for "{lower_word}".'
@@ -35,9 +35,9 @@ def process_word_submission(room: Room, player: Player, word: str) -> ServiceRes
         temp_pool.remove(letter)
     
     new_letters = generate_letter_pool(len(lower_word))
-    room.letter_pool = temp_pool + new_letters
+    room.letter_pool = temp_pool + new_letters # type: ignore
 
-    player.score += score
+    player.score += score # type: ignore
     player.words.append(lower_word)
     room.add_used_word(lower_word)
 

@@ -1,28 +1,48 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from typing import Optional
 
 from core.database import get_db
 from game.manager import RoomService
+from game.models_db import RoomStatus
+
 class CreateRoomRequest(BaseModel):
     name: str
     username: str
+
 class JoinRoomRequest(BaseModel):
     username: str
+    as_viewer: Optional[bool] = False
 
 router = APIRouter()
 
 @router.get("/rooms", tags=["Lobby"])
 def get_rooms_list(db: Session = Depends(get_db)):
     service = RoomService(db)
-    active_rooms = service.get_active_rooms()
-    return [
-        {
-            "id": room.id, "name": room.name,
-            "player_count": len(room.players), "max_players": 2,
-            "status": room.status.value
-        } for room in active_rooms
-    ]
+    service.cleanup_finished_rooms()
+    all_rooms = service.get_all_rooms()
+    
+    room_list = []
+    for room in all_rooms:
+        active_players = [p for p in room.players if not p.is_viewer]
+        total_players = len(room.players)
+        
+        room_data = {
+            "id": room.id,
+            "name": room.name,
+            "player_count": len(active_players),
+            "total_count": total_players,
+            "max_players": room.max_players,
+            "status": room.status.value,
+            "is_joinable": room.is_joinable,
+            "is_viewable": room.is_viewable
+        }
+        
+        if len(active_players) > 0 or room.status != RoomStatus.WAITING: # type: ignore
+            room_list.append(room_data)
+    
+    return room_list
 
 @router.post("/rooms", tags=["Lobby"])
 def create_room(request: CreateRoomRequest, db: Session = Depends(get_db)):
@@ -37,8 +57,12 @@ def create_room(request: CreateRoomRequest, db: Session = Depends(get_db)):
 def join_room(room_id: str, request: JoinRoomRequest, db: Session = Depends(get_db)):
     service = RoomService(db)
     try:
-        room, player = service.join_room(room_id=room_id, username=request.username)
-        return {"room_id": room.id, "player_id": player.id}
+        room, player = service.join_room(
+            room_id=room_id, 
+            username=request.username,
+            as_viewer=request.as_viewer or False
+        )
+        return {"room_id": room.id, "player_id": player.id, "is_viewer": player.is_viewer}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

@@ -1,5 +1,6 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, JSON, Boolean, Enum as SQLAlchemyEnum
+from sqlalchemy import Column, String, Integer, ForeignKey, JSON, Boolean, Enum as SQLAlchemyEnum, DateTime
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from core.database import Base
 import enum
 
@@ -18,7 +19,22 @@ class RoomDB(Base):
     used_words = Column(JSON, default=list)
     started = Column(Boolean, default=False)
     time_left = Column(Integer, default=0)
+    game_start_time = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    max_players = Column(Integer, default=2)
     players = relationship("PlayerDB", back_populates="room", cascade="all, delete-orphan")
+
+    @property
+    def is_joinable(self):
+        return self.status == RoomStatus.WAITING and len(self.players) < self.max_players
+    
+    @property
+    def is_viewable(self):
+        return self.status in [RoomStatus.IN_PROGRESS, RoomStatus.COUNTDOWN] and len(self.players) > 0
+    
+    @property 
+    def should_be_deleted(self):
+        return len(self.players) == 0 or self.status == RoomStatus.FINISHED
 
 class PlayerDB(Base):
     __tablename__ = "players"
@@ -27,4 +43,6 @@ class PlayerDB(Base):
     score = Column(Integer, default=0)
     words = Column(JSON, default=list)
     room_id = Column(String, ForeignKey("rooms.id"), nullable=False)
+    is_viewer = Column(Boolean, default=False)  # For spectator mode
+    created_at = Column(DateTime, server_default=func.now())
     room = relationship("RoomDB", back_populates="players")

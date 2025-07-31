@@ -7,11 +7,20 @@ import { CheckCircle2, XCircle } from 'lucide-react';
 
 const WordList: React.FC = () => {
   const words = useGameStore(state => state.words);
+  const isViewer = useGameStore(state => state.isViewer);
+  const scores = useGameStore(state => state.scores);
+
+  const getTitle = () => {
+    if (isViewer && scores.length > 0) {
+      return `${scores[0].username}'s Words`;
+    }
+    return "Your Words";
+  };
 
   return (
     <Card className="w-full bg-white/50 border-slate-200">
       <CardHeader>
-        <CardTitle className="text-slate-700">Your Words</CardTitle>
+        <CardTitle className="text-slate-700">{getTitle()}</CardTitle>
       </CardHeader>
       <CardContent>
         <ul className="space-y-2 h-48 overflow-y-auto pr-2">

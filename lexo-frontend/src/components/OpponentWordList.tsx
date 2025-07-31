@@ -7,11 +7,20 @@ import { CheckCircle2 } from 'lucide-react';
 
 const OpponentWordList: React.FC = () => {
   const opponentWords = useGameStore(state => state.opponentWords);
+  const isViewer = useGameStore(state => state.isViewer);
+  const scores = useGameStore(state => state.scores);
+
+  const getTitle = () => {
+    if (isViewer && scores.length > 1) {
+      return `${scores[1].username}'s Words`;
+    }
+    return "Opponent's Words";
+  };
 
   return (
     <Card className="w-full bg-white/50 border-slate-200">
       <CardHeader>
-        <CardTitle className="text-slate-700">Opponent's Words</CardTitle>
+        <CardTitle className="text-slate-700">{getTitle()}</CardTitle>
       </CardHeader>
       <CardContent>
         <ul className="space-y-2 h-48 overflow-y-auto pr-2">
@@ -34,11 +43,7 @@ const OpponentWordList: React.FC = () => {
                 </motion.li>
               ))}
             </AnimatePresence>
-          ) : (
-            <div className="flex items-center justify-center h-full text-slate-500">
-              Waiting for opponent to play...
-            </div>
-          )}
+          ) : null}
         </ul>
       </CardContent>
     </Card>

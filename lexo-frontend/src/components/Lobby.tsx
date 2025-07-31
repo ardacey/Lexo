@@ -46,9 +46,11 @@ const Lobby: React.FC<Props> = ({ username }) => {
   });
 
   const joinRoomMutation = useMutation({
-    mutationFn: (roomId: string) => joinRoom(roomId, username),
+    mutationFn: ({ roomId, asViewer }: { roomId: string; asViewer: boolean }) => 
+      joinRoom(roomId, username, asViewer),
     onSuccess: (data) => {
-      toast.info(`Joining room...`);
+      const action = data.is_viewer ? "Viewing" : "Joining";
+      toast.info(`${action} room...`);
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
       handleSuccessfulJoin(data);
     },
@@ -116,21 +118,50 @@ const Lobby: React.FC<Props> = ({ username }) => {
               {rooms && rooms.length > 0 ? rooms.map((room) => (
                 <TableRow key={room.id} className="border-slate-200">
                   <TableCell className="font-medium">{room.name}</TableCell>
-                  <TableCell>{room.player_count}/{room.max_players}</TableCell>
                   <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${room.status === 'waiting' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
-                      {room.status}
+                    {room.player_count}/{room.max_players}
+                    {room.total_count > room.player_count && (
+                      <span className="text-xs text-slate-500 ml-1">
+                        (+{room.total_count - room.player_count} viewing)
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      room.status === 'waiting' 
+                        ? 'bg-yellow-100 text-yellow-800' 
+                        : room.status === 'countdown'
+                        ? 'bg-blue-100 text-blue-800'
+                        : room.status === 'in_progress'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {room.status === 'in_progress' ? 'in game' : room.status}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button 
-                      onClick={() => joinRoomMutation.mutate(room.id)} 
-                      size="sm" 
-                      disabled={joinRoomMutation.isPending || createRoomMutation.isPending}
-                    >
-                      {joinRoomMutation.isPending && joinRoomMutation.variables === room.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Join
-                    </Button>
+                    {room.is_joinable ? (
+                      <Button 
+                        onClick={() => joinRoomMutation.mutate({ roomId: room.id, asViewer: false })} 
+                        size="sm" 
+                        disabled={joinRoomMutation.isPending || createRoomMutation.isPending}
+                      >
+                        {joinRoomMutation.isPending && joinRoomMutation.variables?.roomId === room.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Join
+                      </Button>
+                    ) : room.is_viewable ? (
+                      <Button 
+                        onClick={() => joinRoomMutation.mutate({ roomId: room.id, asViewer: true })} 
+                        size="sm" 
+                        variant="outline"
+                        disabled={joinRoomMutation.isPending || createRoomMutation.isPending}
+                      >
+                        {joinRoomMutation.isPending && joinRoomMutation.variables?.roomId === room.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        View
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-slate-400">Full</span>
+                    )}
                   </TableCell>
                 </TableRow>
               )) : (

@@ -12,6 +12,7 @@ export async function fetchRooms(): Promise<LobbyRoom[]> {
 interface JoinResponse {
   room_id: string;
   player_id: string;
+  is_viewer?: boolean;
 }
 
 export async function createRoom(name: string, username: string): Promise<JoinResponse> {
@@ -27,11 +28,11 @@ export async function createRoom(name: string, username: string): Promise<JoinRe
   return response.json();
 }
 
-export async function joinRoom(roomId: string, username: string): Promise<JoinResponse> {
+export async function joinRoom(roomId: string, username: string, asViewer: boolean = false): Promise<JoinResponse> {
   const response = await fetch(`${API_BASE_URL}/rooms/${roomId}/join`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username }),
+    body: JSON.stringify({ username, as_viewer: asViewer }),
   });
   if (!response.ok) {
     const error = await response.json();

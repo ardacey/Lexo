@@ -15,11 +15,12 @@ const GameBoard: React.FC<GameBoardProps> = ({ username }) => {
   const gameStarted = useGameStore(state => state.gameStarted);
   const timeLeft = useGameStore(state => state.timeLeft);
   const letterPool = useGameStore(state => state.letterPool);
+  const isViewer = useGameStore(state => state.isViewer);
   const sendWord = useGameStore(state => state.sendWord);
   const [currentWord, setCurrentWord] = useState('');
 
   const handleSendWord = () => {
-    if (!currentWord.trim()) return;
+    if (!currentWord.trim() || isViewer) return;
     sendWord(currentWord);
   
     setCurrentWord('');
@@ -74,6 +75,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ username }) => {
           onChange={setCurrentWord}
           onSendWord={handleSendWord}
           disabled={!gameStarted || timeLeft === 0}
+          isViewer={isViewer}
         />
         
         <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
