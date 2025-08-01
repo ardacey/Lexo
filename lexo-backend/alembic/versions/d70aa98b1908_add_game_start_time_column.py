@@ -20,9 +20,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    pass
+    # Add game_start_time column to rooms table
+    op.add_column('rooms', sa.Column('game_start_time', sa.DateTime, nullable=True))
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    pass
+    # Remove game_start_time column from rooms table
+    op.drop_column('rooms', 'game_start_time')
