@@ -13,6 +13,8 @@ LETTER_SCORES = {
     "y": 2, "z": 7,
 }
 
-GAME_DURATION_SECONDS = 30
-MAX_PLAYERS_PER_ROOM = 2
-INITIAL_LETTER_POOL_SIZE = 22
+VOWELS = {"a", "e", "ı", "i", "o", "ö", "u", "ü"}
+CONSONANTS = {"b", "c", "ç", "d", "f", "g", "ğ", "h", "j", "k", "l", "m", "n", "p", "r", "s", "ş", "t", "v", "y", "z"}
+
+MIN_VOWELS_IN_POOL = 5
+MIN_CONSONANTS_IN_POOL = 8

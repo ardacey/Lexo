@@ -7,7 +7,7 @@ from fastapi import WebSocket
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, select
 from .models_db import RoomDB, PlayerDB, RoomStatus
-from .logic import calculate_score, has_letters_in_pool, generate_letter_pool
+from .logic import calculate_score, has_letters_in_pool, generate_letter_pool, generate_initial_balanced_pool, generate_balanced_replacement_letters
 from .word_list import is_word_valid
 class ConnectionManager:
     def __init__(self, max_connections_per_room: int = 50):
@@ -139,7 +139,7 @@ class RoomService:
             id=room_id, 
             name=name, 
             status=RoomStatus.WAITING,
-            letter_pool=generate_letter_pool(16), 
+            letter_pool=generate_initial_balanced_pool(16), 
             used_words=[]
         )
         new_player = PlayerDB(
@@ -233,9 +233,13 @@ class RoomService:
         score = calculate_score(lower_word)
 
         new_letter_pool = list(room_letter_pool)
+        used_letters = []
         for letter in lower_word:
             new_letter_pool.remove(letter)
-        new_letter_pool.extend(generate_letter_pool(len(lower_word)))
+            used_letters.append(letter)
+        
+        replacement_letters = generate_balanced_replacement_letters(used_letters, new_letter_pool)
+        new_letter_pool.extend(replacement_letters)
         
         setattr(player, 'score', player.score + score)
         setattr(player, 'words', player_words + [lower_word])
