@@ -139,7 +139,7 @@ class RoomService:
             id=room_id, 
             name=name, 
             status=RoomStatus.WAITING,
-            letter_pool=generate_letter_pool(22), 
+            letter_pool=generate_letter_pool(16), 
             used_words=[]
         )
         new_player = PlayerDB(
@@ -188,7 +188,7 @@ class RoomService:
             
         setattr(room, 'started', True)
         setattr(room, 'status', RoomStatus.IN_PROGRESS)
-        setattr(room, 'time_left', 120)
+        setattr(room, 'time_left', 60)
         setattr(room, 'game_start_time', datetime.now())
         setattr(room, 'used_words', [])
         
