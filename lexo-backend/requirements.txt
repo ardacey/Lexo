@@ -6,3 +6,6 @@ psycopg2-binary
 pydantic
 python-dotenv
 typing-extensions
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart

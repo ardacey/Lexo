@@ -43,6 +43,7 @@ class PlayerDB(Base):
     score = Column(Integer, default=0)
     words = Column(JSON, default=list)
     room_id = Column(String, ForeignKey("rooms.id"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
     is_viewer = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime, server_default=func.now())
     room = relationship("RoomDB", back_populates="players")

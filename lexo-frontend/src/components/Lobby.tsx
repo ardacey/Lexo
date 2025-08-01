@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchRooms, createRoom, joinRoom } from '../api/rooms';
 import { useGameStore } from '../store/useGameStore';
+import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,12 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2 } from 'lucide-react';
 
-interface Props {
-  username: string;
-}
-
-const Lobby: React.FC<Props> = ({ username }) => {
+const Lobby: React.FC = () => {
   const [newRoomName, setNewRoomName] = useState('');
+  const { user } = useAuth();
   const connect = useGameStore(state => state.connect);
   const queryClient = useQueryClient();
 
@@ -30,11 +28,11 @@ const Lobby: React.FC<Props> = ({ username }) => {
   });
 
   const handleSuccessfulJoin = (data: { room_id: string; player_id: string; }) => {
-      connect(data.room_id, data.player_id, username);
+      connect(data.room_id, data.player_id, user?.username || 'Unknown');
   };
 
   const createRoomMutation = useMutation({
-    mutationFn: (name: string) => createRoom(name, username),
+    mutationFn: (name: string) => createRoom(name),
     onSuccess: (data) => {
       toast.success(`Room "${newRoomName}" created! Joining...`);
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
@@ -47,7 +45,7 @@ const Lobby: React.FC<Props> = ({ username }) => {
 
   const joinRoomMutation = useMutation({
     mutationFn: ({ roomId, asViewer }: { roomId: string; asViewer: boolean }) => 
-      joinRoom(roomId, username, asViewer),
+      joinRoom(roomId, asViewer),
     onSuccess: (data) => {
       const action = data.is_viewer ? "Viewing" : "Joining";
       toast.info(`${action} room...`);
@@ -96,7 +94,7 @@ const Lobby: React.FC<Props> = ({ username }) => {
     <div className="w-full max-w-2xl space-y-8">
       <div className="text-center">
         <h1 className="text-4xl font-bold text-cyan-600">Game Lobby</h1>
-        <p className="text-slate-500">Welcome, {username}!</p>
+        <p className="text-slate-500">Welcome, {user?.username}!</p>
       </div>
 
       <Card className="bg-white/70 border-slate-200 backdrop-blur-sm">

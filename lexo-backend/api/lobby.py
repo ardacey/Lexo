@@ -6,13 +6,13 @@ from typing import Optional
 from core.database import get_db
 from game.manager import RoomService
 from game.models_db import RoomStatus
+from auth.dependencies import get_current_user
+from auth.models import UserDB
 
 class CreateRoomRequest(BaseModel):
     name: str
-    username: str
 
 class JoinRoomRequest(BaseModel):
-    username: str
     as_viewer: Optional[bool] = False
 
 router = APIRouter()
@@ -45,21 +45,31 @@ def get_rooms_list(db: Session = Depends(get_db)):
     return room_list
 
 @router.post("/rooms", tags=["Lobby"])
-def create_room(request: CreateRoomRequest, db: Session = Depends(get_db)):
+def create_room(
+    request: CreateRoomRequest, 
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     service = RoomService(db)
     try:
-        room, player = service.create_room(name=request.name, username=request.username)
+        room, player = service.create_room(name=request.name, username=str(current_user.username), user_id=str(current_user.id))
         return {"room_id": room.id, "player_id": player.id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/rooms/{room_id}/join", tags=["Lobby"])
-def join_room(room_id: str, request: JoinRoomRequest, db: Session = Depends(get_db)):
+def join_room(
+    room_id: str, 
+    request: JoinRoomRequest, 
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     service = RoomService(db)
     try:
         room, player = service.join_room(
             room_id=room_id, 
-            username=request.username,
+            username=str(current_user.username),
+            user_id=str(current_user.id),
             as_viewer=request.as_viewer or False
         )
         return {"room_id": room.id, "player_id": player.id, "is_viewer": player.is_viewer}

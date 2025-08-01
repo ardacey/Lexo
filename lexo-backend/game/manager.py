@@ -131,7 +131,7 @@ class RoomService:
             self.db.commit()
             print(f"Cleaned up {len(finished_room_ids)} finished/empty rooms")
 
-    def create_room(self, name: str, username: str) -> Tuple[RoomDB, PlayerDB]:
+    def create_room(self, name: str, username: str, user_id: Optional[str] = None) -> Tuple[RoomDB, PlayerDB]:
         room_id = str(uuid.uuid4())
         player_id = str(uuid.uuid4())
         
@@ -146,6 +146,7 @@ class RoomService:
             id=player_id, 
             username=username, 
             room_id=room_id, 
+            user_id=user_id,
             words=[],
             is_viewer=False
         )
@@ -156,7 +157,7 @@ class RoomService:
         self.db.refresh(new_player)
         return new_room, new_player
 
-    def join_room(self, room_id: str, username: str, as_viewer: bool = False) -> Tuple[RoomDB, PlayerDB]:
+    def join_room(self, room_id: str, username: str, user_id: Optional[str] = None, as_viewer: bool = False) -> Tuple[RoomDB, PlayerDB]:
         room = self.get_room(room_id)
         if not room: 
             raise ValueError("Room not found")
@@ -173,6 +174,7 @@ class RoomService:
             id=player_id, 
             username=username, 
             room_id=room_id, 
+            user_id=user_id,
             words=[],
             is_viewer=as_viewer
         )

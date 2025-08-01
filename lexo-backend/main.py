@@ -3,9 +3,21 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from api.websocket import router as websocket_router
 from api.lobby import router as lobby_router
+try:
+    from auth.routes import router as auth_router
+    auth_available = True
+except ImportError as e:
+    print(f"Warning: Authentication module not available: {e}")
+    auth_available = False
+    
 from game.word_list import load_wordlist
 from core.database import Base, engine
 from game.models_db import RoomDB, PlayerDB
+try:
+    from auth.models import UserDB
+except ImportError:
+    pass
+    
 from game.manager import connection_manager
 
 app = FastAPI(title="Word Game")
@@ -31,6 +43,8 @@ def on_startup():
     load_wordlist()
     print("Startup complete.")
 
+if auth_available:
+    app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"]) # type: ignore
 app.include_router(lobby_router, prefix="/api", tags=["Lobby"])
 app.include_router(websocket_router, prefix="/api", tags=["Game"])
 
