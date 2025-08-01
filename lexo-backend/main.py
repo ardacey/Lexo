@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from api.websocket import router as websocket_router
 from api.lobby import router as lobby_router
+from api.practice import router as practice_router
 try:
     from auth.routes import router as auth_router
     auth_available = True
@@ -47,6 +48,7 @@ if auth_available:
     app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"]) # type: ignore
 app.include_router(lobby_router, prefix="/api", tags=["Lobby"])
 app.include_router(websocket_router, prefix="/api", tags=["Game"])
+app.include_router(practice_router, prefix="/api", tags=["Practice"])
 
 @app.get("/", tags=["Health Check"])
 async def read_root():

@@ -8,9 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Target } from 'lucide-react';
 
-const Lobby: React.FC = () => {
+interface LobbyProps {
+  onPracticeMode?: () => void;
+}
+
+const Lobby: React.FC<LobbyProps> = ({ onPracticeMode }) => {
   const [newRoomName, setNewRoomName] = useState('');
   const { user } = useAuth();
   const connect = useGameStore(state => state.connect);
@@ -95,6 +99,18 @@ const Lobby: React.FC = () => {
       <div className="text-center">
         <h1 className="text-4xl font-bold text-cyan-600">Game Lobby</h1>
         <p className="text-slate-500">Welcome, {user?.username}!</p>
+        {onPracticeMode && (
+          <div className="mt-4">
+            <Button 
+              onClick={onPracticeMode}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Target className="h-4 w-4" />
+              Practice Mode
+            </Button>
+          </div>
+        )}
       </div>
 
       <Card className="bg-white/70 border-slate-200 backdrop-blur-sm">

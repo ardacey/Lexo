@@ -36,6 +36,18 @@ class RoomDB(Base):
     def should_be_deleted(self):
         return len(self.players) == 0 or self.status == RoomStatus.FINISHED
 
+    def is_word_used_in_room(self, word: str) -> bool:
+        return word in (self.used_words or [])
+    
+    def add_used_word(self, word: str):
+        if self.used_words is None:
+            self.used_words = []
+        if word not in self.used_words:
+            self.used_words.append(word)
+    
+    def get_scores(self) -> dict:
+        return {player.username: player.score for player in self.players}
+
 class PlayerDB(Base):
     __tablename__ = "players"
     id = Column(String, primary_key=True, index=True)

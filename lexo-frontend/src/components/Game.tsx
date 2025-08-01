@@ -5,10 +5,12 @@ import { AuthModal } from './AuthModal';
 import Lobby from './Lobby';
 import GameBoard from './GameBoard';
 import GameOver from './GameOver';
+import PracticeMode from './PracticeMode';
 
 const Game: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [gameMode, setGameMode] = useState<'lobby' | 'practice'>('lobby');
   const { user, isAuthenticated } = useAuth();
   const isConnected = useGameStore(state => state.isConnected);
   const gameFinished = useGameStore(state => state.gameFinished);
@@ -17,6 +19,7 @@ const Game: React.FC = () => {
   
   const handleLeaveRoom = useCallback(() => {
     disconnect();
+    setGameMode('lobby');
   }, [disconnect]);
 
   if (!isAuthenticated || !user) {
@@ -86,7 +89,11 @@ const Game: React.FC = () => {
 
   return (
     <div className="w-full max-w-2xl">
-      <Lobby />
+      {gameMode === 'practice' ? (
+        <PracticeMode onBack={() => setGameMode('lobby')} />
+      ) : (
+        <Lobby onPracticeMode={() => setGameMode('practice')} />
+      )}
     </div>
   );
 };
