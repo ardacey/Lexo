@@ -105,7 +105,7 @@ async def websocket_endpoint(
                 game_start_time = getattr(room_obj, 'game_start_time', None)
                 if game_start_time:
                     elapsed_seconds = (datetime.now() - game_start_time).total_seconds()
-                    remaining_time = max(0, 120 - int(elapsed_seconds))
+                    remaining_time = max(0, 60 - int(elapsed_seconds))
                     end_time = time.time() + remaining_time
                 else:
                     remaining_time = room_obj.time_left or 0
