@@ -6,6 +6,12 @@ from .word_list import is_word_valid
 ServiceResponse = Tuple[bool, Dict[str, Any]]
 
 def process_word_submission(room: RoomDB, player: PlayerDB, word: str) -> ServiceResponse:
+    if getattr(player, 'is_eliminated', False):
+        return False, {
+            "type": "error",
+            "message": "You have been eliminated and cannot submit words."
+        }
+    
     lower_word = word.lower()
 
     if room.is_word_used_in_room(lower_word):

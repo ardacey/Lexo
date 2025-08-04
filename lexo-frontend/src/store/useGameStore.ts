@@ -46,6 +46,7 @@ const initialState: GameState = {
   gameMode: 'classic',
   leaderboard: [],
   eliminatedPlayers: [],
+  eliminationInfo: null,
 };
 
 export const useGameStore = create<StoreState>()(
@@ -230,9 +231,6 @@ export const useGameStore = create<StoreState>()(
 
         case 'countdown':
           set({ countdown: msg.time });
-          if (msg.message) {
-            toast.info(msg.message);
-          }
           break;
 
         case 'start_game':
@@ -244,7 +242,8 @@ export const useGameStore = create<StoreState>()(
             countdown: null,
             roomStatus: 'in_progress',
             gameMode: msg.gameMode || 'classic',
-            leaderboard: msg.leaderboard || get().leaderboard
+            leaderboard: msg.leaderboard || get().leaderboard,
+            eliminationInfo: msg.elimination_info || null
           });
           
           if (msg.endTime) {
@@ -315,9 +314,6 @@ export const useGameStore = create<StoreState>()(
             countdown: msg.time,
             leaderboard: msg.leaderboard || []
           });
-          if (msg.message) {
-            toast.info(msg.message);
-          }
           break;
 
         case 'players_eliminated': {
@@ -334,7 +330,16 @@ export const useGameStore = create<StoreState>()(
         }
 
         case 'leaderboard_update':
-          set({ leaderboard: msg.leaderboard || [] });
+          set({ 
+            leaderboard: msg.leaderboard || [],
+            eliminationInfo: msg.elimination_info || null
+          });
+          break;
+
+        case 'elimination_update':
+          set({ 
+            eliminationInfo: msg.elimination_info || null
+          });
           break;
 
         case 'game_over':

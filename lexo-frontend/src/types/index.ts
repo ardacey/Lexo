@@ -43,6 +43,13 @@ export interface WinnerData {
   score: number;
 }
 
+export interface EliminationInfo {
+  next_elimination_time: number;
+  next_elimination_player: string | null;
+  next_elimination_players?: string[];
+  players_per_elimination?: number;
+}
+
 export interface GameState {
   isConnected: boolean;
   playerId: string | null;
@@ -70,6 +77,7 @@ export interface GameState {
   gameMode: 'classic' | 'battle_royale';
   leaderboard: PlayerScore[];
   eliminatedPlayers: string[];
+  eliminationInfo: EliminationInfo | null;
 }
 
 export type ServerMessage =
@@ -91,7 +99,7 @@ export type ServerMessage =
       min_players?: number;
       leaderboard?: PlayerScore[];
     }
-  | { type: "start_game"; letterPool: string[]; duration: number; endTime?: number; gameMode: 'classic' | 'battle_royale'; leaderboard?: PlayerScore[]; }
+  | { type: "start_game"; letterPool: string[]; duration: number; endTime?: number; gameMode: 'classic' | 'battle_royale'; leaderboard?: PlayerScore[]; elimination_info?: EliminationInfo; }
   | { type: "player_joined"; message: string; players: string[]; game_mode?: 'classic' | 'battle_royale'; leaderboard?: PlayerScore[]; }
   | { type: "player_left"; message: string; players: string[] }
   | { type: "word_result"; word: string; valid: boolean; score?: number; message?: string; letterPool?: string[]; totalScore?: number; scores: PlayerScore[]; leaderboard?: PlayerScore[]; }
@@ -102,6 +110,7 @@ export type ServerMessage =
   | { type: "countdown"; time: number; message: string }
   | { type: "battle_royale_countdown"; time: number; message: string; leaderboard: PlayerScore[]; }
   | { type: "players_eliminated"; eliminated_players: string[]; message: string; leaderboard: PlayerScore[]; }
-  | { type: "leaderboard_update"; leaderboard: PlayerScore[]; }
+  | { type: "leaderboard_update"; leaderboard: PlayerScore[]; elimination_info?: EliminationInfo; }
+  | { type: "elimination_update"; elimination_info: EliminationInfo; }
   | { type: "game_over"; scores: PlayerScore[]; winner_data: WinnerData | null; is_tie: boolean; reason?: string }
   | { type: "battle_royale_game_over"; scores: PlayerScore[]; winner_data: WinnerData | null; is_tie: boolean; leaderboard: PlayerScore[]; gameMode: string; reason?: string };

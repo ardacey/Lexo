@@ -24,14 +24,15 @@ class RoomDB(Base):
     used_words = Column(JSON, default=list)
     started = Column(Boolean, default=False, index=True)
     time_left = Column(Integer, default=0)
-    total_game_time = Column(Integer, default=60)  # Battle royale için daha uzun
+    total_game_time = Column(Integer, default=60)
     game_start_time = Column(DateTime, nullable=True)
-    countdown_start_time = Column(DateTime, nullable=True)  # 1 dakikalık geri sayım için
+    countdown_start_time = Column(DateTime, nullable=True)
+    game_end_time = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), index=True)
     max_players = Column(Integer, default=2)
-    min_players = Column(Integer, default=2)  # Battle royale için min 3
-    elimination_interval = Column(Integer, default=30)  # Saniye cinsinden eleme aralığı
-    players_per_elimination = Column(Integer, default=1)  # Her eleme turunda kaç kişi elenir
+    min_players = Column(Integer, default=2)
+    elimination_interval = Column(Integer, default=30)
+    players_per_elimination = Column(Integer, default=1)
     players = relationship("PlayerDB", back_populates="room", cascade="all, delete-orphan")
 
     @property
@@ -50,7 +51,21 @@ class RoomDB(Base):
     
     @property 
     def should_be_deleted(self):
-        return len(self.players) == 0 or self.status == RoomStatus.FINISHED
+        if len(self.players) == 0:
+            return True
+        
+        if self.status.value == RoomStatus.FINISHED.value:
+            if self.game_mode.value == GameMode.BATTLE_ROYALE.value:
+                if getattr(self, 'game_end_time', None):
+                    from datetime import datetime, timedelta
+                    time_since_end = datetime.now() - self.game_end_time
+                    return time_since_end > timedelta(minutes=5)
+                else:
+                    return False
+            else:
+                return True
+        
+        return False
 
     def is_word_used_in_room(self, word: str) -> bool:
         return word in (self.used_words or [])

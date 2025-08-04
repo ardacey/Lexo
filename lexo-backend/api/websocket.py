@@ -66,6 +66,7 @@ async def countdown_handler(room_id: str):
             
             if game_mode == GameMode.BATTLE_ROYALE.value:
                 start_message["leaderboard"] = service.get_battle_royale_leaderboard(room_to_start)
+                start_message["elimination_info"] = service.get_next_elimination_info(room_to_start, 0)
                 
             await connection_manager.broadcast_to_room(room_id, start_message)
             
@@ -110,8 +111,8 @@ async def battle_royale_game_manager(room_id: str, duration: int):
         elapsed_time = 0
         
         while elapsed_time < duration:
-            await asyncio.sleep(elimination_interval)
-            elapsed_time += elimination_interval
+            await asyncio.sleep(1)
+            elapsed_time += 1
             
             room_check = service.get_room(room_id)
             if not room_check or getattr(room_check, 'status', None) != RoomStatus.IN_PROGRESS:
@@ -119,22 +120,33 @@ async def battle_royale_game_manager(room_id: str, duration: int):
                 
             if service.check_battle_royale_end_condition(room_check):
                 break
-                
-            eliminated_players = service.eliminate_worst_players(room_check)
-            
-            if eliminated_players:
-                eliminated_usernames = [getattr(p, 'username', 'Unknown') for p in eliminated_players]
-                await connection_manager.broadcast_to_room(room_id, {
-                    "type": "players_eliminated",
-                    "eliminated_players": eliminated_usernames,
-                    "message": f"{', '.join(eliminated_usernames)} eliminated!",
-                    "leaderboard": service.get_battle_royale_leaderboard(room_check)
-                })
             
             await connection_manager.broadcast_to_room(room_id, {
-                "type": "leaderboard_update",
-                "leaderboard": service.get_battle_royale_leaderboard(room_check)
+                "type": "elimination_update",
+                "elimination_info": service.get_next_elimination_info(room_check, elapsed_time)
             })
+                
+            if elapsed_time % elimination_interval == 0:
+                print(f"Elimination time reached at {elapsed_time} seconds for room {room_id}")
+                eliminated_players = service.eliminate_worst_players(room_check)
+                
+                if eliminated_players:
+                    eliminated_usernames = [getattr(p, 'username', 'Unknown') for p in eliminated_players]
+                    print(f"Eliminating players: {eliminated_usernames}")
+                    await connection_manager.broadcast_to_room(room_id, {
+                        "type": "players_eliminated",
+                        "eliminated_players": eliminated_usernames,
+                        "message": f"{', '.join(eliminated_usernames)} eliminated!",
+                        "leaderboard": service.get_battle_royale_leaderboard(room_check)
+                    })
+                else:
+                    print(f"No players eliminated at {elapsed_time} seconds")
+                
+                await connection_manager.broadcast_to_room(room_id, {
+                    "type": "leaderboard_update",
+                    "leaderboard": service.get_battle_royale_leaderboard(room_check),
+                    "elimination_info": service.get_next_elimination_info(room_check, elapsed_time)
+                })
         
         final_room = service.get_room(room_id)
         if final_room and getattr(final_room, 'status', None) == RoomStatus.IN_PROGRESS:

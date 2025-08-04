@@ -10,6 +10,8 @@ const Scoreboard: React.FC<ScoreboardProps> = React.memo(({ username }) => {
   const scores = useGameStore(state => state.scores);
   const timeLeft = useGameStore(state => state.timeLeft);
   const isViewer = useGameStore(state => state.isViewer);
+  const gameMode = useGameStore(state => state.gameMode);
+  const eliminationInfo = useGameStore(state => state.eliminationInfo);
 
   const ownScore = useMemo(() => 
     scores.find(s => s.username === username)?.score ?? 0, 
@@ -27,6 +29,51 @@ const Scoreboard: React.FC<ScoreboardProps> = React.memo(({ username }) => {
     exit: { opacity: 0, y: 10 },
     transition: { duration: 0.2 }
   }), []);
+
+  if (gameMode === 'battle_royale') {
+    return (
+      <div className="flex justify-around w-full text-center p-4 bg-white/50 rounded-lg border border-slate-200">
+        <div>
+          <div className="text-sm text-slate-500">Time Left</div>
+          <div className={`text-3xl font-bold h-10 flex items-center justify-center transition-colors duration-300 ${timeLeft <= 10 ? 'text-red-600 animate-pulse' : 'text-slate-800'}`}>
+              {timeLeft}s
+          </div>
+        </div>
+        
+        {eliminationInfo && eliminationInfo.next_elimination_time > 0 && (
+          <div>
+            <div className="text-sm text-slate-500">
+              Next Elimination
+              {eliminationInfo.players_per_elimination && eliminationInfo.players_per_elimination > 1 && (
+                <span className="text-orange-600 font-medium"> ({eliminationInfo.players_per_elimination}x)</span>
+              )}
+            </div>
+            <div className={`text-2xl font-bold h-10 flex items-center justify-center transition-colors duration-300 ${eliminationInfo.next_elimination_time <= 5 ? 'text-red-600 animate-pulse' : 'text-orange-600'}`}>
+                {eliminationInfo.next_elimination_time}s
+            </div>
+            {eliminationInfo.next_elimination_players && eliminationInfo.next_elimination_players.length > 0 ? (
+              <div className="text-xs text-slate-600 mt-1">
+                {eliminationInfo.next_elimination_players.length > 1 ? (
+                  <>
+                    <span className="font-medium">{eliminationInfo.next_elimination_players.length} players</span> at risk:<br/>
+                    <span className="text-red-600">{eliminationInfo.next_elimination_players.join(', ')}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-red-600">{eliminationInfo.next_elimination_players[0]}</span> at risk
+                  </>
+                )}
+              </div>
+            ) : eliminationInfo.next_elimination_player && (
+              <div className="text-xs text-slate-600 mt-1">
+                <span className="text-red-600">{eliminationInfo.next_elimination_player}</span> at risk
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (isViewer && scores.length >= 2) {
     return (
