@@ -26,7 +26,7 @@ export interface PracticeResults {
 }
 
 export const startPracticeSession = async (duration: number = 300): Promise<PracticeSession> => {
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('access_token');
   const response = await fetch(`${API_BASE_URL}/practice/start`, {
     method: 'POST',
     headers: {
@@ -45,7 +45,7 @@ export const startPracticeSession = async (duration: number = 300): Promise<Prac
 };
 
 export const submitPracticeWord = async (sessionId: string, word: string) => {
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('access_token');
   const response = await fetch(`${API_BASE_URL}/practice/${sessionId}/submit`, {
     method: 'POST',
     headers: {

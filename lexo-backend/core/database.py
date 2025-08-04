@@ -1,6 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.pool import QueuePool
 import os
 import logging
@@ -17,13 +16,24 @@ if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
 
 connect_args = {}
 if "sqlite" in SQLALCHEMY_DATABASE_URL:
-    connect_args = {"check_same_thread": False}
+    connect_args = {
+        "check_same_thread": False,
+        "timeout": 30,
+        "pragma": {
+            "journal_mode": "WAL",
+            "cache_size": -1000000,
+            "foreign_keys": 1,
+            "ignore_check_constraints": 0,
+            "synchronous": "NORMAL"
+        }
+    }
 
 if "sqlite" in SQLALCHEMY_DATABASE_URL:
     engine = create_engine(
         SQLALCHEMY_DATABASE_URL, 
         connect_args=connect_args, 
         pool_pre_ping=True,
+        pool_recycle=3600,
         echo=False
     )
 else:
@@ -31,10 +41,11 @@ else:
         SQLALCHEMY_DATABASE_URL, 
         connect_args=connect_args,
         poolclass=QueuePool,
-        pool_size=5,
-        max_overflow=10,
+        pool_size=10,
+        max_overflow=20,
         pool_pre_ping=True,
         pool_recycle=3600,
+        pool_timeout=30,
         echo=False
     )
 

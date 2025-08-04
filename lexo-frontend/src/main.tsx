@@ -9,18 +9,44 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false, 
-      retry: 1,
-      staleTime: 5000,
+      retry: (failureCount, error: unknown) => {
+        if (error && typeof error === 'object' && 'status' in error) {
+          const status = (error as { status: number }).status;
+          if (status >= 400 && status < 500) {
+            return false;
+          }
+        }
+        return failureCount < 2;
+      },
+      staleTime: 30000,
       gcTime: 10 * 60 * 1000,
+      refetchOnMount: 'always',
+    },
+    mutations: {
+      retry: (failureCount, error: unknown) => {
+        if (error && typeof error === 'object' && 'status' in error) {
+          const status = (error as { status: number }).status;
+          if (status >= 400 && status < 500) {
+            return false;
+          }
+        }
+        return failureCount < 1;
+      },
     }
   }
 });
+
+const isDevelopment = import.meta.env.DEV;
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <App />
-      <ReactQueryDevtools initialIsOpen={false} />
+      {isDevelopment && (
+        <ReactQueryDevtools 
+          initialIsOpen={false} 
+        />
+      )}
     </QueryClientProvider>
   </React.StrictMode>,
 )

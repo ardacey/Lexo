@@ -2,11 +2,22 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.exceptions import RequestValidationError
+from sqlalchemy.exc import SQLAlchemyError
+from contextlib import asynccontextmanager
 import os
 import logging
 from api.websocket import router as websocket_router
 from api.lobby import router as lobby_router
 from api.practice import router as practice_router
+from core.exceptions import (
+    LexoException, 
+    lexo_exception_handler,
+    validation_exception_handler,
+    sqlalchemy_exception_handler,
+    http_exception_handler,
+    general_exception_handler
+)
 try:
     from auth.routes import router as auth_router
     auth_available = True
@@ -22,6 +33,8 @@ try:
 except ImportError:
     pass
     
+from core.rate_limiting import rate_limit_middleware
+from core.security import SecurityHeaders
 from game.manager import connection_manager
 
 logging.basicConfig(
@@ -33,15 +46,46 @@ logging.basicConfig(
     ]
 )
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logging.info("Application starting up...")
+    try:
+        Base.metadata.create_all(bind=engine)
+        logging.info("Database tables created/verified.")
+        
+        load_wordlist()
+        logging.info("Word list loaded successfully.")
+        
+        logging.info("Startup complete.")
+    except Exception as e:
+        logging.error(f"Startup failed: {e}")
+        raise
+    
+    yield
+    
+    logging.info("Application shutting down...")
+    for task in connection_manager.cleanup_tasks.values():
+        if not task.done():
+            task.cancel()
+    logging.info("Shutdown complete.")
+
 app = FastAPI(
     title="Lexo Word Game API",
     description="A multiplayer word game API",
     version="1.0.0",
     docs_url="/docs" if os.getenv("ENVIRONMENT") != "production" else None,
-    redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "production" else None
+    redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "production" else None,
+    lifespan=lifespan
 )
 
+app.add_exception_handler(LexoException, lexo_exception_handler)  # type: ignore
+app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore
+app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)  # type: ignore
+app.add_exception_handler(Exception, general_exception_handler)  # type: ignore
+
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.middleware("http")(rate_limit_middleware)
+app.middleware("http")(SecurityHeaders.add_security_headers)
 
 if os.getenv("ENVIRONMENT") == "production":
     app.add_middleware(
@@ -60,29 +104,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
-
-@app.on_event("startup")
-async def on_startup():
-    logging.info("Application starting up...")
-    try:
-        Base.metadata.create_all(bind=engine)
-        logging.info("Database tables created/verified.")
-        
-        load_wordlist()
-        logging.info("Word list loaded successfully.")
-        
-        logging.info("Startup complete.")
-    except Exception as e:
-        logging.error(f"Startup failed: {e}")
-        raise
-
-@app.on_event("shutdown")
-async def on_shutdown():
-    logging.info("Application shutting down...")
-    for task in connection_manager.cleanup_tasks.values():
-        if not task.done():
-            task.cancel()
-    logging.info("Shutdown complete.")
 
 if auth_available:
     app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"]) # type: ignore

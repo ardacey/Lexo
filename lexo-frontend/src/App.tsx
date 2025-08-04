@@ -6,12 +6,27 @@ import { UserProfile } from './components/UserProfile';
 function App() {
   return (
     <AuthProvider>
-      <main className="bg-slate-100 text-slate-900 min-h-screen flex flex-col items-center justify-center p-4 font-mono">
-        <div className="absolute top-4 right-4">
+      <main className="bg-gradient-to-br from-slate-50 to-slate-200 text-slate-900 min-h-screen flex flex-col items-center justify-center p-4 font-mono">
+        <div className="absolute top-4 right-4 z-10">
           <UserProfile />
         </div>
-        <Game />
-        <Toaster richColors theme="light" position="bottom-right" />
+        <div className="w-full max-w-7xl mx-auto">
+          <Game />
+        </div>
+        <Toaster 
+          richColors 
+          theme="light" 
+          position="bottom-right"
+          closeButton
+          duration={4000}
+          toastOptions={{
+            style: {
+              background: 'white',
+              border: '1px solid #e2e8f0',
+              color: '#0f172a',
+            },
+          }}
+        />
       </main>
     </AuthProvider>
   );

@@ -6,6 +6,9 @@ import {
   endPracticeSession,
   type PracticeResults 
 } from '../api/practice';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('practice-store');
 
 interface PracticeState {
   sessionId: string | null;
@@ -62,7 +65,7 @@ export const usePracticeStore = create<PracticeState>((set, get) => ({
         lastSubmission: null,
       });
     } catch (error) {
-      console.error('Failed to start practice session:', error);
+      logger.error('Failed to start practice session:', error);
       set({ loading: false });
       throw error;
     }
@@ -92,7 +95,7 @@ export const usePracticeStore = create<PracticeState>((set, get) => ({
         set({ isActive: false });
       }
     } catch (error) {
-      console.error('Failed to submit word:', error);
+      logger.error('Failed to submit word:', error);
       set({ loading: false });
       throw error;
     }
@@ -112,7 +115,7 @@ export const usePracticeStore = create<PracticeState>((set, get) => ({
         isActive: status.is_active,
       });
     } catch (error) {
-      console.error('Failed to update status:', error);
+      logger.error('Failed to update status:', error);
     }
   },
   
@@ -129,7 +132,7 @@ export const usePracticeStore = create<PracticeState>((set, get) => ({
         loading: false,
       });
     } catch (error) {
-      console.error('Failed to end session:', error);
+      logger.error('Failed to end session:', error);
       set({ loading: false });
       throw error;
     }
