@@ -284,7 +284,7 @@ const PracticeMode: React.FC<PracticeModeProps> = ({ onBack }) => {
   }
 
   return (
-    <div className="w-full max-w-md mx-auto">
+    <div className="w-full max-w-2xl mx-auto">
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="flex items-center justify-center gap-2">

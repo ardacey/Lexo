@@ -8,6 +8,9 @@ import LetterPool from './LetterPool';
 import WordInput from './WordInput';
 import WordList from './WordList';
 import OpponentWordList from './OpponentWordList';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Trophy, Users } from 'lucide-react';
 interface GameBoardProps {
   username: string | null;
 }
@@ -19,6 +22,8 @@ const GameBoard: React.FC<GameBoardProps> = ({ username }) => {
   const letterPool = useGameStore(state => state.letterPool);
   const isViewer = useGameStore(state => state.isViewer);
   const sendWord = useGameStore(state => state.sendWord);
+  const leaderboard = useGameStore(state => state.leaderboard);
+  const gameMode = useGameStore(state => state.gameMode);
   const [currentWord, setCurrentWord] = useState('');
 
   const handleSendWord = () => {
@@ -35,7 +40,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ username }) => {
   };
 
   return (
-    <div className="relative w-full flex flex-col items-center space-y-4">
+    <div className="relative w-full max-w-6xl mx-auto flex flex-col items-center space-y-4">
       <AnimatePresence>
         {countdown !== null && (
           <motion.div
@@ -63,6 +68,48 @@ const GameBoard: React.FC<GameBoardProps> = ({ username }) => {
         )}
       </AnimatePresence>
       <div className="w-full z-10 flex flex-col items-center">
+        {gameMode === 'battle_royale' && leaderboard && leaderboard.length > 0 && (
+          <div className="w-full max-w-sm mb-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Trophy className="h-5 w-5 text-yellow-500" />
+                  <span className="font-semibold">Leaderboard</span>
+                  <Badge variant="outline" className="ml-auto">
+                    <Users className="h-3 w-3 mr-1" />
+                    {leaderboard.filter(p => !p.is_eliminated).length} alive
+                  </Badge>
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {leaderboard.slice(0, 10).map((player, index) => (
+                    <div
+                      key={player.username}
+                      className={`flex items-center justify-between p-2 rounded text-sm ${
+                        player.is_eliminated
+                          ? 'bg-red-50 text-red-700'
+                          : index < 3
+                          ? 'bg-yellow-50 text-yellow-800'
+                          : 'bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">#{index + 1}</span>
+                        <span className={player.username === username ? 'font-bold' : ''}>
+                          {player.username}
+                        </span>
+                        {player.is_eliminated && (
+                          <Badge variant="destructive" className="text-xs">OUT</Badge>
+                        )}
+                      </div>
+                      <span className="font-medium">{player.score}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+        
         <Scoreboard username={username} />
         
         <div className="w-full flex justify-center min-h-[80px] items-center my-4">
@@ -86,9 +133,13 @@ const GameBoard: React.FC<GameBoardProps> = ({ username }) => {
           isViewer={isViewer}
         />
         
-        <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+        <div className={`w-full grid gap-4 mt-4 ${
+          gameMode === 'battle_royale' 
+            ? 'grid-cols-1' 
+            : 'grid-cols-1 md:grid-cols-2'
+        }`}>
           <WordList />
-          <OpponentWordList />
+          {gameMode !== 'battle_royale' && <OpponentWordList />}
         </div>
       </div>
     </div>

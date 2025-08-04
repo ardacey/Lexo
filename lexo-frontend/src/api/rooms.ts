@@ -63,9 +63,10 @@ interface JoinResponse {
   room_id: string;
   player_id: string;
   is_viewer?: boolean;
+  game_mode?: string;
 }
 
-export async function createRoom(name: string): Promise<JoinResponse> {
+export async function createRoom(name: string, gameMode: 'classic' | 'battle_royale' = 'classic'): Promise<JoinResponse> {
   if (!name.trim()) {
     throw new APIError('Room name cannot be empty');
   }
@@ -78,7 +79,10 @@ export async function createRoom(name: string): Promise<JoinResponse> {
     const response = await fetch(`${API_BASE_URL}/rooms`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ name: name.trim() }),
+      body: JSON.stringify({ 
+        name: name.trim(),
+        game_mode: gameMode
+      }),
     });
     return handleResponse<JoinResponse>(response);
   } catch (error) {

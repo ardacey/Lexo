@@ -17,6 +17,8 @@ export interface LobbyRoom {
   player_count: number;
   total_count: number;
   max_players: number;
+  min_players: number;
+  game_mode: 'classic' | 'battle_royale';
   status: 'waiting' | 'countdown' | 'in_progress' | 'finished';
   is_joinable: boolean;
   is_viewable: boolean;
@@ -30,6 +32,10 @@ export interface UserState {
 export interface PlayerScore {
   username: string;
   score: number;
+  is_eliminated?: boolean;
+  is_active?: boolean;
+  rank?: number;
+  elimination_time?: string;
 }
 
 export interface WinnerData {
@@ -61,12 +67,16 @@ export interface GameState {
   countdown: number | null;
   roomUsedWords: Set<string>;
   roomStatus: string;
+  gameMode: 'classic' | 'battle_royale';
+  leaderboard: PlayerScore[];
+  eliminatedPlayers: string[];
 }
 
 export type ServerMessage =
   | { 
       type: "room_state"; 
       room_status: string; 
+      game_mode: 'classic' | 'battle_royale';
       players: string[]; 
       active_players: string[]; 
       is_viewer: boolean; 
@@ -76,14 +86,22 @@ export type ServerMessage =
       time_left?: number; 
       end_time?: number; 
       game_started?: boolean; 
-      used_words?: string[] 
+      used_words?: string[];
+      max_players?: number;
+      min_players?: number;
+      leaderboard?: PlayerScore[];
     }
-  | { type: "start_game"; letterPool: string[]; duration: number; endTime?: number; }
-  | { type: "player_joined"; message: string; players: string[] }
+  | { type: "start_game"; letterPool: string[]; duration: number; endTime?: number; gameMode: 'classic' | 'battle_royale'; leaderboard?: PlayerScore[]; }
+  | { type: "player_joined"; message: string; players: string[]; game_mode?: 'classic' | 'battle_royale'; leaderboard?: PlayerScore[]; }
   | { type: "player_left"; message: string; players: string[] }
-  | { type: "word_result"; word: string; valid: boolean; score?: number; message?: string; letterPool?: string[]; totalScore?: number; scores: PlayerScore[] }
+  | { type: "word_result"; word: string; valid: boolean; score?: number; message?: string; letterPool?: string[]; totalScore?: number; scores: PlayerScore[]; leaderboard?: PlayerScore[]; }
   | { type: "opponent_word"; word: string; score: number; letterPool: string[]; scores: PlayerScore[] }
-  | { type: "player_word"; player: string; word: string; score: number; letterPool: string[]; scores: PlayerScore[] }
+  | { type: "player_word"; player: string; word: string; score: number; letterPool: string[]; scores: PlayerScore[]; leaderboard?: PlayerScore[]; }
+  | { type: "player_word_update"; word: string; score: number; letterPool: string[]; scores: PlayerScore[]; leaderboard: PlayerScore[]; }
   | { type: "error"; message: string }
   | { type: "countdown"; time: number; message: string }
-  | { type: "game_over"; scores: PlayerScore[]; winner_data: WinnerData | null; is_tie: boolean; reason?: string };
+  | { type: "battle_royale_countdown"; time: number; message: string; leaderboard: PlayerScore[]; }
+  | { type: "players_eliminated"; eliminated_players: string[]; message: string; leaderboard: PlayerScore[]; }
+  | { type: "leaderboard_update"; leaderboard: PlayerScore[]; }
+  | { type: "game_over"; scores: PlayerScore[]; winner_data: WinnerData | null; is_tie: boolean; reason?: string }
+  | { type: "battle_royale_game_over"; scores: PlayerScore[]; winner_data: WinnerData | null; is_tie: boolean; leaderboard: PlayerScore[]; gameMode: string; reason?: string };

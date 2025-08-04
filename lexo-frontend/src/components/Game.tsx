@@ -24,7 +24,7 @@ const Game: React.FC = () => {
 
   if (!isAuthenticated || !user) {
     return (
-      <div className="w-full max-w-md mx-auto">
+      <div className="w-full max-w-md mx-auto flex flex-col items-center">
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold text-slate-800 mb-2">Lexo</h1>
           <p className="text-slate-600">Please login or register to play</p>
@@ -63,9 +63,9 @@ const Game: React.FC = () => {
 
   if (isConnected) {
     return (
-      <div className="w-full max-w-4xl">
+      <div className="w-full max-w-6xl mx-auto flex flex-col items-center">
         {isViewer && (
-          <div className="mb-4 p-3 bg-blue-100 border border-blue-300 rounded-md text-center">
+          <div className="mb-4 p-3 bg-blue-100 border border-blue-300 rounded-md text-center w-full max-w-2xl">
             <span className="text-blue-800 font-medium">You are viewing this game</span>
           </div>
         )}
@@ -74,23 +74,25 @@ const Game: React.FC = () => {
             <GameOver onReturnToLobby={handleLeaveRoom} />
           </div>
         ) : (
-          <>
+          <div className="w-full flex flex-col items-center">
             <GameBoard username={user.username} />
             <div className="flex justify-center mt-6">
               <button onClick={handleLeaveRoom} className="text-slate-400 hover:text-red-400 transition-colors text-sm">
                 {isViewer ? 'Stop Viewing' : 'Leave Room'}
               </button>
             </div>
-          </>
+          </div>
         )}
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="w-full max-w-4xl mx-auto flex flex-col items-center">
       {gameMode === 'practice' ? (
-        <PracticeMode onBack={() => setGameMode('lobby')} />
+        <div className="w-full">
+          <PracticeMode onBack={() => setGameMode('lobby')} />
+        </div>
       ) : (
         <Lobby onPracticeMode={() => setGameMode('practice')} />
       )}

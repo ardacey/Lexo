@@ -18,14 +18,7 @@ connect_args = {}
 if "sqlite" in SQLALCHEMY_DATABASE_URL:
     connect_args = {
         "check_same_thread": False,
-        "timeout": 30,
-        "pragma": {
-            "journal_mode": "WAL",
-            "cache_size": -1000000,
-            "foreign_keys": 1,
-            "ignore_check_constraints": 0,
-            "synchronous": "NORMAL"
-        }
+        "timeout": 30
     }
 
 if "sqlite" in SQLALCHEMY_DATABASE_URL:

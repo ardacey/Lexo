@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Target } from 'lucide-react';
+import { Loader2, Target, Users, Swords } from 'lucide-react';
 
 interface LobbyProps {
   onPracticeMode?: () => void;
@@ -17,6 +17,7 @@ interface LobbyProps {
 
 const Lobby: React.FC<LobbyProps> = ({ onPracticeMode }) => {
   const [newRoomName, setNewRoomName] = useState('');
+  const [gameMode, setGameMode] = useState<'classic' | 'battle_royale'>('classic');
   const { user } = useAuth();
   const connect = useGameStore(state => state.connect);
   const queryClient = useQueryClient();
@@ -37,7 +38,7 @@ const Lobby: React.FC<LobbyProps> = ({ onPracticeMode }) => {
   };
 
   const createRoomMutation = useMutation({
-    mutationFn: (name: string) => createRoom(name),
+    mutationFn: (data: { name: string; mode: 'classic' | 'battle_royale' }) => createRoom(data.name, data.mode),
     onSuccess: (data) => {
       toast.success(`Room "${newRoomName}" created! Joining...`);
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
@@ -70,7 +71,7 @@ const Lobby: React.FC<LobbyProps> = ({ onPracticeMode }) => {
       return;
     }
 
-    const promise = createRoomMutation.mutateAsync(newRoomName.trim());
+    const promise = createRoomMutation.mutateAsync({ name: newRoomName.trim(), mode: gameMode });
 
     toast.promise(promise, {
       loading: 'Creating room...',
@@ -101,7 +102,7 @@ const Lobby: React.FC<LobbyProps> = ({ onPracticeMode }) => {
   }
 
   return (
-    <div className="w-full max-w-2xl space-y-8">
+    <div className="w-full max-w-4xl mx-auto space-y-8">
       <div className="text-center">
         <h1 className="text-4xl font-bold text-cyan-600">Game Lobby</h1>
         <p className="text-slate-500">Welcome, {user?.username}!</p>
@@ -129,6 +130,7 @@ const Lobby: React.FC<LobbyProps> = ({ onPracticeMode }) => {
             <TableHeader>
               <TableRow className="border-slate-200 hover:bg-slate-50">
                 <TableHead>Room Name</TableHead>
+                <TableHead>Mode</TableHead>
                 <TableHead>Players</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Action</TableHead>
@@ -139,11 +141,25 @@ const Lobby: React.FC<LobbyProps> = ({ onPracticeMode }) => {
                 <TableRow key={room.id} className="border-slate-200">
                   <TableCell className="font-medium">{room.name}</TableCell>
                   <TableCell>
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      room.game_mode === 'battle_royale'
+                        ? 'bg-red-100 text-red-800' 
+                        : 'bg-blue-100 text-blue-800'
+                    }`}>
+                      {room.game_mode === 'battle_royale' ? 'Battle Royale' : 'Classic'}
+                    </span>
+                  </TableCell>
+                  <TableCell>
                     {room.player_count}/{room.max_players}
                     {room.total_count > room.player_count && (
                       <span className="text-xs text-slate-500 ml-1">
                         (+{room.total_count - room.player_count} viewing)
                       </span>
+                    )}
+                    {room.game_mode === 'battle_royale' && room.min_players && (
+                      <div className="text-xs text-slate-500">
+                        Min: {room.min_players}
+                      </div>
                     )}
                   </TableCell>
                   <TableCell>
@@ -186,7 +202,7 @@ const Lobby: React.FC<LobbyProps> = ({ onPracticeMode }) => {
                 </TableRow>
               )) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-slate-500 py-8">
+                  <TableCell colSpan={5} className="text-center text-slate-500 py-8">
                     No available rooms. Why not create one?
                   </TableCell>
                 </TableRow>
@@ -199,9 +215,46 @@ const Lobby: React.FC<LobbyProps> = ({ onPracticeMode }) => {
       <Card className="bg-white/70 border-slate-200">
         <CardHeader>
           <CardTitle>Create a New Room</CardTitle>
+          <CardDescription>Choose your game mode</CardDescription>
         </CardHeader>
-        <CardContent>
-           <div className="flex w-full items-center space-x-2">
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div
+              onClick={() => setGameMode('classic')}
+              className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                gameMode === 'classic'
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-blue-600" />
+                <h3 className="font-semibold">Classic</h3>
+              </div>
+              <p className="text-sm text-slate-600 mt-1">
+                1v1 • 60 seconds • 16 letters
+              </p>
+            </div>
+            
+            <div
+              onClick={() => setGameMode('battle_royale')}
+              className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                gameMode === 'battle_royale'
+                  ? 'border-red-500 bg-red-50'
+                  : 'border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Swords className="h-5 w-5 text-red-600" />
+                <h3 className="font-semibold">Battle Royale</h3>
+              </div>
+              <p className="text-sm text-slate-600 mt-1">
+                3-50 players • 5 minutes • 50 letters
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex w-full items-center space-x-2">
             <Input
               type="text"
               value={newRoomName}

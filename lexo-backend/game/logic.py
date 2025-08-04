@@ -49,18 +49,34 @@ def generate_balanced_replacement_letters(used_letters: List[str], current_pool:
 def generate_initial_balanced_pool(size: int) -> List[str]:
     letters = []
     
+    if size > 30:
+        vowel_ratio = 0.35
+        consonant_ratio = 0.65
+        
+        vowels_to_add = max(MIN_VOWELS_IN_POOL, int(size * vowel_ratio))
+        consonants_to_add = max(MIN_CONSONANTS_IN_POOL, int(size * consonant_ratio))
+
+        remaining = size - vowels_to_add - consonants_to_add
+        if remaining > 0:
+            vowels_to_add += remaining // 2
+            consonants_to_add += remaining - (remaining // 2)
+    else:
+        vowel_letters = list(VOWELS)
+        vowel_weights = [LETTER_FREQUENCY[letter] for letter in vowel_letters]
+        vowels_to_add = min(MIN_VOWELS_IN_POOL, size // 3)
+        
+        consonant_letters = list(CONSONANTS)
+        consonant_weights = [LETTER_FREQUENCY[letter] for letter in consonant_letters]
+        consonants_to_add = min(MIN_CONSONANTS_IN_POOL, size - vowels_to_add)
+
     vowel_letters = list(VOWELS)
     vowel_weights = [LETTER_FREQUENCY[letter] for letter in vowel_letters]
-    vowels_to_add = min(MIN_VOWELS_IN_POOL, size // 3)
-    
     for _ in range(vowels_to_add):
         letter = random.choices(vowel_letters, weights=vowel_weights, k=1)[0]
         letters.append(letter)
     
     consonant_letters = list(CONSONANTS)
     consonant_weights = [LETTER_FREQUENCY[letter] for letter in consonant_letters]
-    consonants_to_add = min(MIN_CONSONANTS_IN_POOL, size - len(letters))
-    
     for _ in range(consonants_to_add):
         letter = random.choices(consonant_letters, weights=consonant_weights, k=1)[0]
         letters.append(letter)

@@ -43,6 +43,9 @@ const initialState: GameState = {
   gameEndTime: null, 
   roomUsedWords: new Set(), 
   roomStatus: 'waiting',
+  gameMode: 'classic',
+  leaderboard: [],
+  eliminatedPlayers: [],
 };
 
 export const useGameStore = create<StoreState>()(
@@ -171,7 +174,7 @@ export const useGameStore = create<StoreState>()(
         }
       };
       
-      updateTimer(); // Initial update
+      updateTimer();
       timerInterval = setInterval(updateTimer, 1000);
     },
 
@@ -197,7 +200,9 @@ export const useGameStore = create<StoreState>()(
             gameStarted: msg.game_started || false,
             timeLeft: msg.time_left || 0,
             roomUsedWords,
-            roomStatus: msg.room_status || 'waiting'
+            roomStatus: msg.room_status || 'waiting',
+            gameMode: msg.game_mode || 'classic',
+            leaderboard: msg.leaderboard || msg.scores || []
           });
           
           if (msg.end_time && msg.game_started) {
@@ -207,7 +212,10 @@ export const useGameStore = create<StoreState>()(
         }
 
         case 'player_joined':
-          set({ players: msg.players || [] });
+          set({ 
+            players: msg.players || [],
+            leaderboard: msg.leaderboard || get().leaderboard
+          });
           if (msg.message) {
             toast.info(msg.message);
           }
@@ -234,7 +242,9 @@ export const useGameStore = create<StoreState>()(
             letterPool: msg.letterPool || [],
             timeLeft: msg.duration || 0,
             countdown: null,
-            roomStatus: 'in_progress'
+            roomStatus: 'in_progress',
+            gameMode: msg.gameMode || 'classic',
+            leaderboard: msg.leaderboard || get().leaderboard
           });
           
           if (msg.endTime) {
@@ -255,7 +265,8 @@ export const useGameStore = create<StoreState>()(
               words: newWords,
               letterPool: msg.letterPool || [],
               scores: msg.scores || [],
-              roomUsedWords: newUsedWords
+              roomUsedWords: newUsedWords,
+              leaderboard: msg.leaderboard || get().leaderboard
             });
             
             toast.success(`"${msg.word}" +${msg.score} points!`);
@@ -279,12 +290,52 @@ export const useGameStore = create<StoreState>()(
             opponentWords: newOpponentWords,
             letterPool: msg.letterPool || [],
             scores: msg.scores || [],
-            roomUsedWords: newUsedWords
+            roomUsedWords: newUsedWords,
+            leaderboard: (msg.type === 'player_word' && msg.leaderboard) ? msg.leaderboard : get().leaderboard
           });
           
           toast.info(`${playerName}: "${msg.word}" +${msg.score}`);
           break;
         }
+
+        case 'player_word_update': {
+          const newUsedWords = new Set([...state.roomUsedWords, msg.word]);
+          
+          set({
+            letterPool: msg.letterPool || [],
+            scores: msg.scores || [],
+            roomUsedWords: newUsedWords,
+            leaderboard: msg.leaderboard || []
+          });
+          break;
+        }
+
+        case 'battle_royale_countdown':
+          set({ 
+            countdown: msg.time,
+            leaderboard: msg.leaderboard || []
+          });
+          if (msg.message) {
+            toast.info(msg.message);
+          }
+          break;
+
+        case 'players_eliminated': {
+          const eliminatedPlayers = msg.eliminated_players || [];
+          set({ 
+            eliminatedPlayers: [...state.eliminatedPlayers, ...eliminatedPlayers],
+            leaderboard: msg.leaderboard || []
+          });
+          
+          if (msg.message) {
+            toast.warning(msg.message);
+          }
+          break;
+        }
+
+        case 'leaderboard_update':
+          set({ leaderboard: msg.leaderboard || [] });
+          break;
 
         case 'game_over':
           get()._clearTimer();
@@ -304,6 +355,28 @@ export const useGameStore = create<StoreState>()(
           } else if (msg.winner_data) {
             const winners = msg.winner_data.usernames || [];
             toast.success(`Game Over - ${winners.join(', ')} won!`);
+          }
+          break;
+
+        case 'battle_royale_game_over':
+          get()._clearTimer();
+          set({
+            gameFinished: true,
+            gameStarted: false,
+            timeLeft: 0,
+            finalScores: msg.scores || [],
+            winnerData: msg.winner_data,
+            isTie: msg.is_tie || false,
+            gameOverReason: msg.reason || null,
+            roomStatus: 'finished',
+            leaderboard: msg.leaderboard || []
+          });
+          
+          if (msg.is_tie) {
+            toast.success("Battle Royale Over - It's a tie!");
+          } else if (msg.winner_data) {
+            const winners = msg.winner_data.usernames || [];
+            toast.success(`Battle Royale Champion: ${winners.join(', ')}!`);
           }
           break;
 

@@ -7,9 +7,14 @@ from typing import Dict, List, Tuple, cast, Optional
 from fastapi import WebSocket
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, select
-from .models_db import RoomDB, PlayerDB, RoomStatus
+from .models_db import RoomDB, PlayerDB, RoomStatus, GameMode
 from .logic import calculate_score, has_letters_in_pool, generate_letter_pool, generate_initial_balanced_pool, generate_balanced_replacement_letters
 from .word_list import is_word_valid
+from .constants import (
+    BATTLE_ROYALE_COUNTDOWN_SECONDS, BATTLE_ROYALE_MIN_PLAYERS, BATTLE_ROYALE_MAX_PLAYERS,
+    BATTLE_ROYALE_INITIAL_POOL_SIZE, BATTLE_ROYALE_GAME_DURATION, BATTLE_ROYALE_ELIMINATION_INTERVAL,
+    BATTLE_ROYALE_MIN_SURVIVING_PLAYERS
+)
 
 logger = logging.getLogger(__name__)
 
@@ -147,15 +152,33 @@ class RoomService:
             self.db.commit()
             print(f"Cleaned up {len(finished_room_ids)} finished/empty rooms")
 
-    def create_room(self, name: str, username: str, user_id: Optional[str] = None) -> Tuple[RoomDB, PlayerDB]:
+    def create_room(self, name: str, username: str, user_id: Optional[str] = None, game_mode: GameMode = GameMode.CLASSIC) -> Tuple[RoomDB, PlayerDB]:
         room_id = str(uuid.uuid4())
         player_id = str(uuid.uuid4())
+        
+        if game_mode == GameMode.BATTLE_ROYALE:
+            max_players = BATTLE_ROYALE_MAX_PLAYERS
+            min_players = BATTLE_ROYALE_MIN_PLAYERS
+            pool_size = BATTLE_ROYALE_INITIAL_POOL_SIZE
+            total_game_time = BATTLE_ROYALE_GAME_DURATION
+            elimination_interval = BATTLE_ROYALE_ELIMINATION_INTERVAL
+        else:
+            max_players = 2
+            min_players = 2
+            pool_size = 16
+            total_game_time = 60
+            elimination_interval = 0
         
         new_room = RoomDB(
             id=room_id, 
             name=name, 
             status=RoomStatus.WAITING,
-            letter_pool=generate_initial_balanced_pool(16), 
+            game_mode=game_mode,
+            max_players=max_players,
+            min_players=min_players,
+            total_game_time=total_game_time,
+            elimination_interval=elimination_interval,
+            letter_pool=generate_initial_balanced_pool(pool_size), 
             used_words=[]
         )
         new_player = PlayerDB(
@@ -201,18 +224,29 @@ class RoomService:
 
     def start_game_for_room(self, room: RoomDB):
         active_players = [p for p in room.players if not getattr(p, 'is_viewer', False)]
-        if len(active_players) != 2:
+        
+        if room.game_mode.value == GameMode.CLASSIC.value:
+            if len(active_players) != 2:
+                return False
+            time_left = 60
+        elif room.game_mode.value == GameMode.BATTLE_ROYALE.value:
+            if len(active_players) < getattr(room, 'min_players', 3):
+                return False
+            time_left = getattr(room, 'total_game_time', 300)
+        else:
             return False
             
         setattr(room, 'started', True)
         setattr(room, 'status', RoomStatus.IN_PROGRESS)
-        setattr(room, 'time_left', 60)
+        setattr(room, 'time_left', time_left)
         setattr(room, 'game_start_time', datetime.now())
         setattr(room, 'used_words', [])
         
         for player in active_players:
             setattr(player, 'score', 0)
             setattr(player, 'words', [])
+            setattr(player, 'is_eliminated', False)
+            setattr(player, 'elimination_time', None)
 
         self.db.commit()
         self.db.refresh(room)
@@ -227,6 +261,9 @@ class RoomService:
         
         if getattr(player, 'is_viewer', False):
             return False, {"type": "error", "message": "Viewers cannot submit words."}
+        
+        if getattr(player, 'is_eliminated', False):
+            return False, {"type": "error", "message": "Eliminated players cannot submit words."}
         
         if not getattr(room, 'started', False) or getattr(room, 'status', None) != RoomStatus.IN_PROGRESS:
             return False, {"type": "error", "message": "Game is not currently in progress."}
@@ -266,13 +303,13 @@ class RoomService:
         self.db.refresh(room)
         self.db.refresh(player)
         
-        active_players = [p for p in room.players if not getattr(p, 'is_viewer', False)]
+        active_players = [p for p in room.players if not getattr(p, 'is_viewer', False) and not getattr(p, 'is_eliminated', False)]
         success_data = {
             "word": lower_word,
             "score": score,
             "player_total_score": player.score,
             "new_letter_pool": room.letter_pool,
-            "current_scores": [{"username": p.username, "score": p.score} for p in active_players]
+            "current_scores": [{"username": getattr(p, 'username', 'Unknown'), "score": getattr(p, 'score', 0)} for p in active_players]
         }
         
         return True, success_data
@@ -346,3 +383,84 @@ class RoomService:
             return None, player_leaving, False
             
         return final_room_state, player_leaving, False
+
+    def start_battle_royale_countdown(self, room: RoomDB) -> bool:
+        if room.game_mode.value != GameMode.BATTLE_ROYALE.value:
+            return False
+            
+        active_players = [p for p in room.players if not getattr(p, 'is_viewer', False)]
+        if len(active_players) < getattr(room, 'min_players', 3):
+            return False
+            
+        setattr(room, 'status', RoomStatus.COUNTDOWN)
+        setattr(room, 'countdown_start_time', datetime.now())
+        setattr(room, 'time_left', BATTLE_ROYALE_COUNTDOWN_SECONDS)
+        
+        self.db.commit()
+        self.db.refresh(room)
+        return True
+    
+    def get_battle_royale_leaderboard(self, room: RoomDB) -> List[dict]:
+        active_players = [p for p in room.players if not getattr(p, 'is_viewer', False) and not getattr(p, 'is_eliminated', False)]
+        eliminated_players = [p for p in room.players if not getattr(p, 'is_viewer', False) and getattr(p, 'is_eliminated', False)]
+
+        active_sorted = sorted(active_players, key=lambda p: getattr(p, 'score', 0), reverse=True)
+        eliminated_sorted = sorted(eliminated_players, key=lambda p: getattr(p, 'elimination_time', datetime.min), reverse=True)
+        
+        leaderboard = []
+        
+        for i, player in enumerate(active_sorted):
+            leaderboard.append({
+                "rank": i + 1,
+                "username": player.username,
+                "score": getattr(player, 'score', 0),
+                "is_eliminated": False,
+                "is_active": True
+            })
+        
+        for i, player in enumerate(eliminated_sorted):
+            leaderboard.append({
+                "rank": len(active_sorted) + i + 1,
+                "username": player.username,
+                "score": getattr(player, 'score', 0),
+                "is_eliminated": True,
+                "is_active": False,
+                "elimination_time": getattr(player, 'elimination_time', None)
+            })
+            
+        return leaderboard
+    
+    def eliminate_worst_players(self, room: RoomDB) -> List[PlayerDB]:
+        if room.game_mode.value != GameMode.BATTLE_ROYALE.value:
+            return []
+            
+        active_players = [p for p in room.players if not getattr(p, 'is_viewer', False) and not getattr(p, 'is_eliminated', False)]
+
+        if len(active_players) <= BATTLE_ROYALE_MIN_SURVIVING_PLAYERS:
+            return []
+
+        sorted_players = sorted(active_players, key=lambda p: getattr(p, 'score', 0))
+        players_per_elimination = getattr(room, 'players_per_elimination', 1)
+        remaining_after_elimination = len(active_players) - players_per_elimination
+        if remaining_after_elimination < BATTLE_ROYALE_MIN_SURVIVING_PLAYERS:
+            players_per_elimination = len(active_players) - BATTLE_ROYALE_MIN_SURVIVING_PLAYERS
+
+        players_to_eliminate = sorted_players[:players_per_elimination] if players_per_elimination > 0 else []
+        
+        for player in players_to_eliminate:
+            setattr(player, 'is_eliminated', True)
+            setattr(player, 'elimination_time', datetime.now())
+        
+        if players_to_eliminate:
+            self.db.commit()
+            
+        return players_to_eliminate
+    
+    def check_battle_royale_end_condition(self, room: RoomDB) -> bool:
+        if room.game_mode.value != GameMode.BATTLE_ROYALE.value:
+            return False
+            
+        active_players = [p for p in room.players if not getattr(p, 'is_viewer', False) and not getattr(p, 'is_eliminated', False)]
+
+        time_left = getattr(room, 'time_left', 0)
+        return len(active_players) <= BATTLE_ROYALE_MIN_SURVIVING_PLAYERS or time_left <= 0

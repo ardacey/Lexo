@@ -5,12 +5,13 @@ from typing import Optional
 
 from core.database import get_db
 from game.manager import RoomService
-from game.models_db import RoomStatus
+from game.models_db import RoomStatus, GameMode
 from auth.dependencies import get_current_user
 from auth.models import UserDB
 
 class CreateRoomRequest(BaseModel):
     name: str
+    game_mode: Optional[str] = "classic"
 
 class JoinRoomRequest(BaseModel):
     as_viewer: Optional[bool] = False
@@ -31,9 +32,11 @@ def get_rooms_list(db: Session = Depends(get_db)):
         room_data = {
             "id": room.id,
             "name": room.name,
+            "game_mode": room.game_mode.value,
             "player_count": len(active_players),
             "total_count": total_players,
             "max_players": room.max_players,
+            "min_players": room.min_players,
             "status": room.status.value,
             "is_joinable": room.is_joinable,
             "is_viewable": room.is_viewable
@@ -52,8 +55,19 @@ def create_room(
 ):
     service = RoomService(db)
     try:
-        room, player = service.create_room(name=request.name, username=str(current_user.username), user_id=str(current_user.id))
-        return {"room_id": room.id, "player_id": player.id}
+        game_mode = GameMode.CLASSIC
+        if request.game_mode == "battle_royale":
+            game_mode = GameMode.BATTLE_ROYALE
+        elif request.game_mode != "classic":
+            raise HTTPException(status_code=400, detail="Invalid game mode. Use 'classic' or 'battle_royale'")
+            
+        room, player = service.create_room(
+            name=request.name, 
+            username=str(current_user.username), 
+            user_id=str(current_user.id),
+            game_mode=game_mode
+        )
+        return {"room_id": room.id, "player_id": player.id, "game_mode": room.game_mode.value}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

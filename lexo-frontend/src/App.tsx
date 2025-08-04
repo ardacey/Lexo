@@ -10,7 +10,7 @@ function App() {
         <div className="absolute top-4 right-4 z-10">
           <UserProfile />
         </div>
-        <div className="w-full max-w-7xl mx-auto">
+        <div className="w-full flex justify-center items-center flex-1">
           <Game />
         </div>
         <Toaster 
