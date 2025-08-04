@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePracticeStore } from '../store/usePracticeStore';
+import { validateWord } from '../utils/validation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,6 +77,12 @@ const PracticeMode: React.FC<PracticeModeProps> = ({ onBack }) => {
   const handleSubmitWord = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentWord.trim() || loading) return;
+
+    const validation = validateWord(currentWord.trim());
+    if (!validation.valid) {
+      toast.error(validation.message || 'Invalid word');
+      return;
+    }
     
     try {
       await submitWord(currentWord.trim());

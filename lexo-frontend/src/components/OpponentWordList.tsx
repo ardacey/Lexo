@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../store/useGameStore';
-import type { Word } from '../types';
+import type { OpponentWord } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle2 } from 'lucide-react';
 
@@ -26,9 +26,9 @@ const OpponentWordList: React.FC = () => {
         <ul className="space-y-2 h-48 overflow-y-auto pr-2">
           {opponentWords.length > 0 ? (
             <AnimatePresence>
-              {opponentWords.map((word: Word, index: number) => (
+              {opponentWords.map((word: OpponentWord, index: number) => (
                 <motion.li
-                  key={`${word.text}-${index}`}
+                  key={`${word.word}-${index}`}
                   layout
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -37,7 +37,7 @@ const OpponentWordList: React.FC = () => {
                   className="flex justify-between items-center p-2 rounded-md bg-slate-100"
                 >
                   <span className="font-semibold text-slate-600">
-                    {word.text}
+                    {word.word}
                   </span>
                   <CheckCircle2 className="h-5 w-5 text-slate-400" />
                 </motion.li>

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../store/useGameStore';
+import { validateWord } from '../utils/validation';
+import { toast } from 'sonner';
 import Scoreboard from './Scoreboard';
 import LetterPool from './LetterPool';
 import WordInput from './WordInput';
@@ -21,8 +23,14 @@ const GameBoard: React.FC<GameBoardProps> = ({ username }) => {
 
   const handleSendWord = () => {
     if (!currentWord.trim() || isViewer) return;
+
+    const validation = validateWord(currentWord.trim());
+    if (!validation.valid) {
+      toast.error(validation.message || 'Invalid word');
+      return;
+    }
+    
     sendWord(currentWord);
-  
     setCurrentWord('');
   };
 

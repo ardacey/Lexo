@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { validateUsername } from '../utils/validation';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,11 +13,15 @@ const UsernameEntry: React.FC<Props> = ({ onUsernameSubmit }) => {
   const [username, setUsername] = useState('');
 
   const handleSubmit = () => {
-    if (username.trim().length >= 2) {
-      onUsernameSubmit(username.trim());
-    } else {
-      alert('Username must be at least 2 characters long.');
+    const trimmedUsername = username.trim();
+    
+    const validation = validateUsername(trimmedUsername);
+    if (!validation.valid) {
+      toast.error(validation.message || 'Invalid username');
+      return;
     }
+    
+    onUsernameSubmit(trimmedUsername);
   };
 
   return (

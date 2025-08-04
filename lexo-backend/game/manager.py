@@ -1,6 +1,7 @@
 import uuid
 import time
 import asyncio
+import logging
 from datetime import datetime
 from typing import Dict, List, Tuple, cast, Optional
 from fastapi import WebSocket
@@ -9,15 +10,19 @@ from sqlalchemy import func, select
 from .models_db import RoomDB, PlayerDB, RoomStatus
 from .logic import calculate_score, has_letters_in_pool, generate_letter_pool, generate_initial_balanced_pool, generate_balanced_replacement_letters
 from .word_list import is_word_valid
+
+logger = logging.getLogger(__name__)
+
 class ConnectionManager:
     def __init__(self, max_connections_per_room: int = 50):
         self.active_connections: Dict[str, Dict[str, WebSocket]] = {}
         self.cleanup_tasks: Dict[str, asyncio.Task] = {}
         self.max_connections_per_room = max_connections_per_room
 
-    async def connect(self, ws: WebSocket, room_id: str, player_id: str):
+    async def connect(self, ws: WebSocket, room_id: str, player_id: str) -> bool:
         current_connections = len(self.active_connections.get(room_id, {}))
         if current_connections >= self.max_connections_per_room:
+            logger.warning(f"Room {room_id} connection limit reached ({current_connections})")
             await ws.accept()
             await ws.close(code=4008, reason="Room connection limit reached")
             return False
@@ -26,11 +31,14 @@ class ConnectionManager:
         if room_id not in self.active_connections:
             self.active_connections[room_id] = {}
         self.active_connections[room_id][player_id] = ws
+        logger.info(f"Player {player_id} connected to room {room_id}")
         return True
 
     def disconnect(self, room_id: str, player_id: str):
         if room_id in self.active_connections and player_id in self.active_connections[room_id]:
             del self.active_connections[room_id][player_id]
+            logger.info(f"Player {player_id} disconnected from room {room_id}")
+            
             if not self.active_connections[room_id]:
                 del self.active_connections[room_id]
                 if room_id in self.cleanup_tasks:
@@ -47,26 +55,34 @@ class ConnectionManager:
             try:
                 service = RoomService(db)
                 service.cleanup_empty_room(room_id)
+                logger.info(f"Cleaned up empty room: {room_id}")
+            except Exception as e:
+                logger.error(f"Error cleaning up room {room_id}: {e}")
             finally:
                 db.close()
                 if room_id in self.cleanup_tasks:
                     del self.cleanup_tasks[room_id]
         except asyncio.CancelledError:
-            pass
+            logger.debug(f"Cleanup task cancelled for room {room_id}")
         except Exception as e:
-            print(f"Error during room cleanup {room_id}: {e}")
+            logger.error(f"Error during room cleanup {room_id}: {e}")
     
     async def broadcast_to_room(self, room_id: str, message: dict):
-        if room_id in self.active_connections:
-            disconnected = []
-            for player_id, ws in self.active_connections[room_id].items():
-                try:
-                    await ws.send_json(message)
-                except Exception:
-                    disconnected.append(player_id)
+        if room_id not in self.active_connections:
+            return
             
-            for player_id in disconnected:
-                self.disconnect(room_id, player_id)
+        disconnected = []
+        connections = self.active_connections[room_id].copy()
+        
+        for player_id, ws in connections.items():
+            try:
+                await ws.send_json(message)
+            except Exception as e:
+                logger.warning(f"Failed to send message to player {player_id}: {e}")
+                disconnected.append(player_id)
+        
+        for player_id in disconnected:
+            self.disconnect(room_id, player_id)
 
     def get_room_connections(self, room_id: str) -> int:
         return len(self.active_connections.get(room_id, {}))

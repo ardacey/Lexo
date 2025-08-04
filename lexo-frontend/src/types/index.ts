@@ -1,6 +1,14 @@
 export interface Word {
   text: string;
   valid: boolean;
+  score?: number;
+  player?: string;
+}
+
+export interface OpponentWord {
+  word: string;
+  score: number;
+  player: string;
 }
 
 export interface LobbyRoom {
@@ -42,7 +50,7 @@ export interface GameState {
   score: number;
   scores: PlayerScore[];
   words: Word[];
-  opponentWords: Word[];
+  opponentWords: OpponentWord[];
   error: string | null;
   gameStarted: boolean;
   gameFinished: boolean;
@@ -56,7 +64,20 @@ export interface GameState {
 }
 
 export type ServerMessage =
-  | { type: "room_state"; room_status: string; players: string[]; active_players: string[]; is_viewer: boolean; letter_pool: string[]; scores: PlayerScore[]; player_words?: { [username: string]: string[] }; time_left?: number; end_time?: number }
+  | { 
+      type: "room_state"; 
+      room_status: string; 
+      players: string[]; 
+      active_players: string[]; 
+      is_viewer: boolean; 
+      letter_pool: string[]; 
+      scores: PlayerScore[]; 
+      player_words?: { [username: string]: string[] }; 
+      time_left?: number; 
+      end_time?: number; 
+      game_started?: boolean; 
+      used_words?: string[] 
+    }
   | { type: "start_game"; letterPool: string[]; duration: number; endTime?: number; }
   | { type: "player_joined"; message: string; players: string[] }
   | { type: "player_left"; message: string; players: string[] }

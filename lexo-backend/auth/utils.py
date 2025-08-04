@@ -3,26 +3,51 @@ from typing import Optional
 from fastapi import HTTPException, status
 import os
 import uuid
+import secrets
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
     from jose import JWTError, jwt
     JWT_AVAILABLE = True
 except ImportError:
+    logger.warning("JWT library not available")
     JWT_AVAILABLE = False
     JWTError = Exception
     jwt = None
 
 try:
     from passlib.context import CryptContext
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    pwd_context = CryptContext(
+        schemes=["bcrypt"], 
+        deprecated="auto",
+        bcrypt__rounds=12
+    )
     BCRYPT_AVAILABLE = True
 except ImportError:
+    logger.warning("Passlib not available")
     pwd_context = None
     BCRYPT_AVAILABLE = False
 
-SECRET_KEY = os.getenv("SECRET_KEY", "secret-key")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    logger.warning("SECRET_KEY not set, generating random key (not recommended for production)")
+    SECRET_KEY = secrets.token_urlsafe(32)
+
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+
+def validate_password_strength(password: str) -> bool:
+    if len(password) < 8:
+        return False
+    if not any(c.isupper() for c in password):
+        return False
+    if not any(c.islower() for c in password):
+        return False
+    if not any(c.isdigit() for c in password):
+        return False
+    return True
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     if not BCRYPT_AVAILABLE or pwd_context is None:
@@ -38,13 +63,16 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     if not JWT_AVAILABLE or jwt is None:
         raise HTTPException(status_code=500, detail="JWT encoding not available")
     
+    if not SECRET_KEY:
+        raise HTTPException(status_code=500, detail="SECRET_KEY not configured")
+    
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "iat": datetime.utcnow()})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -54,6 +82,12 @@ def verify_token(token: str) -> dict:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="JWT verification not available",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    if not SECRET_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="SECRET_KEY not configured"
         )
     
     try:
@@ -66,7 +100,8 @@ def verify_token(token: str) -> dict:
                 headers={"WWW-Authenticate": "Bearer"},
             )
         return payload
-    except JWTError:
+    except JWTError as e:
+        logger.warning(f"JWT verification failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",

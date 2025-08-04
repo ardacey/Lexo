@@ -4,6 +4,7 @@ import { fetchRooms, createRoom, joinRoom } from '../api/rooms';
 import { useGameStore } from '../store/useGameStore';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
+import { validateRoomName } from '../utils/validation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,7 +64,11 @@ const Lobby: React.FC<LobbyProps> = ({ onPracticeMode }) => {
   });
 
   const handleCreateRoom = () => {
-    if (!newRoomName.trim()) return;
+    const validation = validateRoomName(newRoomName);
+    if (!validation.valid) {
+      toast.error(validation.message || 'Invalid room name');
+      return;
+    }
 
     const promise = createRoomMutation.mutateAsync(newRoomName.trim());
 
@@ -71,6 +76,7 @@ const Lobby: React.FC<LobbyProps> = ({ onPracticeMode }) => {
       loading: 'Creating room...',
       success: (data) => {
         handleSuccessfulJoin(data); 
+        setNewRoomName('');
         return `Room "${newRoomName}" created!`;
       },
       error: (err) => `Failed: ${err.message}`,

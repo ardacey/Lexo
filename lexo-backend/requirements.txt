@@ -1,11 +1,15 @@
 fastapi
 uvicorn[standard]
-sqlalchemy
-alembic
-psycopg2-binary
 pydantic
 python-dotenv
 typing-extensions
+sqlalchemy
+alembic
+psycopg2-binary
 python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
+# psutil
+# pytest
+# pytest-asyncio
+# httpx
