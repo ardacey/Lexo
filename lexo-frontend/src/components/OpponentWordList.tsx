@@ -11,7 +11,9 @@ const OpponentWordList: React.FC = () => {
   const scores = useGameStore(state => state.scores);
 
   const getTitle = () => {
-    if (isViewer && scores.length > 1) {
+    if (isViewer && opponentWords.length > 0 && opponentWords[0].player) {
+      return `${opponentWords[0].player}'s Words`;
+    } else if (isViewer && scores.length > 1) {
       return `${scores[1].username}'s Words`;
     }
     return "Opponent's Words";

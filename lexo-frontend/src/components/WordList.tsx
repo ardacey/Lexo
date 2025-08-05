@@ -11,7 +11,9 @@ const WordList: React.FC = () => {
   const scores = useGameStore(state => state.scores);
 
   const getTitle = () => {
-    if (isViewer && scores.length > 0) {
+    if (isViewer && words.length > 0 && words[0].player) {
+      return `${words[0].player}'s Words`;
+    } else if (isViewer && scores.length > 0) {
       return `${scores[0].username}'s Words`;
     }
     return "Your Words";
