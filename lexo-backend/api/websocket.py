@@ -344,8 +344,11 @@ async def websocket_endpoint(
 
     except Exception as e:
         logger.error(f"Error during WebSocket connection setup for player {player_id}: {e}", exc_info=True)
-        if websocket.client_state.name != "DISCONNECTED":
-            await websocket.close(code=1011, reason="Internal server error")
+        try:
+            if websocket.client_state.name not in ["DISCONNECTED", "DISCONNECTING"]:
+                await websocket.close(code=1011, reason="Internal server error")
+        except Exception as close_error:
+            logger.error(f"Error closing websocket for player {player_id}: {close_error}")
     finally:
         db.close()
 

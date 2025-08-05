@@ -47,12 +47,14 @@ class ConnectionManager:
             
             if not self.active_connections[room_id]:
                 del self.active_connections[room_id]
+                logger.info(f"Room {room_id} is now empty, scheduling cleanup")
                 if room_id in self.cleanup_tasks:
                     self.cleanup_tasks[room_id].cancel()
                 self.cleanup_tasks[room_id] = asyncio.create_task(
                     self._cleanup_empty_room(room_id)
                 )
-    
+        else:
+            logger.debug(f"Player {player_id} was not in room {room_id} connections")
     async def _cleanup_empty_room(self, room_id: str):
         try:
             await asyncio.sleep(30)
@@ -82,7 +84,11 @@ class ConnectionManager:
         
         for player_id, ws in connections.items():
             try:
-                await ws.send_json(message)
+                if ws.client_state.name in ["CONNECTING", "CONNECTED"]:
+                    await ws.send_json(message)
+                else:
+                    logger.debug(f"Skipping message to player {player_id} - websocket state: {ws.client_state.name}")
+                    disconnected.append(player_id)
             except Exception as e:
                 logger.warning(f"Failed to send message to player {player_id}: {e}")
                 disconnected.append(player_id)
