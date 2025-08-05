@@ -40,7 +40,7 @@ general_limiter = RateLimiter(max_requests=100, window_seconds=60)
 auth_limiter = RateLimiter(max_requests=30, window_seconds=60)
 websocket_limiter = RateLimiter(max_requests=50, window_seconds=60)
 room_creation_limiter = RateLimiter(max_requests=5, window_seconds=60)
-lobby_limiter = RateLimiter(max_requests=10, window_seconds=60)
+lobby_limiter = RateLimiter(max_requests=20, window_seconds=60)
 
 def get_client_identifier(request: Request, user_id: Optional[str] = None) -> str:
     forwarded_for = request.headers.get("X-Forwarded-For")
