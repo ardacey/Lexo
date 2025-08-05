@@ -1,6 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchUserStats, fetchLeaderboard, fetchQuickStats } from '../api/stats';
+import type { UserStats, LeaderboardEntry, QuickStats } from '../api/stats';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,19 +10,27 @@ import { Loader2, Trophy, Target, Clock, Award, Users, Gamepad2 } from 'lucide-r
 const StatsOverview: React.FC = () => {
   const { user } = useAuth();
 
-  const { data: userStats, isLoading: userStatsLoading } = useQuery({
+  const { data: userStats, isLoading: userStatsLoading } = useQuery<UserStats>({
     queryKey: ['userStats'],
     queryFn: () => fetchUserStats(),
     enabled: !!user,
   });
 
-  const { data: leaderboard, isLoading: leaderboardLoading } = useQuery({
+  React.useEffect(() => {
+    if (userStats) {
+      console.log('DEBUG: User stats received:', userStats);
+      console.log('DEBUG: Playtime seconds:', userStats?.total_playtime_seconds);
+      console.log('DEBUG: Win rate data:', { wins: userStats?.wins, total_games: userStats?.total_games });
+    }
+  }, [userStats]);
+
+  const { data: leaderboard, isLoading: leaderboardLoading } = useQuery<LeaderboardEntry[]>({
     queryKey: ['leaderboard'],
     queryFn: () => fetchLeaderboard(5),
     refetchInterval: 30000,
   });
 
-  const { data: quickStats, isLoading: quickStatsLoading } = useQuery({
+  const { data: quickStats, isLoading: quickStatsLoading } = useQuery<QuickStats>({
     queryKey: ['quickStats'],
     queryFn: fetchQuickStats,
     refetchInterval: 30000,
@@ -36,18 +45,25 @@ const StatsOverview: React.FC = () => {
   }
 
   const formatPlaytime = (seconds: number): string => {
+    if (!seconds || seconds === 0) return '0m';
+    
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
     
     if (hours > 0) {
       return `${hours}h ${minutes}m`;
+    } else if (minutes > 0) {
+      return `${minutes}m`;
+    } else {
+      return `${remainingSeconds}s`;
     }
-    return `${minutes}m`;
   };
 
   const getWinRate = (stats: { wins: number; total_games: number } | null): number => {
-    if (!stats || stats.total_games === 0) return 0;
-    return Math.round((stats.wins / stats.total_games) * 100);
+    if (!stats || !stats.total_games || stats.total_games === 0) return 0;
+    const rate = (stats.wins / stats.total_games) * 100;
+    return Math.round(Math.min(100, Math.max(0, rate)));
   };
 
   return (
@@ -128,7 +144,7 @@ const StatsOverview: React.FC = () => {
                   <Clock className="h-4 w-4 text-purple-500" />
                   <div>
                     <div className="font-semibold">
-                      {formatPlaytime(userStats.total_playtime_seconds)}
+                      {formatPlaytime(userStats.total_playtime_seconds || 0)}
                     </div>
                     <div className="text-sm text-slate-600">Playtime</div>
                   </div>
@@ -145,7 +161,10 @@ const StatsOverview: React.FC = () => {
                 <div className="w-full bg-slate-200 rounded-full h-2">
                   <div 
                     className={`bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full transition-all duration-300`}
-                    data-width={getWinRate(userStats)}
+                    style={{ 
+                      width: `${Math.min(100, Math.max(0, getWinRate(userStats)))}%`,
+                      minWidth: getWinRate(userStats) > 0 ? '2px' : '0px'
+                    }}
                   />
                 </div>
               </div>
