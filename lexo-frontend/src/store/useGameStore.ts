@@ -222,19 +222,23 @@ export const useGameStore = create<StoreState>()(
           const roomUsedWords = new Set<string>(msg.used_words || []);
           const state = get();
 
-          let words = state.words;
-          let opponentWords = state.opponentWords;
+          const words = [...state.words];
+          const opponentWords = [...state.opponentWords];
           
           if (msg.player_words && msg.game_started && state.username) {
-            words = [];
-            opponentWords = [];
+            const existingWords = new Set(words.map(w => w.text));
+            const existingOpponentWords = new Set(opponentWords.map(w => w.word));
             
             Object.entries(msg.player_words).forEach(([username, playerWords]) => {
               playerWords.forEach(wordEntry => {
                 if (username === state.username && !state.isViewer) {
-                  words.push({ text: wordEntry.word, valid: true, score: wordEntry.score, player: username });
+                  if (!existingWords.has(wordEntry.word)) {
+                    words.push({ text: wordEntry.word, valid: true, score: wordEntry.score, player: username });
+                  }
                 } else {
-                  opponentWords.push({ word: wordEntry.word, score: wordEntry.score, player: username });
+                  if (!existingOpponentWords.has(wordEntry.word)) {
+                    opponentWords.push({ word: wordEntry.word, score: wordEntry.score, player: username });
+                  }
                 }
               });
             });
