@@ -12,8 +12,21 @@ const WordList: React.FC = () => {
 
   const getTitle = () => {
     if (isViewer) {
-      if (words.length > 0 && words[0].player) {
-        return `${words[0].player}'s Words`;
+      if (words.length > 0) {
+        const playerCounts: { [key: string]: number } = {};
+        words.forEach(word => {
+          if (word.player) {
+            playerCounts[word.player] = (playerCounts[word.player] || 0) + 1;
+          }
+        });
+        
+        const mostCommonPlayer = Object.keys(playerCounts).reduce((a, b) => 
+          playerCounts[a] > playerCounts[b] ? a : b, ''
+        );
+        
+        if (mostCommonPlayer) {
+          return `${mostCommonPlayer}'s Words`;
+        }
       }
       
       const primaryPlayer = (activePlayers && activePlayers.length > 0) ? activePlayers[0] : null;

@@ -222,28 +222,23 @@ export const useGameStore = create<StoreState>()(
           const roomUsedWords = new Set<string>(msg.used_words || []);
           const state = get();
 
-          const words = [...state.words];
-          const opponentWords = [...state.opponentWords];
+          const words: Word[] = [];
+          const opponentWords: OpponentWord[] = [];
           
           if (msg.player_words && msg.game_started && state.username) {
-            const existingWords = new Set(words.map(w => w.text));
-            const existingOpponentWords = new Set(opponentWords.map(w => w.word));
             
-            if (state.isViewer) {
+            if (state.isViewer || msg.is_viewer) {
               const primaryPlayer = (msg.active_players && msg.active_players.length > 0) ? msg.active_players[0] : null;
+              const secondaryPlayer = (msg.active_players && msg.active_players.length > 1) ? msg.active_players[1] : null;
               
               const playerEntries = Object.entries(msg.player_words);
               
               playerEntries.forEach(([username, playerWords]) => {
                 playerWords.forEach(wordEntry => {
                   if (username === primaryPlayer) {
-                    if (!existingWords.has(wordEntry.word)) {
-                      words.push({ text: wordEntry.word, valid: true, score: wordEntry.score, player: username });
-                    }
-                  } else {
-                    if (!existingOpponentWords.has(wordEntry.word)) {
-                      opponentWords.push({ word: wordEntry.word, score: wordEntry.score, player: username });
-                    }
+                    words.push({ text: wordEntry.word, valid: true, score: wordEntry.score, player: username });
+                  } else if (username === secondaryPlayer || username !== primaryPlayer) {
+                    opponentWords.push({ word: wordEntry.word, score: wordEntry.score, player: username });
                   }
                 });
               });
@@ -251,13 +246,9 @@ export const useGameStore = create<StoreState>()(
               Object.entries(msg.player_words).forEach(([username, playerWords]) => {
                 playerWords.forEach(wordEntry => {
                   if (username === state.username) {
-                    if (!existingWords.has(wordEntry.word)) {
-                      words.push({ text: wordEntry.word, valid: true, score: wordEntry.score, player: username });
-                    }
+                    words.push({ text: wordEntry.word, valid: true, score: wordEntry.score, player: username });
                   } else {
-                    if (!existingOpponentWords.has(wordEntry.word)) {
-                      opponentWords.push({ word: wordEntry.word, score: wordEntry.score, player: username });
-                    }
+                    opponentWords.push({ word: wordEntry.word, score: wordEntry.score, player: username });
                   }
                 });
               });
@@ -397,7 +388,6 @@ export const useGameStore = create<StoreState>()(
               });
             }
           } else {
-            // Non-viewer: all other players' words go to opponent list
             const newOpponentWord: OpponentWord = {
               word: msg.word,
               score: msg.score,

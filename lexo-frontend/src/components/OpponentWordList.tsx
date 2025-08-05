@@ -12,8 +12,21 @@ const OpponentWordList: React.FC = () => {
 
   const getTitle = () => {
     if (isViewer) {
-      if (opponentWords.length > 0 && opponentWords[0].player) {
-        return `${opponentWords[0].player}'s Words`;
+      if (opponentWords.length > 0) {
+        const playerCounts: { [key: string]: number } = {};
+        opponentWords.forEach(word => {
+          if (word.player) {
+            playerCounts[word.player] = (playerCounts[word.player] || 0) + 1;
+          }
+        });
+        
+        const mostCommonPlayer = Object.keys(playerCounts).reduce((a, b) => 
+          playerCounts[a] > playerCounts[b] ? a : b, ''
+        );
+        
+        if (mostCommonPlayer) {
+          return `${mostCommonPlayer}'s Words`;
+        }
       }
       
       const secondaryPlayer = (activePlayers && activePlayers.length > 1) ? activePlayers[1] : null;
