@@ -303,9 +303,11 @@ async def websocket_endpoint(
                     elapsed_seconds = (datetime.now() - countdown_start).total_seconds()
                     remaining_time = max(0, BATTLE_ROYALE_COUNTDOWN_SECONDS - int(elapsed_seconds))
             
+            sorted_active_players = sorted(active_players, key=lambda p: p.username)
+            
             player_words = {}
             if is_game_started:
-                for p in active_players:
+                for p in sorted_active_players:
                     words_with_scores = []
                     player_word_list = p.words or []
                     for word in player_word_list:
@@ -316,8 +318,6 @@ async def websocket_endpoint(
                             "score": word_score
                         })
                     player_words[p.username] = words_with_scores
-            
-            sorted_active_players = sorted(active_players, key=lambda p: p.username)
             
             room_state_data = {
                 "type": "room_state",
