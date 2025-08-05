@@ -3,8 +3,11 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from game.logic import generate_letter_pool, calculate_score, has_letters_in_pool
 from game.word_list import is_word_valid
-from typing import List, Dict, Any
+from auth.dependencies import get_current_user_optional
+from auth.models import UserDB
+from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
+from datetime import datetime
 import uuid
 import time
 
@@ -27,7 +30,11 @@ class PracticeStartRequest(BaseModel):
     duration: int = 300
 
 @router.post("/practice/start")
-def start_practice_session(request: PracticeStartRequest, db: Session = Depends(get_db)):
+def start_practice_session(
+    request: PracticeStartRequest, 
+    db: Session = Depends(get_db),
+    current_user: Optional[UserDB] = Depends(get_current_user_optional)
+):
     session_id = str(uuid.uuid4())
     
     letter_pool = generate_letter_pool(12)
@@ -40,7 +47,9 @@ def start_practice_session(request: PracticeStartRequest, db: Session = Depends(
         "used_words": set(),
         "time_started": time.time(),
         "duration": request.duration,
-        "is_active": True
+        "is_active": True,
+        "user_id": str(getattr(current_user, 'id', '')) if current_user else None,
+        "started_at": datetime.now()
     }
     
     practice_sessions[session_id] = session
@@ -144,7 +153,11 @@ def get_practice_status(session_id: str, db: Session = Depends(get_db)):
     }
 
 @router.post("/practice/{session_id}/end")
-def end_practice_session(session_id: str, db: Session = Depends(get_db)):
+def end_practice_session(
+    session_id: str, 
+    db: Session = Depends(get_db),
+    current_user: Optional[UserDB] = Depends(get_current_user_optional)
+):
     if session_id not in practice_sessions:
         raise HTTPException(status_code=404, detail="Practice session not found")
     
@@ -154,6 +167,10 @@ def end_practice_session(session_id: str, db: Session = Depends(get_db)):
     elapsed_time = time.time() - session["time_started"]
     actual_duration = min(elapsed_time, session["duration"])
     
+    if current_user and session.get("user_id") == str(getattr(current_user, 'id', '')):
+        print(f"DEBUG: Practice session completed for user {current_user.id} (not recorded in stats)")
+        print(f"DEBUG: Session data - score: {session['score']}, words: {len(session['words_found'])}, duration: {int(actual_duration)}")
+    
     results = {
         "session_id": session_id,
         "final_score": session["score"],
@@ -162,5 +179,7 @@ def end_practice_session(session_id: str, db: Session = Depends(get_db)):
         "duration": actual_duration,
         "words_per_minute": len(session["words_found"]) / (actual_duration / 60) if actual_duration > 0 else 0
     }
+
+    del practice_sessions[session_id]
     
     return results

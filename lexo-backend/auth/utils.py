@@ -77,7 +77,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 def verify_token(token: str) -> dict:
+    print(f"DEBUG: Verifying token: {token[:10]}...")
     if not JWT_AVAILABLE or jwt is None:
+        print("DEBUG: JWT not available")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="JWT verification not available",
@@ -85,6 +87,7 @@ def verify_token(token: str) -> dict:
         )
     
     if not SECRET_KEY:
+        print("DEBUG: SECRET_KEY not configured")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="SECRET_KEY not configured"
@@ -93,7 +96,9 @@ def verify_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
+        print(f"DEBUG: Token payload decoded, user_id: {user_id}")
         if user_id is None:
+            print("DEBUG: No sub claim in token")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
@@ -101,6 +106,7 @@ def verify_token(token: str) -> dict:
             )
         return payload
     except JWTError as e:
+        print(f"DEBUG: JWT verification failed: {e}")
         logger.warning(f"JWT verification failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

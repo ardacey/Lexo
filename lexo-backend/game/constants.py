@@ -18,6 +18,7 @@ CONSONANTS = {"b", "c", "ç", "d", "f", "g", "ğ", "h", "j", "k", "l", "m", "n",
 
 MIN_VOWELS_IN_POOL = 5
 MIN_CONSONANTS_IN_POOL = 8
+MIN_WORD_LENGTH = 2
 
 BATTLE_ROYALE_COUNTDOWN_SECONDS = 60
 BATTLE_ROYALE_MIN_PLAYERS = 3

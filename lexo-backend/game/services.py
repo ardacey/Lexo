@@ -2,6 +2,7 @@ from typing import Dict, Any, Tuple
 from .models_db import RoomDB, PlayerDB
 from .logic import calculate_score, has_letters_in_pool, generate_letter_pool
 from .word_list import is_word_valid
+from .constants import MIN_WORD_LENGTH
 
 ServiceResponse = Tuple[bool, Dict[str, Any]]
 
@@ -13,6 +14,12 @@ def process_word_submission(room: RoomDB, player: PlayerDB, word: str) -> Servic
         }
     
     lower_word = word.lower()
+
+    if len(lower_word) < MIN_WORD_LENGTH:
+        return False, {
+            "type": "error",
+            "message": f"Word must be at least {MIN_WORD_LENGTH} characters long."
+        }
 
     if room.is_word_used_in_room(lower_word):
         return False, {

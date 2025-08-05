@@ -10,6 +10,7 @@ import logging
 from api.websocket import router as websocket_router
 from api.lobby import router as lobby_router
 from api.practice import router as practice_router
+from game.stats_routes import router as stats_router
 from core.exceptions import (
     LexoException, 
     lexo_exception_handler,
@@ -28,6 +29,7 @@ except ImportError as e:
 from game.word_list import load_wordlist
 from core.database import Base, engine
 from game.models_db import RoomDB, PlayerDB
+from game.stats_models import UserStats, GameHistory, WordHistory
 try:
     from auth.models import UserDB
 except ImportError:
@@ -106,6 +108,7 @@ app.add_middleware(
 )
 
 if auth_available:
+    app.include_router(stats_router, prefix="/api", tags=["Statistics"])
     app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"]) # type: ignore
 app.include_router(lobby_router, prefix="/api", tags=["Lobby"])
 app.include_router(websocket_router, prefix="/api", tags=["Game"])

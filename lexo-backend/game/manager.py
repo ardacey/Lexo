@@ -10,10 +10,11 @@ from sqlalchemy import func, select
 from .models_db import RoomDB, PlayerDB, RoomStatus, GameMode
 from .logic import calculate_score, has_letters_in_pool, generate_letter_pool, generate_initial_balanced_pool, generate_balanced_replacement_letters
 from .word_list import is_word_valid
+from .stats_service import StatsService
 from .constants import (
     BATTLE_ROYALE_COUNTDOWN_SECONDS, BATTLE_ROYALE_MIN_PLAYERS, BATTLE_ROYALE_MAX_PLAYERS,
     BATTLE_ROYALE_INITIAL_POOL_SIZE, BATTLE_ROYALE_GAME_DURATION, BATTLE_ROYALE_ELIMINATION_INTERVAL,
-    BATTLE_ROYALE_MIN_SURVIVING_PLAYERS
+    BATTLE_ROYALE_MIN_SURVIVING_PLAYERS, MIN_WORD_LENGTH
 )
 
 logger = logging.getLogger(__name__)
@@ -301,6 +302,9 @@ class RoomService:
 
         lower_word = word.lower()
 
+        if len(lower_word) < MIN_WORD_LENGTH:
+            return False, {"type": "error", "message": f"Word must be at least {MIN_WORD_LENGTH} characters long."}
+
         room_used_words = cast(List[str], room.used_words)
         room_letter_pool = cast(List[str], room.letter_pool)
         player_words = cast(List[str], player.words)
@@ -352,17 +356,23 @@ class RoomService:
         return True, success_data
 
     def end_game(self, room_id: str) -> Tuple[RoomDB, dict]:
+        print(f"DEBUG: *** END_GAME CALLED FOR ROOM {room_id} ***")
         room = self.get_room(room_id)
         if not room: 
+            print(f"DEBUG: Room {room_id} not found!")
             raise ValueError("Cannot end a non-existent room.")
             
         setattr(room, 'started', False)
         setattr(room, 'status', RoomStatus.FINISHED)
-        setattr(room, 'game_end_time', datetime.now())
+        game_end_time = datetime.now()
+        setattr(room, 'game_end_time', game_end_time)
         
         active_players = [p for p in room.players if not getattr(p, 'is_viewer', False)]
         scores = sorted([{"username": p.username, "score": p.score} for p in active_players], key=lambda x: x["score"], reverse=True)
         winner_data, is_tie = None, False
+        
+        print(f"DEBUG: Active players: {[p.username for p in active_players]}")
+        print(f"DEBUG: Scores: {scores}")
         
         if scores:
             highest_score = scores[0]["score"]
@@ -370,8 +380,13 @@ class RoomService:
             if len(winners) > 1: is_tie = True
             winner_data = {"usernames": [w["username"] for w in winners], "score": highest_score}
 
+        print(f"DEBUG: About to call _record_game_stats...")
+        self._record_game_stats(room, active_players, scores, game_end_time)
+        print(f"DEBUG: _record_game_stats completed, now committing...")
         self.db.commit()
         self.db.refresh(room)
+        
+        print(f"DEBUG: *** END_GAME COMPLETED FOR ROOM {room_id} ***")
         
         if room.game_mode.value == GameMode.BATTLE_ROYALE.value:
             asyncio.create_task(self._schedule_room_cleanup(room_id, delay=300))
@@ -379,6 +394,81 @@ class RoomService:
             asyncio.create_task(self._schedule_room_cleanup(room_id, delay=60))
         
         return room, {"scores": scores, "winner_data": winner_data, "is_tie": is_tie}
+
+    def _record_game_stats(self, room: RoomDB, active_players: List[PlayerDB], scores: List[dict], game_end_time: datetime):
+        try:
+            print(f"DEBUG: *** RECORDING GAME STATS STARTED ***")
+            print(f"DEBUG: Room ID: {getattr(room, 'id', 'unknown')}")
+            print(f"DEBUG: Game mode: {getattr(room, 'game_mode', 'unknown')}")
+            print(f"DEBUG: Active players count: {len(active_players)}")
+            print(f"DEBUG: Scores: {scores}")
+            
+            stats_service = StatsService(self.db)
+
+            game_start_time = getattr(room, 'created_at', game_end_time)
+            if hasattr(room, 'started_at') and getattr(room, 'started_at'):
+                game_start_time = getattr(room, 'started_at')
+
+            game_mode = "classic"
+            if hasattr(room, 'game_mode'):
+                room_game_mode = getattr(room, 'game_mode', None)
+                if room_game_mode and room_game_mode.value == GameMode.BATTLE_ROYALE.value:
+                    game_mode = "battle_royale"
+
+            score_lookup = {score_data["username"]: score_data["score"] for score_data in scores}
+
+            winner_usernames = []
+            if scores:
+                highest_score = scores[0]["score"]
+                winner_usernames = [p["username"] for p in scores if p["score"] == highest_score]
+            
+            for player in active_players:
+                if getattr(player, 'is_viewer', False):
+                    continue
+
+                user_id = getattr(player, 'user_id', None)
+                print(f"DEBUG: Processing player {player.username}, user_id: {user_id}")
+                
+                if not user_id:
+                    print(f"DEBUG: Skipping player {player.username} - no user_id")
+                    continue
+                
+                player_score = score_lookup.get(player.username, 0)
+
+                if player.username in winner_usernames:
+                    result = "win" if len(winner_usernames) == 1 else "draw"
+                else:
+                    result = "loss"
+                
+                final_position = None
+                if game_mode == "battle_royale":
+                    for idx, score_data in enumerate(scores):
+                        if score_data["username"] == player.username:
+                            final_position = idx + 1
+                            break
+                
+                words_played = max(1, player_score // 10)
+                
+                print(f"DEBUG: Recording game result for {player.username} - result: {result}, score: {player_score}")
+                stats_service.update_game_result(
+                    user_id=str(user_id),
+                    room_id=str(getattr(room, 'id', '')),
+                    game_mode=game_mode,
+                    result=result,
+                    score=player_score,
+                    words_played=words_played,
+                    started_at=game_start_time,
+                    ended_at=game_end_time,
+                    final_position=final_position,
+                    total_players=len(active_players)
+                )
+                print(f"DEBUG: Game result recorded successfully for {player.username}")
+                
+            print(f"DEBUG: *** RECORDING GAME STATS COMPLETED ***")
+                
+        except Exception as e:
+            print(f"ERROR: Failed to record game stats: {e}")
+            logger.error(f"Failed to record game stats: {e}")
 
     async def _schedule_room_cleanup(self, room_id: str, delay: int = 60):
         await asyncio.sleep(delay)
@@ -409,9 +499,8 @@ class RoomService:
                 if updated_room:
                     remaining_active = [p for p in updated_room.players if not p.is_viewer]
                     if len(remaining_active) == 1:
-                        setattr(updated_room, 'started', False)
-                        setattr(updated_room, 'status', RoomStatus.FINISHED)
-                        self.db.commit()
+                        print(f"DEBUG: Classic game ending due to disconnect")
+                        _, end_result = self.end_game(room_id)
                         return updated_room, player_leaving, True
             
             elif room.game_mode.value == GameMode.BATTLE_ROYALE.value:
@@ -425,9 +514,8 @@ class RoomService:
                     if updated_room:
                         remaining_non_eliminated = [p for p in updated_room.players if not getattr(p, 'is_viewer', False) and not getattr(p, 'is_eliminated', False)]
                         if len(remaining_non_eliminated) <= 1:
-                            setattr(updated_room, 'started', False)
-                            setattr(updated_room, 'status', RoomStatus.FINISHED)
-                            self.db.commit()
+                            print(f"DEBUG: Battle royale game ending due to disconnect")
+                            _, end_result = self.end_game(room_id)
                             return updated_room, player_leaving, True
         
         self.db.delete(player_leaving)

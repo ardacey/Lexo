@@ -26,7 +26,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 
 export class AuthAPI {
   private static getAuthHeaders(): HeadersInit {
-    const token = sessionStorage.getItem('access_token');
+    const token = localStorage.getItem('token');
     return token 
       ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
       : { 'Content-Type': 'application/json' };
@@ -60,12 +60,12 @@ export class AuthAPI {
     }
 
     const authData = await response.json();
-    sessionStorage.setItem('access_token', authData.access_token);
+    localStorage.setItem('token', authData.access_token);
     return authData;
   }
 
   static async getCurrentUser(): Promise<User | null> {
-    const token = sessionStorage.getItem('access_token');
+    const token = localStorage.getItem('token');
     if (!token) return null;
 
     try {
@@ -75,7 +75,7 @@ export class AuthAPI {
 
       if (!response.ok) {
         if (response.status === 401) {
-          sessionStorage.removeItem('access_token');
+          localStorage.removeItem('token');
           return null;
         }
         throw new Error('Failed to get user data');
@@ -83,20 +83,20 @@ export class AuthAPI {
 
       return response.json();
     } catch {
-      sessionStorage.removeItem('access_token');
+      localStorage.removeItem('token');
       return null;
     }
   }
 
   static logout(): void {
-    sessionStorage.removeItem('access_token');
+    localStorage.removeItem('token');
   }
 
   static getToken(): string | null {
-    return sessionStorage.getItem('access_token');
+    return localStorage.getItem('token');
   }
 
   static isAuthenticated(): boolean {
-    return !!sessionStorage.getItem('access_token');
+    return !!localStorage.getItem('token');
   }
 }

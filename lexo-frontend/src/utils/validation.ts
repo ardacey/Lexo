@@ -1,3 +1,6 @@
+import { MIN_WORD_LENGTH, MAX_WORD_LENGTH } from '../constants/game';
+
+// filepath: c:\Users\ardac\Documents\GitHub\Lexo\lexo-frontend\src\utils\validation.ts
 export function sanitizeInput(input: string): string {
   return input.trim().replace(/[<>]/g, '');
 }
@@ -48,12 +51,12 @@ export function validatePassword(password: string): { valid: boolean; message?: 
 export function validateWord(word: string): { valid: boolean; message?: string } {
   const sanitized = sanitizeInput(word);
   
-  if (sanitized.length < 3) {
-    return { valid: false, message: "Word must be at least 3 characters long" };
+  if (sanitized.length < MIN_WORD_LENGTH) {
+    return { valid: false, message: `Word must be at least ${MIN_WORD_LENGTH} characters long` };
   }
   
-  if (sanitized.length > 15) {
-    return { valid: false, message: "Word cannot exceed 15 characters" };
+  if (sanitized.length > MAX_WORD_LENGTH) {
+    return { valid: false, message: `Word cannot exceed ${MAX_WORD_LENGTH} characters` };
   }
   
   if (!/^[a-zA-ZçğıöşüÇĞIİÖŞÜ]+$/.test(sanitized)) {

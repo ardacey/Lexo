@@ -215,18 +215,21 @@ const PracticeMode: React.FC<PracticeModeProps> = ({ onBack }) => {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2 justify-center">
-              {letterPool.map((letter, index) => (
-                <div
-                  key={index}
-                  className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center font-bold text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors"
-                  onClick={() => {
-                    setCurrentWord(currentWord + letter);
-                    inputRef.current?.focus();
-                  }}
-                >
-                  {letter.toUpperCase()}
-                </div>
-              ))}
+              {letterPool.map((letter, index) => {
+                const displayLetter = letter === 'i' ? 'İ' : letter.toLocaleUpperCase('tr-TR');
+                return (
+                  <div
+                    key={index}
+                    className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center font-bold text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors"
+                    onClick={() => {
+                      setCurrentWord(currentWord + letter);
+                      inputRef.current?.focus();
+                    }}
+                  >
+                    {displayLetter}
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>

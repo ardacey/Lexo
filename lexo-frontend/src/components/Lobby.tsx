@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Target, Users, Swords } from 'lucide-react';
+import StatsOverview from './StatsOverview';
 
 interface LobbyProps {
   onPracticeMode?: () => void;
@@ -102,7 +103,7 @@ const Lobby: React.FC<LobbyProps> = ({ onPracticeMode }) => {
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-8">
+    <div className="w-full max-w-6xl mx-auto space-y-8">
       <div className="text-center">
         <h1 className="text-4xl font-bold text-cyan-600">Game Lobby</h1>
         <p className="text-slate-500">Welcome, {user?.username}!</p>
@@ -119,6 +120,8 @@ const Lobby: React.FC<LobbyProps> = ({ onPracticeMode }) => {
           </div>
         )}
       </div>
+
+      <StatsOverview />
 
       <Card className="bg-white/70 border-slate-200 backdrop-blur-sm">
         <CardHeader>

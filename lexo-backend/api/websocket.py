@@ -83,7 +83,9 @@ async def countdown_handler(room_id: str):
         db.close()
 
 async def game_ender(room_id: str, duration: int):
+    print(f"DEBUG: game_ender started for room {room_id}, duration {duration}")
     await asyncio.sleep(duration)
+    print(f"DEBUG: game_ender timer finished for room {room_id}")
     db = SessionLocal()
     service = RoomService(db)
     try:
@@ -94,8 +96,12 @@ async def game_ender(room_id: str, duration: int):
             await connection_manager.broadcast_to_room(room_id, {
                 "type": "game_over", **result_data
             })
+        else:
+            print(f"DEBUG: Room {room_id} not found or not in progress when game_ender finished. Room status: {getattr(room, 'status', 'None') if room else 'Room not found'}")
     except Exception as e:
         print(f"Error in game_ender for room {room_id}: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         db.close()
 
@@ -160,6 +166,8 @@ async def battle_royale_game_manager(room_id: str, duration: int):
                 "type": "battle_royale_game_over", 
                 **result_data
             })
+        else:
+            print(f"DEBUG: Battle royale room {room_id} not found or not in progress when time finished")
             
     except Exception as e:
         print(f"Error in battle_royale_game_manager for room {room_id}: {e}")
