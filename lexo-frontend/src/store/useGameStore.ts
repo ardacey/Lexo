@@ -230,8 +230,7 @@ export const useGameStore = create<StoreState>()(
             const existingOpponentWords = new Set(opponentWords.map(w => w.word));
             
             if (state.isViewer) {
-              const primaryPlayer = (msg.scores && msg.scores.length > 0) ? msg.scores[0].username : 
-                                  (msg.active_players && msg.active_players.length > 0) ? msg.active_players[0] : null;
+              const primaryPlayer = (msg.active_players && msg.active_players.length > 0) ? msg.active_players[0] : null;
               
               const playerEntries = Object.entries(msg.player_words).sort(([a], [b]) => a.localeCompare(b));
               
@@ -370,8 +369,7 @@ export const useGameStore = create<StoreState>()(
           const playerName = msg.type === 'player_word' ? msg.player : 'Opponent';
           
           if (state.isViewer) {
-            const primaryPlayer = (state.scores && state.scores.length > 0) ? state.scores[0].username : 
-                                (state.activePlayers && state.activePlayers.length > 0) ? state.activePlayers[0] : null;
+            const primaryPlayer = (state.activePlayers && state.activePlayers.length > 0) ? state.activePlayers[0] : null;
             
             if (playerName === primaryPlayer || (!primaryPlayer && state.words.length === 0)) {
               const newWord: Word = { text: msg.word, valid: true, score: msg.score, player: playerName };
