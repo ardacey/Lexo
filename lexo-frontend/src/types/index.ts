@@ -122,7 +122,7 @@ export type ServerMessage =
   | { type: "word_result"; word: string; valid: boolean; score?: number; message?: string; letterPool?: string[]; totalScore?: number; scores: PlayerScore[]; leaderboard?: PlayerScore[]; }
   | { type: "opponent_word"; word: string; score: number; letterPool: string[]; scores: PlayerScore[] }
   | { type: "player_word"; player: string; word: string; score: number; letterPool: string[]; scores: PlayerScore[]; leaderboard?: PlayerScore[]; }
-  | { type: "player_word_update"; word: string; score: number; letterPool: string[]; scores: PlayerScore[]; leaderboard: PlayerScore[]; }
+  | { type: "player_word_update"; word: string; score: number; player: string; letterPool: string[]; scores: PlayerScore[]; leaderboard: PlayerScore[]; }
   | { type: "error"; message: string }
   | { type: "countdown"; time: number; message: string }
   | { type: "countdown_stopped"; message: string; room_status: string }

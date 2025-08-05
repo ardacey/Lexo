@@ -423,12 +423,31 @@ export const useGameStore = create<StoreState>()(
         case 'player_word_update': {
           const newUsedWords = new Set([...state.roomUsedWords, msg.word]);
           
-          set({
-            letterPool: msg.letterPool || [],
-            scores: msg.scores || [],
-            roomUsedWords: newUsedWords,
-            leaderboard: msg.leaderboard || []
-          });
+          if (msg.player && msg.player !== state.username) {
+            const newOpponentWord: OpponentWord = {
+              word: msg.word,
+              score: msg.score,
+              player: msg.player
+            };
+            const newOpponentWords = [...state.opponentWords, newOpponentWord];
+            
+            set({
+              opponentWords: newOpponentWords,
+              letterPool: msg.letterPool || [],
+              scores: msg.scores || [],
+              roomUsedWords: newUsedWords,
+              leaderboard: msg.leaderboard || []
+            });
+            
+            toast.info(`${msg.player}: "${msg.word}" +${msg.score}`);
+          } else {
+            set({
+              letterPool: msg.letterPool || [],
+              scores: msg.scores || [],
+              roomUsedWords: newUsedWords,
+              leaderboard: msg.leaderboard || []
+            });
+          }
           break;
         }
 

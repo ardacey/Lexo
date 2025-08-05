@@ -456,6 +456,9 @@ async def websocket_endpoint(
                             word_result["leaderboard"] = word_service.get_battle_royale_leaderboard(word_room)
                         
                         await websocket.send_json(word_result)
+
+                        player_info = word_service.get_player(player_id)
+                        player_username = getattr(player_info, 'username', 'Unknown') if player_info else "Unknown"
                         
                         if word_game_mode == GameMode.CLASSIC.value:
                             opponent_message = {
@@ -470,15 +473,13 @@ async def websocket_endpoint(
                                 "type": "player_word_update", 
                                 "word": response_data["word"],
                                 "score": response_data["score"], 
+                                "player": player_username,
                                 "letterPool": response_data["new_letter_pool"],
                                 "scores": response_data["current_scores"],
                                 "leaderboard": word_service.get_battle_royale_leaderboard(word_room) if word_room else []
                             }
                         
                         if room_id in connection_manager.active_connections:
-                            player_info = word_service.get_player(player_id)
-                            player_username = getattr(player_info, 'username', 'Unknown') if player_info else "Unknown"
-                            
                             for opponent_id, ws in connection_manager.active_connections[room_id].items():
                                 if opponent_id != player_id:
                                     try:
