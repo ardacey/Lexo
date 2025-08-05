@@ -144,12 +144,17 @@ class RoomService:
     def cleanup_empty_room(self, room_id: str):
         room = self.get_room(room_id)
         if room and room.should_be_deleted: # type: ignore
-            self.db.delete(room)
-            self.db.commit()
+            try:
+                self.db.delete(room)
+                self.db.commit()
+                logger.info(f"Successfully cleaned up empty room: {room_id}")
+            except Exception as e:
+                logger.error(f"Error cleaning up empty room {room_id}: {e}")
+                self.db.rollback()
 
     def cleanup_finished_rooms(self):
-        finished_room_ids = (
-            self.db.query(RoomDB.id)
+        finished_rooms = (
+            self.db.query(RoomDB)
             .filter(
                 (RoomDB.status == RoomStatus.FINISHED) |
                 (~RoomDB.players.any())
@@ -157,12 +162,14 @@ class RoomService:
             .all()
         )
         
-        if finished_room_ids:
-            room_ids_to_delete = [r.id for r in finished_room_ids]
-            self.db.query(RoomDB).filter(
-                RoomDB.id.in_(room_ids_to_delete)
-            ).delete(synchronize_session=False)
-            self.db.commit()
+        for room in finished_rooms:
+            try:
+                self.db.delete(room)
+                self.db.commit()
+                logger.info(f"Cleaned up finished room: {room.id}")
+            except Exception as e:
+                logger.error(f"Error deleting room {room.id}: {e}")
+                self.db.rollback()
 
     def create_room(self, name: str, username: str, user_id: Optional[str] = None, game_mode: GameMode = GameMode.CLASSIC) -> Tuple[RoomDB, PlayerDB]:
         room_id = str(uuid.uuid4())
@@ -447,8 +454,11 @@ class RoomService:
             logger.error(f"Failed to record game stats: {e}")
 
     async def _schedule_room_cleanup(self, room_id: str, delay: int = 60):
-        await asyncio.sleep(delay)
-        self.cleanup_empty_room(room_id)
+        try:
+            await asyncio.sleep(delay)
+            self.cleanup_empty_room(room_id)
+        except Exception as e:
+            logger.error(f"Error during scheduled room cleanup {room_id}: {e}")
 
     def handle_disconnect(self, room_id: str, player_id: str) -> Tuple[Optional[RoomDB], Optional[PlayerDB], bool, bool]:
         room = self.get_room(room_id)

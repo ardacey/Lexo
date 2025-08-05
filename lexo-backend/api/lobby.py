@@ -21,7 +21,13 @@ router = APIRouter()
 @router.get("/rooms", tags=["Lobby"])
 def get_rooms_list(db: Session = Depends(get_db)):
     service = RoomService(db)
-    service.cleanup_finished_rooms()
+    try:
+        service.cleanup_finished_rooms()
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error during room cleanup: {e}")
+    
     all_rooms = service.get_all_rooms()
     
     room_list = []
