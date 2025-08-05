@@ -388,20 +388,32 @@ export const useGameStore = create<StoreState>()(
               });
             }
           } else {
-            const newOpponentWord: OpponentWord = {
-              word: msg.word,
-              score: msg.score,
-              player: playerName
-            };
-            const newOpponentWords = [...state.opponentWords, newOpponentWord];
-            
-            set({
-              opponentWords: newOpponentWords,
-              letterPool: msg.letterPool || [],
-              scores: msg.scores || [],
-              roomUsedWords: new Set([...state.roomUsedWords, msg.word]),
-              leaderboard: (msg.type === 'player_word' && msg.leaderboard) ? msg.leaderboard : get().leaderboard
-            });
+            if (msg.type === 'player_word' && playerName === state.username) {
+              const newWord: Word = { text: msg.word, valid: true, score: msg.score, player: playerName };
+              const newWords = [...state.words, newWord];
+              set({
+                words: newWords,
+                letterPool: msg.letterPool || [],
+                scores: msg.scores || [],
+                roomUsedWords: new Set([...state.roomUsedWords, msg.word]),
+                leaderboard: (msg.type === 'player_word' && msg.leaderboard) ? msg.leaderboard : get().leaderboard
+              });
+            } else {
+              const newOpponentWord: OpponentWord = {
+                word: msg.word,
+                score: msg.score,
+                player: playerName
+              };
+              const newOpponentWords = [...state.opponentWords, newOpponentWord];
+              
+              set({
+                opponentWords: newOpponentWords,
+                letterPool: msg.letterPool || [],
+                scores: msg.scores || [],
+                roomUsedWords: new Set([...state.roomUsedWords, msg.word]),
+                leaderboard: (msg.type === 'player_word' && msg.leaderboard) ? msg.leaderboard : get().leaderboard
+              });
+            }
           }
           
           toast.info(`${playerName}: "${msg.word}" +${msg.score}`);
