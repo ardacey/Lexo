@@ -181,6 +181,17 @@ class RoomService:
 
     def get_all_rooms(self) -> List[RoomDB]:
         return self.db.query(RoomDB).options(joinedload(RoomDB.players)).all()
+    
+    def get_user_active_rooms(self, user_id: str) -> List[RoomDB]:
+        return (
+            self.db.query(RoomDB)
+            .join(PlayerDB)
+            .filter(PlayerDB.user_id == user_id)
+            .filter(PlayerDB.is_owner == True)
+            .filter(RoomDB.status.in_([RoomStatus.WAITING, RoomStatus.COUNTDOWN, RoomStatus.IN_PROGRESS]))
+            .options(joinedload(RoomDB.players))
+            .all()
+        )
 
     def get_joinable_rooms(self) -> List[RoomDB]:
         return (

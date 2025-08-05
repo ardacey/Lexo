@@ -1,6 +1,6 @@
 import time
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Union, List
 from collections import defaultdict
 from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
@@ -37,10 +37,12 @@ class RateLimiter:
         return max(0, int(reset_time - time.time()))
 
 general_limiter = RateLimiter(max_requests=100, window_seconds=60)
-auth_limiter = RateLimiter(max_requests=30, window_seconds=60)  # Increased from 10 to 30
+auth_limiter = RateLimiter(max_requests=30, window_seconds=60)
 websocket_limiter = RateLimiter(max_requests=50, window_seconds=60)
+room_creation_limiter = RateLimiter(max_requests=5, window_seconds=60)
+lobby_limiter = RateLimiter(max_requests=10, window_seconds=60)
 
-def get_client_identifier(request: Request) -> str:
+def get_client_identifier(request: Request, user_id: Optional[str] = None) -> str:
     forwarded_for = request.headers.get("X-Forwarded-For")
     real_ip = request.headers.get("X-Real-IP")
     
@@ -51,18 +53,53 @@ def get_client_identifier(request: Request) -> str:
     else:
         client_ip = request.client.host if request.client else "unknown"
     
+    if user_id:
+        return f"user:{user_id}:ip:{client_ip}"
+    
     user_agent = request.headers.get("User-Agent", "unknown")
     try:
         user_agent_hash = hash(user_agent)
     except Exception:
         user_agent_hash = hash("unknown")
     
-    return f"{client_ip}:{user_agent_hash}"
+    return f"ip:{client_ip}:ua:{user_agent_hash}"
 
 async def rate_limit_middleware(request: Request, call_next):
-    identifier = get_client_identifier(request)
+    user_agent = request.headers.get("User-Agent", "")
+    if not security_limiter.validate_user_agent(user_agent):
+        logger.warning(f"Invalid or suspicious User-Agent: {user_agent}")
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"error": "Invalid client"}
+        )
     
-    if request.url.path == "/api/auth/login":
+    user_id = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        try:
+            from jose import jwt
+            from auth.utils import SECRET_KEY, ALGORITHM
+            token = auth_header.split(" ")[1]
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+        except Exception:
+            pass
+    
+    identifier = get_client_identifier(request, user_id)
+    
+    if security_limiter.is_suspicious_pattern(identifier):
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={"error": "Suspicious activity detected", "retry_after": 300}
+        )
+    
+    if request.url.path == "/api/rooms" and request.method == "POST":
+        limiter = room_creation_limiter
+    elif request.url.path == "/api/rooms" and request.method == "GET":
+        limiter = lobby_limiter
+    elif request.url.path.startswith("/api/rooms/") and "/join" in request.url.path:
+        limiter = lobby_limiter
+    elif request.url.path == "/api/auth/login":
         limiter = RateLimiter(max_requests=15, window_seconds=60)
     elif request.url.path in ["/api/auth/register", "/api/auth/refresh"]:
         limiter = RateLimiter(max_requests=20, window_seconds=60)
@@ -76,6 +113,7 @@ async def rate_limit_middleware(request: Request, call_next):
     if not limiter.is_allowed(identifier):
         reset_time = limiter.get_reset_time(identifier)
         logger.warning(f"Rate limit exceeded for {identifier} on {request.url.path}")
+        limit_type = "room_creation" if limiter == room_creation_limiter else "general"
         
         return JSONResponse(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -124,3 +162,42 @@ class WordSubmissionLimiter:
         return True
 
 word_submission_limiter = WordSubmissionLimiter()
+
+class SecurityLimiter:
+    def __init__(self):
+        self.suspicious_ips: Dict[str, float] = {}
+        self.request_patterns: Dict[str, List[float]] = defaultdict(list)
+        
+    def is_suspicious_pattern(self, identifier: str) -> bool:
+        now = time.time()
+
+        if identifier in self.suspicious_ips:
+            if now < self.suspicious_ips[identifier]:
+                return True
+            else:
+                del self.suspicious_ips[identifier]
+        
+        recent_requests = [req for req in self.request_patterns[identifier] if req > now - 10]
+        self.request_patterns[identifier] = recent_requests
+        if len(recent_requests) > 10:
+            self.suspicious_ips[identifier] = now + 300
+            logger.warning(f"Suspicious pattern detected for {identifier}, banned for 5 minutes")
+            return True
+            
+        self.request_patterns[identifier].append(now)
+        return False
+    
+    def validate_user_agent(self, user_agent: str) -> bool:
+        if not user_agent or user_agent in ["unknown", ""]:
+            return False
+
+        bot_patterns = ["bot", "crawler", "spider", "scraper", "curl", "wget", "python-requests"]
+        user_agent_lower = user_agent.lower()
+        
+        for pattern in bot_patterns:
+            if pattern in user_agent_lower:
+                return False
+                
+        return True
+
+security_limiter = SecurityLimiter()

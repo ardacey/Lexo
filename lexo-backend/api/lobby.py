@@ -61,6 +61,15 @@ def create_room(
 ):
     service = RoomService(db)
     try:
+        user_active_rooms = service.get_user_active_rooms(str(current_user.id))
+        MAX_ROOMS_PER_USER = 3
+        
+        if len(user_active_rooms) >= MAX_ROOMS_PER_USER:
+            raise HTTPException(
+                status_code=429, 
+                detail=f"You can only create up to {MAX_ROOMS_PER_USER} active rooms at once. Please close some existing rooms first."
+            )
+        
         game_mode = GameMode.CLASSIC
         if request.game_mode == "battle_royale":
             game_mode = GameMode.BATTLE_ROYALE
@@ -74,6 +83,8 @@ def create_room(
             game_mode=game_mode
         )
         return {"room_id": room.id, "player_id": player.id, "game_mode": room.game_mode.value}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
