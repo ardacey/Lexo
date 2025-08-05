@@ -36,9 +36,14 @@ const OpponentWordList: React.FC = () => {
                   transition={{ duration: 0.3 }}
                   className="flex justify-between items-center p-2 rounded-md bg-slate-100"
                 >
-                  <span className="font-semibold text-slate-600">
-                    {word.word}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-600">
+                      {word.word}
+                    </span>
+                    <span className="text-xs bg-slate-200 text-slate-600 px-1 rounded">
+                      +{word.score}
+                    </span>
+                  </div>
                   <CheckCircle2 className="h-5 w-5 text-slate-400" />
                 </motion.li>
               ))}

@@ -304,9 +304,18 @@ async def websocket_endpoint(
                     remaining_time = max(0, BATTLE_ROYALE_COUNTDOWN_SECONDS - int(elapsed_seconds))
             
             player_words = {}
-            if getattr(player, 'is_viewer', False) and is_game_started:
+            if is_game_started:
                 for p in active_players:
-                    player_words[p.username] = p.words or []
+                    words_with_scores = []
+                    player_word_list = p.words or []
+                    for word in player_word_list:
+                        from game.logic import calculate_score
+                        word_score = calculate_score(word)
+                        words_with_scores.append({
+                            "word": word,
+                            "score": word_score
+                        })
+                    player_words[p.username] = words_with_scores
             
             room_state_data = {
                 "type": "room_state",

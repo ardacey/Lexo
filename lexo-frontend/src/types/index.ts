@@ -49,6 +49,11 @@ export interface HighestScoringWord {
   player: string;
 }
 
+export interface PlayerWordEntry {
+  word: string;
+  score: number;
+}
+
 export interface EliminationInfo {
   next_elimination_time: number;
   next_elimination_player: string | null;
@@ -59,6 +64,7 @@ export interface EliminationInfo {
 export interface GameState {
   isConnected: boolean;
   playerId: string | null;
+  username: string | null;
   isViewer: boolean;
   isOwner: boolean;
   players: string[];
@@ -99,7 +105,7 @@ export type ServerMessage =
       is_owner: boolean;
       letter_pool: string[]; 
       scores: PlayerScore[]; 
-      player_words?: { [username: string]: string[] }; 
+      player_words?: { [username: string]: PlayerWordEntry[] }; 
       time_left?: number; 
       duration?: number;
       end_time?: number; 

@@ -23,6 +23,7 @@ const RECONNECT_DELAY = 1000;
 const initialState: GameState = {
   isConnected: false, 
   playerId: null, 
+  username: null,
   isViewer: false,
   isOwner: false,
   players: [], 
@@ -69,7 +70,7 @@ export const useGameStore = create<StoreState>()(
         socket = new WebSocket(wsUrl);
         
         socket.onopen = () => {
-          set({ isConnected: true, error: null, playerId });
+          set({ isConnected: true, error: null, playerId, username });
           toast.success("Connected to the game!");
           reconnectAttempts = 0;
         };
@@ -219,6 +220,26 @@ export const useGameStore = create<StoreState>()(
       switch (msg.type) {
         case 'room_state': {
           const roomUsedWords = new Set<string>(msg.used_words || []);
+          const state = get();
+
+          let words = state.words;
+          let opponentWords = state.opponentWords;
+          
+          if (msg.player_words && msg.game_started && state.username) {
+            words = [];
+            opponentWords = [];
+            
+            Object.entries(msg.player_words).forEach(([username, playerWords]) => {
+              playerWords.forEach(wordEntry => {
+                if (username === state.username && !state.isViewer) {
+                  words.push({ text: wordEntry.word, valid: true, score: wordEntry.score, player: username });
+                } else {
+                  opponentWords.push({ word: wordEntry.word, score: wordEntry.score, player: username });
+                }
+              });
+            });
+          }
+          
           set({
             players: msg.players || [],
             activePlayers: msg.active_players || [],
@@ -231,7 +252,9 @@ export const useGameStore = create<StoreState>()(
             roomUsedWords,
             roomStatus: msg.room_status || 'waiting',
             gameMode: msg.game_mode || 'classic',
-            leaderboard: msg.leaderboard || msg.scores || []
+            leaderboard: msg.leaderboard || msg.scores || [],
+            words,
+            opponentWords
           });
           
           if (msg.game_started && msg.duration && msg.duration > 0) {

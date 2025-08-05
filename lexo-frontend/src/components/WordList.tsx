@@ -37,11 +37,18 @@ const WordList: React.FC = () => {
                   word.valid ? 'bg-green-100' : 'bg-red-100'
                 }`}
               >
-                <span className={`font-semibold ${
-                  word.valid ? 'text-green-800' : 'text-red-800'
-                }`}>
-                  {word.text}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`font-semibold ${
+                    word.valid ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    {word.text}
+                  </span>
+                  {word.valid && word.score && (
+                    <span className="text-xs bg-green-200 text-green-700 px-1 rounded">
+                      +{word.score}
+                    </span>
+                  )}
+                </div>
                 {word.valid ? 
                   <CheckCircle2 className="h-5 w-5 text-green-600" /> : 
                   <XCircle className="h-5 w-5 text-red-600" />
