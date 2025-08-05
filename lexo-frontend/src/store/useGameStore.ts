@@ -230,21 +230,19 @@ export const useGameStore = create<StoreState>()(
             const existingOpponentWords = new Set(opponentWords.map(w => w.word));
             
             if (state.isViewer) {
-              const primaryPlayer = (msg.scores && msg.scores.length > 0) ? msg.scores[0].username : null;
-              const secondaryPlayer = (msg.scores && msg.scores.length > 1) ? msg.scores[1].username : null;
+              const primaryPlayer = (msg.scores && msg.scores.length > 0) ? msg.scores[0].username : 
+                                  (msg.active_players && msg.active_players.length > 0) ? msg.active_players[0] : null;
               
-              Object.entries(msg.player_words).forEach(([username, playerWords]) => {
+              const playerEntries = Object.entries(msg.player_words).sort(([a], [b]) => a.localeCompare(b));
+              
+              playerEntries.forEach(([username, playerWords], index) => {
                 playerWords.forEach(wordEntry => {
-                  if (username === primaryPlayer) {
+                  if (username === primaryPlayer || (!primaryPlayer && index === 0)) {
                     if (!existingWords.has(wordEntry.word)) {
                       words.push({ text: wordEntry.word, valid: true, score: wordEntry.score, player: username });
                     }
-                  } else if (username === secondaryPlayer) {
-                    if (!existingOpponentWords.has(wordEntry.word)) {
-                      opponentWords.push({ word: wordEntry.word, score: wordEntry.score, player: username });
-                    }
                   } else {
-                    if (!secondaryPlayer && !existingOpponentWords.has(wordEntry.word)) {
+                    if (!existingOpponentWords.has(wordEntry.word)) {
                       opponentWords.push({ word: wordEntry.word, score: wordEntry.score, player: username });
                     }
                   }
@@ -372,10 +370,10 @@ export const useGameStore = create<StoreState>()(
           const playerName = msg.type === 'player_word' ? msg.player : 'Opponent';
           
           if (state.isViewer) {
-            const primaryPlayer = (state.scores && state.scores.length > 0) ? state.scores[0].username : null;
-            const secondaryPlayer = (state.scores && state.scores.length > 1) ? state.scores[1].username : null;
+            const primaryPlayer = (state.scores && state.scores.length > 0) ? state.scores[0].username : 
+                                (state.activePlayers && state.activePlayers.length > 0) ? state.activePlayers[0] : null;
             
-            if (playerName === primaryPlayer) {
+            if (playerName === primaryPlayer || (!primaryPlayer && state.words.length === 0)) {
               const newWord: Word = { text: msg.word, valid: true, score: msg.score, player: playerName };
               const newWords = [...state.words, newWord];
               set({
@@ -385,7 +383,7 @@ export const useGameStore = create<StoreState>()(
                 roomUsedWords: new Set([...state.roomUsedWords, msg.word]),
                 leaderboard: (msg.type === 'player_word' && msg.leaderboard) ? msg.leaderboard : get().leaderboard
               });
-            } else if (playerName === secondaryPlayer || (!secondaryPlayer && playerName !== primaryPlayer)) {
+            } else {
               const newOpponentWord: OpponentWord = {
                 word: msg.word,
                 score: msg.score,

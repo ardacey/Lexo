@@ -12,13 +12,15 @@ const OpponentWordList: React.FC = () => {
 
   const getTitle = () => {
     if (isViewer) {
-      const secondaryPlayer = (scores && scores.length > 1) ? scores[1].username : null;
-      
       if (opponentWords.length > 0 && opponentWords[0].player) {
         return `${opponentWords[0].player}'s Words`;
-      } else if (secondaryPlayer) {
+      }
+      
+      const secondaryPlayer = (scores && scores.length > 1) ? scores[1].username : null;
+      if (secondaryPlayer) {
         return `${secondaryPlayer}'s Words`;
       }
+      
       return "Player 2's Words";
     }
     return "Opponent's Words";
