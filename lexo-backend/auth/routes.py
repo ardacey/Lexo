@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 from datetime import timedelta
+import logging
 from core.database import get_db
 from auth.schemas import UserCreate, UserLogin, UserResponse, Token, RefreshTokenRequest, AccessTokenResponse
 from auth.services import UserService
@@ -9,6 +10,7 @@ from auth.utils import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from auth.dependencies import get_current_user
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.post("/register", response_model=UserResponse, tags=["Authentication"])
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
@@ -22,6 +24,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     user = user_service.authenticate_user(user_data.email, user_data.password)
     
     if not user:
+        logger.warning(f"Authentication failed for email: {user_data.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",

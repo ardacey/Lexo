@@ -37,23 +37,36 @@ class RateLimiter:
         return max(0, int(reset_time - time.time()))
 
 general_limiter = RateLimiter(max_requests=100, window_seconds=60)
-auth_limiter = RateLimiter(max_requests=10, window_seconds=60)
+auth_limiter = RateLimiter(max_requests=30, window_seconds=60)  # Increased from 10 to 30
 websocket_limiter = RateLimiter(max_requests=50, window_seconds=60)
 
 def get_client_identifier(request: Request) -> str:
     forwarded_for = request.headers.get("X-Forwarded-For")
+    real_ip = request.headers.get("X-Real-IP")
+    
     if forwarded_for:
         client_ip = forwarded_for.split(",")[0].strip()
+    elif real_ip:
+        client_ip = real_ip.strip()
     else:
         client_ip = request.client.host if request.client else "unknown"
     
     user_agent = request.headers.get("User-Agent", "unknown")
-    return f"{client_ip}:{hash(user_agent)}"
+    try:
+        user_agent_hash = hash(user_agent)
+    except Exception:
+        user_agent_hash = hash("unknown")
+    
+    return f"{client_ip}:{user_agent_hash}"
 
 async def rate_limit_middleware(request: Request, call_next):
     identifier = get_client_identifier(request)
     
-    if request.url.path.startswith("/api/auth"):
+    if request.url.path == "/api/auth/login":
+        limiter = RateLimiter(max_requests=15, window_seconds=60)
+    elif request.url.path in ["/api/auth/register", "/api/auth/refresh"]:
+        limiter = RateLimiter(max_requests=20, window_seconds=60)
+    elif request.url.path.startswith("/api/auth"):
         limiter = auth_limiter
     elif request.url.path.startswith("/api/ws"):
         limiter = websocket_limiter
@@ -68,7 +81,8 @@ async def rate_limit_middleware(request: Request, call_next):
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             content={
                 "error": "Rate limit exceeded",
-                "retry_after": reset_time
+                "retry_after": reset_time,
+                "message": f"Too many requests. Please try again in {reset_time} seconds."
             },
             headers={
                 "Retry-After": str(reset_time),
