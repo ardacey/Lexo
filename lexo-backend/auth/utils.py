@@ -37,6 +37,7 @@ if not SECRET_KEY:
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
 def validate_password_strength(password: str) -> bool:
     if len(password) < 8:
@@ -72,12 +73,32 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode.update({"exp": expire, "iat": datetime.utcnow()})
+    to_encode.update({"exp": expire, "iat": datetime.utcnow(), "type": "access"})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def verify_token(token: str) -> dict:
-    print(f"DEBUG: Verifying token: {token[:10]}...")
+def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None):
+    if not JWT_AVAILABLE or jwt is None:
+        raise HTTPException(status_code=500, detail="JWT encoding not available")
+    
+    if not SECRET_KEY:
+        raise HTTPException(status_code=500, detail="SECRET_KEY not configured")
+    
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    
+    to_encode.update({"exp": expire, "iat": datetime.utcnow(), "type": "refresh"})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def generate_refresh_token_id() -> str:
+    return str(uuid.uuid4())
+
+def verify_token(token: str, token_type: str = "access") -> dict:
+    print(f"DEBUG: Verifying {token_type} token: {token[:10]}...")
     if not JWT_AVAILABLE or jwt is None:
         print("DEBUG: JWT not available")
         raise HTTPException(
@@ -96,7 +117,10 @@ def verify_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
-        print(f"DEBUG: Token payload decoded, user_id: {user_id}")
+        token_type_from_payload = payload.get("type", "access")
+        
+        print(f"DEBUG: Token payload decoded, user_id: {user_id}, token_type: {token_type_from_payload}")
+        
         if user_id is None:
             print("DEBUG: No sub claim in token")
             raise HTTPException(
@@ -104,6 +128,15 @@ def verify_token(token: str) -> dict:
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        
+        if token_type_from_payload != token_type:
+            print(f"DEBUG: Token type mismatch. Expected: {token_type}, Got: {token_type_from_payload}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
         return payload
     except JWTError as e:
         print(f"DEBUG: JWT verification failed: {e}")

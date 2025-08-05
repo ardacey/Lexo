@@ -15,7 +15,7 @@ async def get_current_user(
 ) -> UserDB:
     print(f"DEBUG: Auth credentials received: {credentials.credentials[:10]}..." if credentials and credentials.credentials else "No credentials")
     token = credentials.credentials
-    payload = verify_token(token)
+    payload = verify_token(token, "access")
     user_id = payload.get("sub")
     print(f"DEBUG: Extracted user_id from token: {user_id}")
     
@@ -54,7 +54,7 @@ async def get_current_user_optional(
     
     try:
         token = credentials.credentials
-        payload = verify_token(token)
+        payload = verify_token(token, "access")
         user_id = payload.get("sub")
         
         if user_id is None:

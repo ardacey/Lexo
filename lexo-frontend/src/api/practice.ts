@@ -64,7 +64,7 @@ export const submitPracticeWord = async (sessionId: string, word: string) => {
 };
 
 export const getPracticeStatus = async (sessionId: string) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('access_token');
   const response = await fetch(`${API_BASE_URL}/practice/${sessionId}/status`, {
     method: 'GET',
     headers: {
@@ -82,7 +82,7 @@ export const getPracticeStatus = async (sessionId: string) => {
 };
 
 export const endPracticeSession = async (sessionId: string): Promise<PracticeResults> => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('access_token');
   const response = await fetch(`${API_BASE_URL}/practice/${sessionId}/end`, {
     method: 'POST',
     headers: {

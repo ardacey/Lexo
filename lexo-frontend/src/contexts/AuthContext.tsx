@@ -8,7 +8,8 @@ export interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  logoutAllDevices: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -23,6 +24,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    AuthAPI.migrateTokenStorage();
     checkAuthStatus();
   }, []);
 
@@ -51,8 +53,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     await login(email, password);
   };
 
-  const logout = () => {
-    AuthAPI.logout();
+  const logout = async () => {
+    await AuthAPI.logout();
+    setUser(null);
+  };
+
+  const logoutAllDevices = async () => {
+    await AuthAPI.logoutAllDevices();
     setUser(null);
   };
 
@@ -62,6 +69,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     register,
     logout,
+    logoutAllDevices,
     isAuthenticated: !!user,
   };
 

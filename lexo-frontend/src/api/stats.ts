@@ -67,7 +67,7 @@ export interface QuickStats {
 }
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('access_token');
   console.log('DEBUG: Auth token for stats API:', token ? 'exists' : 'missing');
   return {
     'Content-Type': 'application/json',
