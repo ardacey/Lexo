@@ -43,6 +43,12 @@ export interface WinnerData {
   score: number;
 }
 
+export interface HighestScoringWord {
+  word: string;
+  score: number;
+  player: string;
+}
+
 export interface EliminationInfo {
   next_elimination_time: number;
   next_elimination_player: string | null;
@@ -71,6 +77,7 @@ export interface GameState {
   winnerData: WinnerData | null;
   isTie: boolean;
   gameOverReason: string | null;
+  highestScoringWord: HighestScoringWord | null;
   countdown: number | null;
   roomUsedWords: Set<string>;
   roomStatus: string;
@@ -113,5 +120,5 @@ export type ServerMessage =
   | { type: "players_eliminated"; eliminated_players: string[]; message: string; leaderboard: PlayerScore[]; }
   | { type: "leaderboard_update"; leaderboard: PlayerScore[]; elimination_info?: EliminationInfo; }
   | { type: "elimination_update"; elimination_info: EliminationInfo; }
-  | { type: "game_over"; scores: PlayerScore[]; winner_data: WinnerData | null; is_tie: boolean; reason?: string }
-  | { type: "battle_royale_game_over"; scores: PlayerScore[]; winner_data: WinnerData | null; is_tie: boolean; leaderboard: PlayerScore[]; gameMode: string; reason?: string };
+  | { type: "game_over"; scores: PlayerScore[]; winner_data: WinnerData | null; is_tie: boolean; highest_scoring_word?: HighestScoringWord; reason?: string }
+  | { type: "battle_royale_game_over"; scores: PlayerScore[]; winner_data: WinnerData | null; is_tie: boolean; leaderboard: PlayerScore[]; gameMode: string; highest_scoring_word?: HighestScoringWord; reason?: string };

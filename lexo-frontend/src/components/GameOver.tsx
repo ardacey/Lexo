@@ -3,7 +3,7 @@ import { useGameStore } from '../store/useGameStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Crown, Zap } from 'lucide-react';
+import { Crown, Zap, Star } from 'lucide-react';
 
 interface Props {
   onReturnToLobby: () => void;
@@ -14,6 +14,7 @@ const GameOver: React.FC<Props> = ({ onReturnToLobby }) => {
   const winnerData = useGameStore(state => state.winnerData);
   const isTie = useGameStore(state => state.isTie);
   const gameOverReason = useGameStore(state => state.gameOverReason);
+  const highestScoringWord = useGameStore(state => state.highestScoringWord);
 
   const renderTitle = () => {
     if (isTie) {
@@ -64,6 +65,24 @@ const GameOver: React.FC<Props> = ({ onReturnToLobby }) => {
             ))}
           </TableBody>
         </Table>
+        
+        {highestScoringWord && (
+          <div className="mt-4 p-3 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <Star className="h-4 w-4 text-amber-500" />
+              <h4 className="font-semibold text-amber-800">Highest Scoring Word</h4>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-amber-700 mb-1">
+                {highestScoringWord.word.toUpperCase()}
+              </div>
+              <div className="text-sm text-amber-600">
+                {highestScoringWord.score} points by {highestScoringWord.player}
+              </div>
+            </div>
+          </div>
+        )}
+
         <Button onClick={onReturnToLobby} className="w-full mt-4" size="lg">
           Return to Lobby
         </Button>

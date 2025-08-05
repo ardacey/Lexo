@@ -39,6 +39,7 @@ const initialState: GameState = {
   winnerData: null, 
   isTie: false, 
   gameOverReason: null, 
+  highestScoringWord: null,
   countdown: null, 
   gameEndTime: null, 
   roomUsedWords: new Set(), 
@@ -360,6 +361,7 @@ export const useGameStore = create<StoreState>()(
             winnerData: msg.winner_data,
             isTie: msg.is_tie || false,
             gameOverReason: msg.reason || null,
+            highestScoringWord: msg.highest_scoring_word || null,
             roomStatus: 'finished'
           });
           
@@ -381,6 +383,7 @@ export const useGameStore = create<StoreState>()(
             winnerData: msg.winner_data,
             isTie: msg.is_tie || false,
             gameOverReason: msg.reason || null,
+            highestScoringWord: msg.highest_scoring_word || null,
             roomStatus: 'finished',
             leaderboard: msg.leaderboard || []
           });

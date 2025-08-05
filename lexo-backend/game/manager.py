@@ -123,6 +123,62 @@ class RoomService:
     def get_player(self, player_id: str) -> Optional[PlayerDB]:
         return self.db.query(PlayerDB).filter(PlayerDB.id == player_id).first()
 
+    def _get_highest_scoring_word(self, room: RoomDB) -> Optional[dict]:
+        all_words = []
+
+        for player in room.players:
+            if not getattr(player, 'is_viewer', False):
+                player_words = getattr(player, 'words', [])
+                if player_words:
+                    for word in player_words:
+                        score = calculate_score(word)
+                        all_words.append({
+                            "word": word,
+                            "score": score,
+                            "player": player.username
+                        })
+        
+        if not all_words:
+            return None
+
+        highest_scoring = max(all_words, key=lambda x: x["score"])
+        return highest_scoring
+
+    def _record_disconnect_stats(self, player: PlayerDB, room: RoomDB):
+        try:
+            if getattr(player, 'is_viewer', False) or not getattr(player, 'user_id', None):
+                return
+                
+            stats_service = StatsService(self.db)
+            
+            game_start_time = getattr(room, 'game_start_time', None) or getattr(room, 'created_at', datetime.now())
+            game_end_time = datetime.now()
+            
+            game_mode = "classic"
+            if hasattr(room, 'game_mode'):
+                room_game_mode = getattr(room, 'game_mode', None)
+                if room_game_mode and room_game_mode.value == GameMode.BATTLE_ROYALE.value:
+                    game_mode = "battle_royale"
+            
+            player_score = getattr(player, 'score', 0) or 0
+            words_played = max(1, player_score // 10) if player_score > 0 else 0
+            
+            stats_service.update_game_result(
+                user_id=str(getattr(player, 'user_id')),
+                room_id=str(room.id),
+                game_mode=game_mode,
+                result="loss",
+                score=player_score,
+                words_played=words_played,
+                started_at=game_start_time,
+                ended_at=game_end_time,
+                final_position=None,
+                total_players=len([p for p in room.players if not getattr(p, 'is_viewer', False)])
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to record disconnect stats for player {player.id}: {e}")
+
     def get_all_rooms(self) -> List[RoomDB]:
         return self.db.query(RoomDB).options(joinedload(RoomDB.players)).all()
 
@@ -385,6 +441,8 @@ class RoomService:
             if len(winners) > 1: is_tie = True
             winner_data = {"usernames": [w["username"] for w in winners], "score": highest_score}
 
+        highest_scoring_word = self._get_highest_scoring_word(room)
+
         self._record_game_stats(room, active_players, scores, game_end_time)
         self.db.commit()
         self.db.refresh(room)
@@ -394,7 +452,12 @@ class RoomService:
         else:
             asyncio.create_task(self._schedule_room_cleanup(room_id, delay=60))
         
-        return room, {"scores": scores, "winner_data": winner_data, "is_tie": is_tie}
+        return room, {
+            "scores": scores, 
+            "winner_data": winner_data, 
+            "is_tie": is_tie,
+            "highest_scoring_word": highest_scoring_word
+        }
 
     def _record_game_stats(self, room: RoomDB, active_players: List[PlayerDB], scores: List[dict], game_end_time: datetime):
         try:
@@ -483,6 +546,9 @@ class RoomService:
             return self.get_room(room_id), player_leaving, False, False
 
         if room.status in [RoomStatus.IN_PROGRESS, RoomStatus.COUNTDOWN]:
+            if not getattr(player_leaving, 'is_viewer', False):
+                self._record_disconnect_stats(player_leaving, room)
+            
             active_players = [p for p in room.players if not getattr(p, 'is_viewer', False)]
             
             if room.game_mode.value == GameMode.CLASSIC.value and len(active_players) == 2:
