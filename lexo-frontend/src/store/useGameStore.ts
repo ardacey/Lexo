@@ -7,6 +7,7 @@ interface StoreState extends GameState {
   connect: (roomId: string, playerId: string, username: string) => void;
   disconnect: () => void;
   sendWord: (word: string) => void;
+  startGame: () => void;
   _handleMessage: (msg: ServerMessage) => void;
   _resetState: () => void;
   _setupTimer: (endTime: number) => void;
@@ -22,7 +23,8 @@ const RECONNECT_DELAY = 1000;
 const initialState: GameState = {
   isConnected: false, 
   playerId: null, 
-  isViewer: false, 
+  isViewer: false,
+  isOwner: false,
   players: [], 
   activePlayers: [],
   letterPool: [], 
@@ -147,6 +149,32 @@ export const useGameStore = create<StoreState>()(
         toast.error("Not connected to server");
       }
     },
+
+    startGame: () => {
+      const state = get();
+      
+      if (!state.isOwner) {
+        toast.error("Only room owner can start the game.");
+        return;
+      }
+      
+      if (state.gameMode !== 'battle_royale') {
+        toast.error("Manual start is only available for Battle Royale mode.");
+        return;
+      }
+      
+      if (state.roomStatus !== 'waiting') {
+        toast.error("Game can only be started while waiting for players.");
+        return;
+      }
+      
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'start_game' }));
+        toast.info("Starting the game...");
+      } else {
+        toast.error("Not connected to server");
+      }
+    },
     
     _resetState: () => {
       if (socket) {
@@ -195,6 +223,7 @@ export const useGameStore = create<StoreState>()(
             players: msg.players || [],
             activePlayers: msg.active_players || [],
             isViewer: msg.is_viewer || false,
+            isOwner: msg.is_owner || false,
             letterPool: msg.letter_pool || [],
             scores: msg.scores || [],
             gameStarted: msg.game_started || false,
@@ -231,6 +260,12 @@ export const useGameStore = create<StoreState>()(
 
         case 'countdown':
           set({ countdown: msg.time });
+          break;
+
+        case 'game_starting':
+          if (msg.message) {
+            toast.success(msg.message);
+          }
           break;
 
         case 'start_game':

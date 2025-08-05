@@ -315,6 +315,7 @@ async def websocket_endpoint(
                 "players": all_players,
                 "active_players": [p.username for p in active_players],
                 "is_viewer": getattr(player, 'is_viewer', False),
+                "is_owner": getattr(player, 'is_owner', False),
                 "letter_pool": room_obj.letter_pool if is_game_started else [],
                 "scores": [{"username": p.username, "score": p.score} for p in active_players] if is_game_started else [],
                 "game_started": is_game_started,
@@ -342,8 +343,6 @@ async def websocket_endpoint(
             if room_status == RoomStatus.WAITING and not is_game_started:
                 if game_mode == GameMode.CLASSIC.value and len(active_players) == 2:
                     asyncio.create_task(countdown_handler(room_id))
-                elif game_mode == GameMode.BATTLE_ROYALE.value and len(active_players) >= getattr(room_obj, 'min_players', 3):
-                    asyncio.create_task(countdown_handler(room_id))
 
     except Exception as e:
         logger.error(f"Error during WebSocket connection setup for player {player_id}: {e}", exc_info=True)
@@ -358,7 +357,68 @@ async def websocket_endpoint(
     try:
         while True:
             data = await websocket.receive_json()
-            if data.get("type") == "word":
+            
+            if data.get("type") == "start_game":
+                start_db = SessionLocal()
+                try:
+                    start_service = RoomService(start_db)
+                    start_room = start_service.get_room(room_id)
+                    start_player = start_service.get_player(player_id)
+                    
+                    if not start_room or not start_player:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Room or player not found"
+                        })
+                        continue
+                    
+                    if not getattr(start_player, 'is_owner', False):
+                        await websocket.send_json({
+                            "type": "error", 
+                            "message": "Only room owner can start the game"
+                        })
+                        continue
+                    
+                    if (start_room.game_mode.value != GameMode.BATTLE_ROYALE.value or 
+                        getattr(start_room, 'status', None) != RoomStatus.WAITING):
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Game can only be started in Battle Royale mode while waiting"
+                        })
+                        continue
+                    
+                    active_players = [p for p in start_room.players if not getattr(p, 'is_viewer', False)]
+                    min_players = getattr(start_room, 'min_players', BATTLE_ROYALE_MIN_PLAYERS)
+                    
+                    if len(active_players) < min_players:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": f"Need at least {min_players} players to start the game"
+                        })
+                        continue
+                    
+                    if room_id not in active_countdowns:
+                        asyncio.create_task(countdown_handler(room_id))
+                        await connection_manager.broadcast_to_room(room_id, {
+                            "type": "game_starting",
+                            "message": f"{start_player.username} started the game!"
+                        })
+                    else:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Game is already starting"
+                        })
+                        
+                except Exception as e:
+                    logger.error(f"Error handling start_game message: {e}")
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "Failed to start game"
+                    })
+                finally:
+                    start_db.close()
+                    
+            elif data.get("type") == "word":
                 word = data.get("word", "")
                 
                 word_db = SessionLocal()

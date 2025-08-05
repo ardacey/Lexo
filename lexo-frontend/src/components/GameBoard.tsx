@@ -21,7 +21,11 @@ const GameBoard: React.FC<GameBoardProps> = ({ username }) => {
   const timeLeft = useGameStore(state => state.timeLeft);
   const letterPool = useGameStore(state => state.letterPool);
   const isViewer = useGameStore(state => state.isViewer);
+  const isOwner = useGameStore(state => state.isOwner);
+  const roomStatus = useGameStore(state => state.roomStatus);
+  const activePlayers = useGameStore(state => state.activePlayers);
   const sendWord = useGameStore(state => state.sendWord);
+  const startGame = useGameStore(state => state.startGame);
   const leaderboard = useGameStore(state => state.leaderboard);
   const gameMode = useGameStore(state => state.gameMode);
   const [currentWord, setCurrentWord] = useState('');
@@ -38,6 +42,20 @@ const GameBoard: React.FC<GameBoardProps> = ({ username }) => {
     sendWord(currentWord);
     setCurrentWord('');
   };
+
+  const handleStartGame = () => {
+    startGame();
+  };
+
+  const showStartButton = (
+    gameMode === 'battle_royale' && 
+    isOwner && 
+    !isViewer &&
+    !gameStarted && 
+    countdown === null &&
+    roomStatus === 'waiting' &&
+    activePlayers.length >= 3
+  );
 
   return (
     <div className="relative w-full max-w-6xl mx-auto flex flex-col items-center space-y-4">
@@ -112,10 +130,33 @@ const GameBoard: React.FC<GameBoardProps> = ({ username }) => {
         
         <Scoreboard username={username} />
         
-        <div className="w-full flex justify-center min-h-[80px] items-center my-4">
+        <div className="w-full flex flex-col justify-center items-center min-h-[80px] my-4">
           {!gameStarted && countdown === null ? (
-            <div className="text-2xl text-slate-500 animate-pulse">
-              {gameMode === 'battle_royale' ? 'Waiting for players...' : 'Waiting for opponent...'}
+            <div className="flex flex-col items-center space-y-4">
+              <div className="text-2xl text-slate-500 animate-pulse">
+                {gameMode === 'battle_royale' ? 'Waiting for players...' : 'Waiting for opponent...'}
+              </div>
+              {showStartButton && (
+                <motion.button
+                  onClick={handleStartGame}
+                  className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-lg transition-colors"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  Start Game
+                </motion.button>
+              )}
+              {gameMode === 'battle_royale' && !isViewer && (
+                <div className="text-sm text-slate-400 text-center">
+                  {activePlayers.length < 3 ? (
+                    `Need ${3 - activePlayers.length} more player${3 - activePlayers.length === 1 ? '' : 's'} to start`
+                  ) : isOwner ? (
+                    'You can start the game when ready'
+                  ) : (
+                    'Waiting for room owner to start the game'
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <LetterPool 

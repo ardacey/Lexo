@@ -60,6 +60,7 @@ export interface GameState {
   isConnected: boolean;
   playerId: string | null;
   isViewer: boolean;
+  isOwner: boolean;
   players: string[];
   activePlayers: string[];
   letterPool: string[];
@@ -94,7 +95,8 @@ export type ServerMessage =
       game_mode: 'classic' | 'battle_royale';
       players: string[]; 
       active_players: string[]; 
-      is_viewer: boolean; 
+      is_viewer: boolean;
+      is_owner: boolean;
       letter_pool: string[]; 
       scores: PlayerScore[]; 
       player_words?: { [username: string]: string[] }; 
@@ -108,6 +110,7 @@ export type ServerMessage =
       leaderboard?: PlayerScore[];
     }
   | { type: "start_game"; letterPool: string[]; duration: number; endTime?: number; gameMode: 'classic' | 'battle_royale'; leaderboard?: PlayerScore[]; elimination_info?: EliminationInfo; }
+  | { type: "game_starting"; message: string }
   | { type: "player_joined"; message: string; players: string[]; game_mode?: 'classic' | 'battle_royale'; leaderboard?: PlayerScore[]; }
   | { type: "player_left"; message: string; players: string[] }
   | { type: "word_result"; word: string; valid: boolean; score?: number; message?: string; letterPool?: string[]; totalScore?: number; scores: PlayerScore[]; leaderboard?: PlayerScore[]; }
