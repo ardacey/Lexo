@@ -230,9 +230,8 @@ export const useGameStore = create<StoreState>()(
             const existingOpponentWords = new Set(opponentWords.map(w => w.word));
             
             if (state.isViewer) {
-              const sortedScores = (msg.scores || []).sort((a, b) => b.score - a.score);
-              const primaryPlayer = sortedScores.length > 0 ? sortedScores[0].username : null;
-              const secondaryPlayer = sortedScores.length > 1 ? sortedScores[1].username : null;
+              const primaryPlayer = (msg.scores && msg.scores.length > 0) ? msg.scores[0].username : null;
+              const secondaryPlayer = (msg.scores && msg.scores.length > 1) ? msg.scores[1].username : null;
               
               Object.entries(msg.player_words).forEach(([username, playerWords]) => {
                 playerWords.forEach(wordEntry => {
@@ -373,9 +372,8 @@ export const useGameStore = create<StoreState>()(
           const playerName = msg.type === 'player_word' ? msg.player : 'Opponent';
           
           if (state.isViewer) {
-            const sortedScores = (state.scores || []).sort((a, b) => b.score - a.score);
-            const primaryPlayer = sortedScores.length > 0 ? sortedScores[0].username : null;
-            const secondaryPlayer = sortedScores.length > 1 ? sortedScores[1].username : null;
+            const primaryPlayer = (state.scores && state.scores.length > 0) ? state.scores[0].username : null;
+            const secondaryPlayer = (state.scores && state.scores.length > 1) ? state.scores[1].username : null;
             
             if (playerName === primaryPlayer) {
               const newWord: Word = { text: msg.word, valid: true, score: msg.score, player: playerName };

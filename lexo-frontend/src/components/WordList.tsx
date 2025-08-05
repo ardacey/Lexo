@@ -12,8 +12,7 @@ const WordList: React.FC = () => {
 
   const getTitle = () => {
     if (isViewer) {
-      const sortedScores = (scores || []).sort((a, b) => b.score - a.score);
-      const primaryPlayer = sortedScores.length > 0 ? sortedScores[0].username : null;
+      const primaryPlayer = (scores && scores.length > 0) ? scores[0].username : null;
       
       if (words.length > 0 && words[0].player) {
         return `${words[0].player}'s Words`;
