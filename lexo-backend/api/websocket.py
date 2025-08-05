@@ -1,5 +1,6 @@
 import asyncio
 import time
+import logging
 from datetime import datetime
 from typing import cast
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
@@ -10,13 +11,15 @@ from game.manager import connection_manager, RoomService
 from game.models_db import RoomStatus, PlayerDB, GameMode
 from game.constants import BATTLE_ROYALE_COUNTDOWN_SECONDS, BATTLE_ROYALE_MIN_PLAYERS
 
+logger = logging.getLogger(__name__)
+
 active_countdowns = {}
 
 router = APIRouter()
 
 async def countdown_handler(room_id: str):
     if room_id in active_countdowns:
-        print(f"Countdown already running for room {room_id}, skipping")
+        logger.debug(f"Countdown already running for room {room_id}, skipping")
         return
     
     active_countdowns[room_id] = True
@@ -36,7 +39,7 @@ async def countdown_handler(room_id: str):
             
             for i in range(5, 0, -1):
                 if room_id not in active_countdowns:
-                    print(f"Countdown cancelled for room {room_id}")
+                    logger.debug(f"Countdown cancelled for room {room_id}")
                     return
                     
                 await connection_manager.broadcast_to_room(room_id, {
@@ -51,24 +54,24 @@ async def countdown_handler(room_id: str):
             
             for i in range(BATTLE_ROYALE_COUNTDOWN_SECONDS, 0, -1):
                 if room_id not in active_countdowns:
-                    print(f"Countdown cancelled for room {room_id}")
+                    logger.debug(f"Countdown cancelled for room {room_id}")
                     return
                 
                 room_check = service.get_room(room_id)
                 if not room_check:
-                    print(f"Room {room_id} no longer exists, stopping countdown")
+                    logger.warning(f"Room {room_id} no longer exists, stopping countdown")
                     break
                 
                 current_status = getattr(room_check, 'status', None)
                 if current_status != RoomStatus.COUNTDOWN:
-                    print(f"Room {room_id} status changed from COUNTDOWN to {current_status}, stopping countdown")
+                    logger.info(f"Room {room_id} status changed from COUNTDOWN to {current_status}, stopping countdown")
                     break
                 
                 active_players = [p for p in room_check.players if not getattr(p, 'is_viewer', False)]
                 min_players = getattr(room_check, 'min_players', BATTLE_ROYALE_MIN_PLAYERS)
                 
                 if len(active_players) < min_players:
-                    print(f"Not enough players during countdown ({len(active_players)} < {min_players}), returning to waiting")
+                    logger.info(f"Not enough players during countdown ({len(active_players)} < {min_players}), returning to waiting")
                     setattr(room_check, 'status', RoomStatus.WAITING)
                     setattr(room_check, 'countdown_start_time', None)
                     service.db.commit()
@@ -111,16 +114,16 @@ async def countdown_handler(room_id: str):
         
         room_to_start = service.get_room(room_id)
         if not room_to_start:
-            print(f"Room {room_id} no longer exists when trying to start game")
+            logger.warning(f"Room {room_id} no longer exists when trying to start game")
             return
             
         current_status = getattr(room_to_start, 'status', None)
         if current_status != RoomStatus.COUNTDOWN:
-            print(f"Room {room_id} status is {current_status}, not COUNTDOWN. Cannot start game.")
+            logger.warning(f"Room {room_id} status is {current_status}, not COUNTDOWN. Cannot start game.")
             return
         
         if room_id not in active_countdowns:
-            print(f"Countdown was cancelled for room {room_id}, not starting game")
+            logger.warning(f"Countdown was cancelled for room {room_id}, not starting game")
             return
             
         if room_to_start and service.start_game_for_room(room_to_start):
@@ -147,35 +150,33 @@ async def countdown_handler(room_id: str):
             else:
                 asyncio.create_task(game_ender(room_id, room_time_left))
         else:
-            print(f"Failed to start game for room {room_id}")
+            logger.error(f"Failed to start game for room {room_id}")
             
     except Exception as e:
-        print(f"Error in countdown_handler for room {room_id}: {e}")
+        logger.error(f"Error in countdown_handler for room {room_id}: {e}", exc_info=True)
     finally:
         if room_id in active_countdowns:
             del active_countdowns[room_id]
         db.close()
 
 async def game_ender(room_id: str, duration: int):
-    print(f"DEBUG: game_ender started for room {room_id}, duration {duration}")
+    logger.debug(f"game_ender started for room {room_id}, duration {duration}")
     await asyncio.sleep(duration)
-    print(f"DEBUG: game_ender timer finished for room {room_id}")
+    logger.debug(f"game_ender timer finished for room {room_id}")
     db = SessionLocal()
     service = RoomService(db)
     try:
         room = service.get_room(room_id)
         if room and room.status == RoomStatus.IN_PROGRESS: # type: ignore
-            print(f"Game time is up for room {room_id}. Ending game.")
+            logger.info(f"Game time is up for room {room_id}. Ending game.")
             _, result_data = service.end_game(room_id)
             await connection_manager.broadcast_to_room(room_id, {
                 "type": "game_over", **result_data
             })
         else:
-            print(f"DEBUG: Room {room_id} not found or not in progress when game_ender finished. Room status: {getattr(room, 'status', 'None') if room else 'Room not found'}")
+            logger.debug(f"Room {room_id} not found or not in progress when game_ender finished. Room status: {getattr(room, 'status', 'None') if room else 'Room not found'}")
     except Exception as e:
-        print(f"Error in game_ender for room {room_id}: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error in game_ender for room {room_id}: {e}", exc_info=True)
     finally:
         db.close()
 
@@ -207,12 +208,12 @@ async def battle_royale_game_manager(room_id: str, duration: int):
             })
                 
             if elapsed_time % elimination_interval == 0:
-                print(f"Elimination time reached at {elapsed_time} seconds for room {room_id}")
+                logger.info(f"Elimination time reached at {elapsed_time} seconds for room {room_id}")
                 eliminated_players = service.eliminate_worst_players(room_check)
                 
                 if eliminated_players:
                     eliminated_usernames = [getattr(p, 'username', 'Unknown') for p in eliminated_players]
-                    print(f"Eliminating players: {eliminated_usernames}")
+                    logger.info(f"Eliminating players: {eliminated_usernames}")
                     await connection_manager.broadcast_to_room(room_id, {
                         "type": "players_eliminated",
                         "eliminated_players": eliminated_usernames,
@@ -220,7 +221,7 @@ async def battle_royale_game_manager(room_id: str, duration: int):
                         "leaderboard": service.get_battle_royale_leaderboard(room_check)
                     })
                 else:
-                    print(f"No players eliminated at {elapsed_time} seconds")
+                    logger.debug(f"No players eliminated at {elapsed_time} seconds")
                 
                 await connection_manager.broadcast_to_room(room_id, {
                     "type": "leaderboard_update",
@@ -230,7 +231,7 @@ async def battle_royale_game_manager(room_id: str, duration: int):
         
         final_room = service.get_room(room_id)
         if final_room and getattr(final_room, 'status', None) == RoomStatus.IN_PROGRESS:
-            print(f"Battle royale game ending for room {room_id}")
+            logger.info(f"Battle royale game ending for room {room_id}")
             _, result_data = service.end_game(room_id)
             
             result_data["gameMode"] = "battle_royale"
@@ -241,10 +242,10 @@ async def battle_royale_game_manager(room_id: str, duration: int):
                 **result_data
             })
         else:
-            print(f"DEBUG: Battle royale room {room_id} not found or not in progress when time finished")
+            logger.debug(f"Battle royale room {room_id} not found or not in progress when time finished")
             
     except Exception as e:
-        print(f"Error in battle_royale_game_manager for room {room_id}: {e}")
+        logger.error(f"Error in battle_royale_game_manager for room {room_id}: {e}", exc_info=True)
     finally:
         db.close()
 
@@ -342,7 +343,7 @@ async def websocket_endpoint(
                     asyncio.create_task(countdown_handler(room_id))
 
     except Exception as e:
-        print(f"Error during WebSocket connection setup for player {player_id}: {e}")
+        logger.error(f"Error during WebSocket connection setup for player {player_id}: {e}", exc_info=True)
         if websocket.client_state.name != "DISCONNECTED":
             await websocket.close(code=1011, reason="Internal server error")
     finally:
@@ -388,7 +389,7 @@ async def websocket_endpoint(
                                 "letterPool": response_data["new_letter_pool"],
                                 "scores": response_data["current_scores"],
                             }
-                        else:  # Battle royale
+                        else:
                             opponent_message = {
                                 "type": "player_word_update", 
                                 "word": response_data["word"],
@@ -426,7 +427,7 @@ async def websocket_endpoint(
                     word_db.close()
 
     except WebSocketDisconnect:
-        print(f"Player {player_id} disconnected from room {room_id}")
+        logger.info(f"Player {player_id} disconnected from room {room_id}")
         disconnect_db = SessionLocal()
         try:
             disconnect_service = RoomService(disconnect_db)
@@ -457,7 +458,7 @@ async def websocket_endpoint(
                         
                         if room_id in active_countdowns:
                             del active_countdowns[room_id]
-                            print(f"Cancelled countdown for room {room_id} due to disconnect")
+                            logger.info(f"Cancelled countdown for room {room_id} due to disconnect")
                         
                         await connection_manager.broadcast_to_room(room_id, {
                             "type": "countdown_stopped",
@@ -501,7 +502,7 @@ async def websocket_endpoint(
             disconnect_db.close()
 
     except Exception as e:
-        print(f"Unexpected error in websocket for player {player_id}: {e}")
+        logger.error(f"Unexpected error in websocket for player {player_id}: {e}", exc_info=True)
     finally:
         connection_manager.disconnect(room_id, player_id)
-        print(f"Connection manager cleaned up for player {player_id}")
+        logger.debug(f"Connection manager cleaned up for player {player_id}")

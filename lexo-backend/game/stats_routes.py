@@ -19,24 +19,18 @@ import uuid
 router = APIRouter(prefix="/stats", tags=["statistics"])
 
 async def get_current_user_manual(request: Request, db: Session = Depends(get_db)) -> UserDB:
-    print("DEBUG: Manual auth - checking authorization header")
-    
     authorization = request.headers.get("Authorization")
     if not authorization:
-        print("DEBUG: No authorization header")
         raise HTTPException(status_code=401, detail="No authorization header")
     
     if not authorization.startswith("Bearer "):
-        print("DEBUG: Invalid authorization format")
         raise HTTPException(status_code=401, detail="Invalid authorization format")
     
     token = authorization[7:]
-    print(f"DEBUG: Extracted token: {token[:10]}...")
     
     try:
         payload = verify_token(token)
         user_id = payload.get("sub")
-        print(f"DEBUG: Token verified, user_id: {user_id}")
         
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token payload")
@@ -47,11 +41,9 @@ async def get_current_user_manual(request: Request, db: Session = Depends(get_db
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
         
-        print(f"DEBUG: User found: {user.username}")
         return user
         
     except Exception as e:
-        print(f"DEBUG: Authentication failed: {e}")
         raise HTTPException(status_code=401, detail="Authentication failed")
 
 @router.get("/user/{user_id}", response_model=UserStatsResponse)
@@ -79,7 +71,6 @@ async def get_my_stats(
     db: Session = Depends(get_db)
 ):
     current_user = await get_current_user_manual(request, db)
-    print(f"DEBUG: Getting stats for user {current_user.id}")
     
     user_stats = db.query(UserStats).filter(UserStats.user_id == str(current_user.id)).first()
     
@@ -92,7 +83,6 @@ async def get_my_stats(
         db.commit()
         db.refresh(user_stats)
     
-    print(f"DEBUG: User stats result: total_games={user_stats.total_games}, wins={user_stats.wins}, total_score={user_stats.total_score}")
     return user_stats
 
 @router.get("/leaderboard", response_model=List[LeaderboardResponse])

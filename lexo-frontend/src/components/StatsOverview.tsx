@@ -16,14 +16,6 @@ const StatsOverview: React.FC = () => {
     enabled: !!user,
   });
 
-  React.useEffect(() => {
-    if (userStats) {
-      console.log('DEBUG: User stats received:', userStats);
-      console.log('DEBUG: Playtime seconds:', userStats?.total_playtime_seconds);
-      console.log('DEBUG: Win rate data:', { wins: userStats?.wins, total_games: userStats?.total_games });
-    }
-  }, [userStats]);
-
   const { data: leaderboard, isLoading: leaderboardLoading } = useQuery<LeaderboardEntry[]>({
     queryKey: ['leaderboard'],
     queryFn: () => fetchLeaderboard(5),

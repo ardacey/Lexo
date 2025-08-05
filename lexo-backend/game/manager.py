@@ -146,7 +146,6 @@ class RoomService:
         if room and room.should_be_deleted: # type: ignore
             self.db.delete(room)
             self.db.commit()
-            print(f"Cleaned up empty room: {room_id}")
 
     def cleanup_finished_rooms(self):
         finished_room_ids = (
@@ -164,7 +163,6 @@ class RoomService:
                 RoomDB.id.in_(room_ids_to_delete)
             ).delete(synchronize_session=False)
             self.db.commit()
-            print(f"Cleaned up {len(finished_room_ids)} finished/empty rooms")
 
     def create_room(self, name: str, username: str, user_id: Optional[str] = None, game_mode: GameMode = GameMode.CLASSIC) -> Tuple[RoomDB, PlayerDB]:
         room_id = str(uuid.uuid4())
@@ -255,7 +253,6 @@ class RoomService:
             )
 
             setattr(room, 'players_per_elimination', elimination_strategy['players_per_elimination'])
-            print(f"Battle Royale başlıyor: {len(active_players)} oyuncu, {elimination_strategy['players_per_elimination']} kişi/elimizasyon, {elimination_strategy['elimination_rounds']} elimizasyon turu")
         else:
             return False
             
@@ -356,10 +353,8 @@ class RoomService:
         return True, success_data
 
     def end_game(self, room_id: str) -> Tuple[RoomDB, dict]:
-        print(f"DEBUG: *** END_GAME CALLED FOR ROOM {room_id} ***")
         room = self.get_room(room_id)
         if not room: 
-            print(f"DEBUG: Room {room_id} not found!")
             raise ValueError("Cannot end a non-existent room.")
             
         setattr(room, 'started', False)
@@ -371,22 +366,15 @@ class RoomService:
         scores = sorted([{"username": p.username, "score": p.score} for p in active_players], key=lambda x: x["score"], reverse=True)
         winner_data, is_tie = None, False
         
-        print(f"DEBUG: Active players: {[p.username for p in active_players]}")
-        print(f"DEBUG: Scores: {scores}")
-        
         if scores:
             highest_score = scores[0]["score"]
             winners = [p for p in scores if p["score"] == highest_score]
             if len(winners) > 1: is_tie = True
             winner_data = {"usernames": [w["username"] for w in winners], "score": highest_score}
 
-        print(f"DEBUG: About to call _record_game_stats...")
         self._record_game_stats(room, active_players, scores, game_end_time)
-        print(f"DEBUG: _record_game_stats completed, now committing...")
         self.db.commit()
         self.db.refresh(room)
-        
-        print(f"DEBUG: *** END_GAME COMPLETED FOR ROOM {room_id} ***")
         
         if room.game_mode.value == GameMode.BATTLE_ROYALE.value:
             asyncio.create_task(self._schedule_room_cleanup(room_id, delay=300))
@@ -397,12 +385,6 @@ class RoomService:
 
     def _record_game_stats(self, room: RoomDB, active_players: List[PlayerDB], scores: List[dict], game_end_time: datetime):
         try:
-            print(f"DEBUG: *** RECORDING GAME STATS STARTED ***")
-            print(f"DEBUG: Room ID: {getattr(room, 'id', 'unknown')}")
-            print(f"DEBUG: Game mode: {getattr(room, 'game_mode', 'unknown')}")
-            print(f"DEBUG: Active players count: {len(active_players)}")
-            print(f"DEBUG: Scores: {scores}")
-            
             stats_service = StatsService(self.db)
 
             game_start_time = getattr(room, 'created_at', game_end_time)
@@ -427,10 +409,8 @@ class RoomService:
                     continue
 
                 user_id = getattr(player, 'user_id', None)
-                print(f"DEBUG: Processing player {player.username}, user_id: {user_id}")
                 
                 if not user_id:
-                    print(f"DEBUG: Skipping player {player.username} - no user_id")
                     continue
                 
                 player_score = score_lookup.get(player.username, 0)
@@ -448,8 +428,7 @@ class RoomService:
                             break
                 
                 words_played = max(1, player_score // 10)
-                
-                print(f"DEBUG: Recording game result for {player.username} - result: {result}, score: {player_score}")
+
                 stats_service.update_game_result(
                     user_id=str(user_id),
                     room_id=str(getattr(room, 'id', '')),
@@ -462,12 +441,9 @@ class RoomService:
                     final_position=final_position,
                     total_players=len(active_players)
                 )
-                print(f"DEBUG: Game result recorded successfully for {player.username}")
                 
-            print(f"DEBUG: *** RECORDING GAME STATS COMPLETED ***")
                 
         except Exception as e:
-            print(f"ERROR: Failed to record game stats: {e}")
             logger.error(f"Failed to record game stats: {e}")
 
     async def _schedule_room_cleanup(self, room_id: str, delay: int = 60):
@@ -501,7 +477,6 @@ class RoomService:
                 if updated_room:
                     remaining_active = [p for p in updated_room.players if not p.is_viewer]
                     if len(remaining_active) == 1:
-                        print(f"DEBUG: Classic game ending due to disconnect")
                         _, end_result = self.end_game(room_id)
                         return updated_room, player_leaving, True, False
             
@@ -517,7 +492,6 @@ class RoomService:
                         remaining_non_eliminated = [p for p in updated_room.players if not getattr(p, 'is_viewer', False) and not getattr(p, 'is_eliminated', False)]
                         if (getattr(updated_room, 'status', None) == RoomStatus.COUNTDOWN and 
                             len(remaining_non_eliminated) < getattr(updated_room, 'min_players', BATTLE_ROYALE_MIN_PLAYERS)):
-                            print(f"DEBUG: Battle royale countdown stopped due to disconnect - not enough players ({len(remaining_non_eliminated)} < {getattr(updated_room, 'min_players', BATTLE_ROYALE_MIN_PLAYERS)})")
                             setattr(updated_room, 'status', RoomStatus.WAITING)
                             setattr(updated_room, 'countdown_start_time', None)
                             self.db.commit()
@@ -525,7 +499,6 @@ class RoomService:
                             countdown_stopped = True
                         
                         elif len(remaining_non_eliminated) <= 1:
-                            print(f"DEBUG: Battle royale game ending due to disconnect")
                             _, end_result = self.end_game(room_id)
                             return updated_room, player_leaving, True, False
         
@@ -593,53 +566,38 @@ class RoomService:
     
     def eliminate_worst_players(self, room: RoomDB) -> List[PlayerDB]:
         if room.game_mode.value != GameMode.BATTLE_ROYALE.value:
-            print(f"Not a battle royale room, skipping elimination")
             return []
 
         fresh_room = self.db.query(RoomDB).filter(RoomDB.id == room.id).first()
         if not fresh_room:
-            print(f"Room not found, skipping elimination")
             return []
             
         fresh_players = self.db.query(PlayerDB).filter(PlayerDB.room_id == room.id).all()
         active_players = [p for p in fresh_players if not getattr(p, 'is_viewer', False) and not getattr(p, 'is_eliminated', False)]
-        
-        print(f"=== ELIMINATION DEBUG ===")
-        print(f"Room ID: {room.id}")
-        print(f"Active players count: {len(active_players)}, min surviving: {BATTLE_ROYALE_MIN_SURVIVING_PLAYERS}")
 
         if len(active_players) <= BATTLE_ROYALE_MIN_SURVIVING_PLAYERS:
-            print(f"Not enough players to eliminate ({len(active_players)} <= {BATTLE_ROYALE_MIN_SURVIVING_PLAYERS})")
             return []
 
         fresh_scores = {}
         for player in active_players:
             db_score = self.db.query(PlayerDB.score).filter(PlayerDB.id == player.id).scalar()
             fresh_scores[player.id] = db_score or 0
-            print(f"Player {player.username}: DB score = {fresh_scores[player.id]}")
 
         sorted_players = sorted(active_players, key=lambda p: fresh_scores.get(p.id, 0))
-        print(f"Elimination order (lowest first): {[(p.username, fresh_scores.get(p.id, 0)) for p in sorted_players]}")
-        
         players_per_elimination = getattr(fresh_room, 'players_per_elimination', 1)
-        print(f"Players per elimination: {players_per_elimination}")
         
         remaining_after_elimination = len(active_players) - players_per_elimination
         if remaining_after_elimination < BATTLE_ROYALE_MIN_SURVIVING_PLAYERS:
             players_per_elimination = len(active_players) - BATTLE_ROYALE_MIN_SURVIVING_PLAYERS
-            print(f"Adjusted to prevent over-elimination: {players_per_elimination}")
 
         players_to_eliminate = sorted_players[:players_per_elimination] if players_per_elimination > 0 else []
-        print(f"Eliminating {len(players_to_eliminate)} players: {[(p.username, fresh_scores.get(p.id, 0)) for p in players_to_eliminate]}")
         
         for player in players_to_eliminate:
             setattr(player, 'is_eliminated', True)
             setattr(player, 'elimination_time', datetime.now())
-            print(f"Eliminating player: {player.username} with DB score: {fresh_scores.get(player.id, 0)}")
         
         if players_to_eliminate:
             self.db.commit()
-            print(f"Successfully eliminated {len(players_to_eliminate)} players")
             
         return players_to_eliminate
     
@@ -680,12 +638,6 @@ class RoomService:
                 players_per_elimination = len(active_players) - BATTLE_ROYALE_MIN_SURVIVING_PLAYERS
             
             next_elimination_players = [getattr(p, 'username', 'Unknown') for p in sorted_players[:max(0, players_per_elimination)]]
-
-        if current_elapsed_time and current_elapsed_time % 20 == 0:
-            if len(next_elimination_players) > 1:
-                print(f"Next elimination: {', '.join(next_elimination_players)} ({players_per_elimination} players)")
-            else:
-                print(f"Next elimination: {next_elimination_player.username if next_elimination_player else None} (score: {fresh_scores.get(next_elimination_player.id, 0) if next_elimination_player else 'N/A'})")
         
         elimination_interval = getattr(fresh_room, 'elimination_interval', 30) if fresh_room else 30
         

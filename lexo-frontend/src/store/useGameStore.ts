@@ -82,8 +82,6 @@ export const useGameStore = create<StoreState>()(
         };
 
         socket.onclose = (event) => {
-          console.log('WebSocket closed:', event.code, event.reason);
-          
           if (!event.wasClean && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
             reconnectAttempts++;
             toast.info(`Reconnecting... (Attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);

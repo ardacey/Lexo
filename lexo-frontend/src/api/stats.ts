@@ -68,7 +68,6 @@ export interface QuickStats {
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token');
-  console.log('DEBUG: Auth token for stats API:', token ? 'exists' : 'missing');
   return {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
@@ -78,10 +77,6 @@ const getAuthHeaders = () => {
 export const fetchUserStats = async (userId?: string): Promise<UserStats> => {
   const endpoint = userId ? `/stats/user/${userId}` : '/stats/my-stats';
   const headers = getAuthHeaders();
-  
-  console.log('DEBUG: fetchUserStats endpoint:', endpoint);
-  console.log('DEBUG: fetchUserStats headers:', headers);
-  console.log('DEBUG: Full URL:', `${API_BASE_URL}${endpoint}`);
   
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     headers,

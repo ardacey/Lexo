@@ -11,10 +11,8 @@ def load_wordlist(filepath: str = "words/turkish_words.txt"):
                 word = line.strip().lower()
                 if word:
                     VALID_WORDS.add(word)
-        print(f"Successfully loaded {len(VALID_WORDS)} words.")
         is_word_valid.cache_clear()
     except FileNotFoundError:
-        print(f"Error: Word list file not found at '{filepath}'.")
         VALID_WORDS = set()
 
 @lru_cache(maxsize=1000)

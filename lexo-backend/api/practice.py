@@ -167,10 +167,6 @@ def end_practice_session(
     elapsed_time = time.time() - session["time_started"]
     actual_duration = min(elapsed_time, session["duration"])
     
-    if current_user and session.get("user_id") == str(getattr(current_user, 'id', '')):
-        print(f"DEBUG: Practice session completed for user {current_user.id} (not recorded in stats)")
-        print(f"DEBUG: Session data - score: {session['score']}, words: {len(session['words_found'])}, duration: {int(actual_duration)}")
-    
     results = {
         "session_id": session_id,
         "final_score": session["score"],

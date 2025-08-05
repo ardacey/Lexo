@@ -39,12 +39,16 @@ from core.rate_limiting import rate_limit_middleware
 from core.security import SecurityHeaders
 from game.manager import connection_manager
 
+log_level = logging.DEBUG if os.getenv("ENVIRONMENT") == "development" else logging.INFO
+if os.getenv("ENVIRONMENT") == "production":
+    log_level = logging.WARNING
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.FileHandler("lexo.log"),
-        logging.StreamHandler()
+        logging.StreamHandler() if os.getenv("ENVIRONMENT") != "production" else logging.NullHandler()
     ]
 )
 

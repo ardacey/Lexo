@@ -13,14 +13,11 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ) -> UserDB:
-    print(f"DEBUG: Auth credentials received: {credentials.credentials[:10]}..." if credentials and credentials.credentials else "No credentials")
     token = credentials.credentials
     payload = verify_token(token, "access")
     user_id = payload.get("sub")
-    print(f"DEBUG: Extracted user_id from token: {user_id}")
     
     if user_id is None:
-        print("DEBUG: No user_id in token payload")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
