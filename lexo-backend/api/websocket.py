@@ -291,8 +291,11 @@ async def websocket_endpoint(
                     elapsed_seconds = (datetime.now() - game_start_time).total_seconds()
                     remaining_time = max(0, total_game_time - int(elapsed_seconds))
                     end_time = time.time() + remaining_time
+
+                    if remaining_time == 0 and elapsed_seconds < 5:
+                        remaining_time = total_game_time
                 else:
-                    remaining_time = room_obj.time_left or 0
+                    remaining_time = getattr(room_obj, 'time_left', 0)
                     end_time = time.time() + remaining_time
             elif room_status == RoomStatus.COUNTDOWN and game_mode == GameMode.BATTLE_ROYALE.value:
                 countdown_start = getattr(room_obj, 'countdown_start_time', None)
@@ -316,7 +319,7 @@ async def websocket_endpoint(
                 "scores": [{"username": p.username, "score": p.score} for p in active_players] if is_game_started else [],
                 "game_started": is_game_started,
                 "time_left": remaining_time,
-                "end_time": end_time,
+                "duration": remaining_time,
                 "used_words": room_obj.used_words if is_game_started else [],
                 "player_words": player_words,
                 "max_players": getattr(room_obj, 'max_players', 2),

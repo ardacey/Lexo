@@ -99,6 +99,7 @@ export type ServerMessage =
       scores: PlayerScore[]; 
       player_words?: { [username: string]: string[] }; 
       time_left?: number; 
+      duration?: number;
       end_time?: number; 
       game_started?: boolean; 
       used_words?: string[];

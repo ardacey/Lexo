@@ -205,8 +205,9 @@ export const useGameStore = create<StoreState>()(
             leaderboard: msg.leaderboard || msg.scores || []
           });
           
-          if (msg.end_time && msg.game_started) {
-            get()._setupTimer(msg.end_time);
+          if (msg.game_started && msg.duration && msg.duration > 0) {
+            const clientEndTime = Date.now() / 1000 + msg.duration;
+            get()._setupTimer(clientEndTime);
           }
           break;
         }
@@ -245,8 +246,9 @@ export const useGameStore = create<StoreState>()(
             eliminationInfo: msg.elimination_info || null
           });
           
-          if (msg.endTime) {
-            get()._setupTimer(msg.endTime);
+          if (msg.duration) {
+            const clientEndTime = Date.now() / 1000 + msg.duration;
+            get()._setupTimer(clientEndTime);
           }
           
           toast.success("Game started!");
