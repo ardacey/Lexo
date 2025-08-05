@@ -316,6 +316,16 @@ export const useGameStore = create<StoreState>()(
           });
           break;
 
+        case 'countdown_stopped':
+          set({ 
+            countdown: null,
+            roomStatus: msg.room_status || 'waiting'
+          });
+          if (msg.message) {
+            toast.warning(msg.message);
+          }
+          break;
+
         case 'players_eliminated': {
           const eliminatedPlayers = msg.eliminated_players || [];
           set({ 

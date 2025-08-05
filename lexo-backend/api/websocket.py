@@ -8,11 +8,19 @@ from sqlalchemy.orm import Session
 from core.database import SessionLocal
 from game.manager import connection_manager, RoomService
 from game.models_db import RoomStatus, PlayerDB, GameMode
-from game.constants import BATTLE_ROYALE_COUNTDOWN_SECONDS
+from game.constants import BATTLE_ROYALE_COUNTDOWN_SECONDS, BATTLE_ROYALE_MIN_PLAYERS
+
+active_countdowns = {}
 
 router = APIRouter()
 
 async def countdown_handler(room_id: str):
+    if room_id in active_countdowns:
+        print(f"Countdown already running for room {room_id}, skipping")
+        return
+    
+    active_countdowns[room_id] = True
+    
     db = SessionLocal()
     service = RoomService(db)
     try:
@@ -27,6 +35,10 @@ async def countdown_handler(room_id: str):
             db.commit()
             
             for i in range(5, 0, -1):
+                if room_id not in active_countdowns:
+                    print(f"Countdown cancelled for room {room_id}")
+                    return
+                    
                 await connection_manager.broadcast_to_room(room_id, {
                     "type": "countdown", 
                     "time": i, 
@@ -38,9 +50,56 @@ async def countdown_handler(room_id: str):
             service.start_battle_royale_countdown(room)
             
             for i in range(BATTLE_ROYALE_COUNTDOWN_SECONDS, 0, -1):
-                room_check = service.get_room(room_id)
-                if not room_check or getattr(room_check, 'status', None) != RoomStatus.COUNTDOWN:
+                if room_id not in active_countdowns:
+                    print(f"Countdown cancelled for room {room_id}")
                     return
+                
+                room_check = service.get_room(room_id)
+                if not room_check:
+                    print(f"Room {room_id} no longer exists, stopping countdown")
+                    break
+                
+                current_status = getattr(room_check, 'status', None)
+                if current_status != RoomStatus.COUNTDOWN:
+                    print(f"Room {room_id} status changed from COUNTDOWN to {current_status}, stopping countdown")
+                    break
+                
+                active_players = [p for p in room_check.players if not getattr(p, 'is_viewer', False)]
+                min_players = getattr(room_check, 'min_players', BATTLE_ROYALE_MIN_PLAYERS)
+                
+                if len(active_players) < min_players:
+                    print(f"Not enough players during countdown ({len(active_players)} < {min_players}), returning to waiting")
+                    setattr(room_check, 'status', RoomStatus.WAITING)
+                    setattr(room_check, 'countdown_start_time', None)
+                    service.db.commit()
+                    service.db.refresh(room_check)
+
+                    await connection_manager.broadcast_to_room(room_id, {
+                        "type": "countdown_stopped",
+                        "message": f"Not enough players! Waiting for {min_players - len(active_players)} more players...",
+                        "room_status": "waiting"
+                    })
+                    
+                    all_players = [p.username for p in room_check.players]
+                    await connection_manager.broadcast_to_room(room_id, {
+                        "type": "room_state",
+                        "room_status": "waiting",
+                        "game_mode": room_check.game_mode.value,
+                        "players": all_players,
+                        "active_players": [p.username for p in active_players],
+                        "is_viewer": False,
+                        "letter_pool": [],
+                        "scores": [],
+                        "game_started": False,
+                        "time_left": 0,
+                        "end_time": None,
+                        "used_words": [],
+                        "player_words": {},
+                        "max_players": getattr(room_check, 'max_players', 16),
+                        "min_players": getattr(room_check, 'min_players', 3),
+                        "leaderboard": service.get_battle_royale_leaderboard(room_check)
+                    })
+                    break
                     
                 await connection_manager.broadcast_to_room(room_id, {
                     "type": "battle_royale_countdown", 
@@ -51,6 +110,19 @@ async def countdown_handler(room_id: str):
                 await asyncio.sleep(1)
         
         room_to_start = service.get_room(room_id)
+        if not room_to_start:
+            print(f"Room {room_id} no longer exists when trying to start game")
+            return
+            
+        current_status = getattr(room_to_start, 'status', None)
+        if current_status != RoomStatus.COUNTDOWN:
+            print(f"Room {room_id} status is {current_status}, not COUNTDOWN. Cannot start game.")
+            return
+        
+        if room_id not in active_countdowns:
+            print(f"Countdown was cancelled for room {room_id}, not starting game")
+            return
+            
         if room_to_start and service.start_game_for_room(room_to_start):
             room_time_left = cast(int, getattr(room_to_start, 'time_left', 60))
             room_letter_pool = cast(list, room_to_start.letter_pool)
@@ -80,6 +152,8 @@ async def countdown_handler(room_id: str):
     except Exception as e:
         print(f"Error in countdown_handler for room {room_id}: {e}")
     finally:
+        if room_id in active_countdowns:
+            del active_countdowns[room_id]
         db.close()
 
 async def game_ender(room_id: str, duration: int):
@@ -356,7 +430,7 @@ async def websocket_endpoint(
         disconnect_db = SessionLocal()
         try:
             disconnect_service = RoomService(disconnect_db)
-            remaining_room, leaving_player, walkover = disconnect_service.handle_disconnect(room_id, player_id)
+            remaining_room, leaving_player, walkover, countdown_stopped = disconnect_service.handle_disconnect(room_id, player_id)
             
             if leaving_player:
                 is_leaving_viewer = getattr(leaving_player, 'is_viewer', False)
@@ -375,11 +449,54 @@ async def websocket_endpoint(
                         })
                 elif remaining_room:
                     all_players = [p.username for p in remaining_room.players]
-                    await connection_manager.broadcast_to_room(room_id, {
-                        "type": "player_left", 
-                        "players": all_players,
-                        "message": message_text
-                    })
+                    active_players = [p for p in remaining_room.players if not getattr(p, 'is_viewer', False)]
+                    
+                    if countdown_stopped:
+                        min_players = getattr(remaining_room, 'min_players', BATTLE_ROYALE_MIN_PLAYERS)
+                        players_needed = max(0, min_players - len(active_players))
+                        
+                        if room_id in active_countdowns:
+                            del active_countdowns[room_id]
+                            print(f"Cancelled countdown for room {room_id} due to disconnect")
+                        
+                        await connection_manager.broadcast_to_room(room_id, {
+                            "type": "countdown_stopped",
+                            "message": f"{message_text} Not enough players! Waiting for {players_needed} more players...",
+                            "room_status": "waiting"
+                        })
+                        
+                        await connection_manager.broadcast_to_room(room_id, {
+                            "type": "room_state",
+                            "room_status": "waiting",
+                            "game_mode": remaining_room.game_mode.value,
+                            "players": all_players,
+                            "active_players": [p.username for p in active_players],
+                            "is_viewer": False,
+                            "letter_pool": [],
+                            "scores": [],
+                            "game_started": False,
+                            "time_left": 0,
+                            "end_time": None,
+                            "used_words": [],
+                            "player_words": {},
+                            "max_players": getattr(remaining_room, 'max_players', 16),
+                            "min_players": getattr(remaining_room, 'min_players', 3),
+                            "leaderboard": disconnect_service.get_battle_royale_leaderboard(remaining_room)
+                        })
+                    else:
+                        if (remaining_room.game_mode.value == GameMode.BATTLE_ROYALE.value and 
+                            getattr(remaining_room, 'status', None) == RoomStatus.WAITING and
+                            not is_leaving_viewer):
+                            min_players = getattr(remaining_room, 'min_players', BATTLE_ROYALE_MIN_PLAYERS)
+                            players_needed = max(0, min_players - len(active_players))
+                            if players_needed > 0:
+                                message_text += f" Waiting for {players_needed} more players..."
+                        
+                        await connection_manager.broadcast_to_room(room_id, {
+                            "type": "player_left", 
+                            "players": all_players,
+                            "message": message_text
+                        })
         finally:
             disconnect_db.close()
 

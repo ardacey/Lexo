@@ -474,19 +474,21 @@ class RoomService:
         await asyncio.sleep(delay)
         self.cleanup_empty_room(room_id)
 
-    def handle_disconnect(self, room_id: str, player_id: str) -> Tuple[Optional[RoomDB], Optional[PlayerDB], bool]:
+    def handle_disconnect(self, room_id: str, player_id: str) -> Tuple[Optional[RoomDB], Optional[PlayerDB], bool, bool]:
         room = self.get_room(room_id)
         if not room:
-            return None, None, False
+            return None, None, False, False
             
         player_leaving = self.db.query(PlayerDB).filter(PlayerDB.id == player_id).first()
         if not player_leaving:
-            return room, None, False
+            return room, None, False, False
+
+        countdown_stopped = False
 
         if getattr(player_leaving, 'is_viewer', False):
             self.db.delete(player_leaving)
             self.db.commit()
-            return self.get_room(room_id), player_leaving, False
+            return self.get_room(room_id), player_leaving, False, False
 
         if room.status in [RoomStatus.IN_PROGRESS, RoomStatus.COUNTDOWN]:
             active_players = [p for p in room.players if not getattr(p, 'is_viewer', False)]
@@ -501,7 +503,7 @@ class RoomService:
                     if len(remaining_active) == 1:
                         print(f"DEBUG: Classic game ending due to disconnect")
                         _, end_result = self.end_game(room_id)
-                        return updated_room, player_leaving, True
+                        return updated_room, player_leaving, True, False
             
             elif room.game_mode.value == GameMode.BATTLE_ROYALE.value:
                 non_eliminated_players = [p for p in room.players if not getattr(p, 'is_viewer', False) and not getattr(p, 'is_eliminated', False)]
@@ -513,10 +515,19 @@ class RoomService:
                     updated_room = self.get_room(room_id)
                     if updated_room:
                         remaining_non_eliminated = [p for p in updated_room.players if not getattr(p, 'is_viewer', False) and not getattr(p, 'is_eliminated', False)]
-                        if len(remaining_non_eliminated) <= 1:
+                        if (getattr(updated_room, 'status', None) == RoomStatus.COUNTDOWN and 
+                            len(remaining_non_eliminated) < getattr(updated_room, 'min_players', BATTLE_ROYALE_MIN_PLAYERS)):
+                            print(f"DEBUG: Battle royale countdown stopped due to disconnect - not enough players ({len(remaining_non_eliminated)} < {getattr(updated_room, 'min_players', BATTLE_ROYALE_MIN_PLAYERS)})")
+                            setattr(updated_room, 'status', RoomStatus.WAITING)
+                            setattr(updated_room, 'countdown_start_time', None)
+                            self.db.commit()
+                            self.db.refresh(updated_room)
+                            countdown_stopped = True
+                        
+                        elif len(remaining_non_eliminated) <= 1:
                             print(f"DEBUG: Battle royale game ending due to disconnect")
                             _, end_result = self.end_game(room_id)
-                            return updated_room, player_leaving, True
+                            return updated_room, player_leaving, True, False
         
         self.db.delete(player_leaving)
         self.db.commit()
@@ -526,12 +537,12 @@ class RoomService:
         if final_room_state and (len(final_room_state.players) == 0 or getattr(final_room_state, 'status', None) == RoomStatus.FINISHED):
             if final_room_state.game_mode.value == GameMode.BATTLE_ROYALE.value and getattr(final_room_state, 'status', None) == RoomStatus.FINISHED:
                 asyncio.create_task(self._schedule_room_cleanup(room_id, delay=300))
-                return final_room_state, player_leaving, False
+                return final_room_state, player_leaving, False, countdown_stopped
             else:
                 self.cleanup_empty_room(room_id)
-                return None, player_leaving, False
+                return None, player_leaving, False, countdown_stopped
             
-        return final_room_state, player_leaving, False
+        return final_room_state, player_leaving, False, countdown_stopped
 
     def start_battle_royale_countdown(self, room: RoomDB) -> bool:
         if room.game_mode.value != GameMode.BATTLE_ROYALE.value:

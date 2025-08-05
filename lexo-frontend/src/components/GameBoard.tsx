@@ -115,7 +115,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ username }) => {
         <div className="w-full flex justify-center min-h-[80px] items-center my-4">
           {!gameStarted && countdown === null ? (
             <div className="text-2xl text-slate-500 animate-pulse">
-              Waiting for opponent...
+              {gameMode === 'battle_royale' ? 'Waiting for players...' : 'Waiting for opponent...'}
             </div>
           ) : (
             <LetterPool 

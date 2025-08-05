@@ -108,6 +108,7 @@ export type ServerMessage =
   | { type: "player_word_update"; word: string; score: number; letterPool: string[]; scores: PlayerScore[]; leaderboard: PlayerScore[]; }
   | { type: "error"; message: string }
   | { type: "countdown"; time: number; message: string }
+  | { type: "countdown_stopped"; message: string; room_status: string }
   | { type: "battle_royale_countdown"; time: number; message: string; leaderboard: PlayerScore[]; }
   | { type: "players_eliminated"; eliminated_players: string[]; message: string; leaderboard: PlayerScore[]; }
   | { type: "leaderboard_update"; leaderboard: PlayerScore[]; elimination_info?: EliminationInfo; }
