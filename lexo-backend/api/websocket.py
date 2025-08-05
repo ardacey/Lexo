@@ -335,6 +335,7 @@ async def websocket_endpoint(
             await connection_manager.broadcast_to_room(room_id, {
                 "type": "player_joined", 
                 "players": all_players,
+                "active_players": [p.username for p in active_players],
                 "message": f"{'Viewer' if getattr(player, 'is_viewer', False) else 'Player'} '{player.username}' has connected.",
                 "game_mode": game_mode,
                 "leaderboard": service.get_battle_royale_leaderboard(room_obj) if game_mode == GameMode.BATTLE_ROYALE.value else None
@@ -562,6 +563,7 @@ async def websocket_endpoint(
                         await connection_manager.broadcast_to_room(room_id, {
                             "type": "player_left", 
                             "players": all_players,
+                            "active_players": [p.username for p in active_players],
                             "message": message_text
                         })
         finally:

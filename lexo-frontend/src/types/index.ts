@@ -111,8 +111,8 @@ export type ServerMessage =
     }
   | { type: "start_game"; letterPool: string[]; duration: number; endTime?: number; gameMode: 'classic' | 'battle_royale'; leaderboard?: PlayerScore[]; elimination_info?: EliminationInfo; }
   | { type: "game_starting"; message: string }
-  | { type: "player_joined"; message: string; players: string[]; game_mode?: 'classic' | 'battle_royale'; leaderboard?: PlayerScore[]; }
-  | { type: "player_left"; message: string; players: string[] }
+  | { type: "player_joined"; message: string; players: string[]; active_players?: string[]; game_mode?: 'classic' | 'battle_royale'; leaderboard?: PlayerScore[]; }
+  | { type: "player_left"; message: string; players: string[]; active_players?: string[]; }
   | { type: "word_result"; word: string; valid: boolean; score?: number; message?: string; letterPool?: string[]; totalScore?: number; scores: PlayerScore[]; leaderboard?: PlayerScore[]; }
   | { type: "opponent_word"; word: string; score: number; letterPool: string[]; scores: PlayerScore[] }
   | { type: "player_word"; player: string; word: string; score: number; letterPool: string[]; scores: PlayerScore[]; leaderboard?: PlayerScore[]; }

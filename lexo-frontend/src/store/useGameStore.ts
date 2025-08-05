@@ -244,6 +244,7 @@ export const useGameStore = create<StoreState>()(
         case 'player_joined':
           set({ 
             players: msg.players || [],
+            activePlayers: msg.active_players || get().activePlayers,
             leaderboard: msg.leaderboard || get().leaderboard
           });
           if (msg.message) {
@@ -252,7 +253,10 @@ export const useGameStore = create<StoreState>()(
           break;
 
         case 'player_left':
-          set({ players: msg.players || [] });
+          set({ 
+            players: msg.players || [],
+            activePlayers: msg.active_players || get().activePlayers
+          });
           if (msg.message) {
             toast.info(msg.message);
           }
