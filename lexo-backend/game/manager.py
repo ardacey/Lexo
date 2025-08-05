@@ -279,7 +279,8 @@ class RoomService:
             room_id=room_id, 
             user_id=user_id,
             words=[],
-            is_viewer=False
+            is_viewer=False,
+            is_owner=True
         )
         self.db.add(new_room)
         self.db.add(new_player)
@@ -307,7 +308,8 @@ class RoomService:
             room_id=room_id, 
             user_id=user_id,
             words=[],
-            is_viewer=as_viewer
+            is_viewer=as_viewer,
+            is_owner=False
         )
         self.db.add(new_player)
         self.db.commit()

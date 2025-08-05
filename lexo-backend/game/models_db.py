@@ -88,6 +88,7 @@ class PlayerDB(Base):
     room_id = Column(String, ForeignKey("rooms.id"), nullable=False, index=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
     is_viewer = Column(Boolean, default=False, index=True)
+    is_owner = Column(Boolean, default=False, index=True)
     is_eliminated = Column(Boolean, default=False, index=True)
     elimination_time = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
