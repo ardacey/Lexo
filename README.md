@@ -211,7 +211,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🏆 Acknowledgments
 
-- Turkish word list sourced from [open linguistic databases](https://github.com/factoreminv/turkish-words)
+- Turkish word list sourced from [factoreminv/turkish-words](https://github.com/factoreminv/turkish-words)
 - Letter frequency analysis based on Turkish language statistics
 - UI components built with Radix UI primitives
 - Icons provided by Lucide React
