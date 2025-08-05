@@ -230,32 +230,23 @@ export const useGameStore = create<StoreState>()(
             const existingOpponentWords = new Set(opponentWords.map(w => w.word));
             
             if (state.isViewer) {
-              const currentWordsPlayer = words.length > 0 ? words[0].player : null;
-              const currentOpponentWordsPlayer = opponentWords.length > 0 ? opponentWords[0].player : null;
+              const sortedScores = (msg.scores || []).sort((a, b) => b.score - a.score);
+              const primaryPlayer = sortedScores.length > 0 ? sortedScores[0].username : null;
+              const secondaryPlayer = sortedScores.length > 1 ? sortedScores[1].username : null;
               
               Object.entries(msg.player_words).forEach(([username, playerWords]) => {
                 playerWords.forEach(wordEntry => {
-                  if (currentWordsPlayer === username) {
+                  if (username === primaryPlayer) {
                     if (!existingWords.has(wordEntry.word)) {
                       words.push({ text: wordEntry.word, valid: true, score: wordEntry.score, player: username });
                     }
-                  }
-                  else if (currentOpponentWordsPlayer === username) {
+                  } else if (username === secondaryPlayer) {
                     if (!existingOpponentWords.has(wordEntry.word)) {
                       opponentWords.push({ word: wordEntry.word, score: wordEntry.score, player: username });
                     }
-                  }
-                  else {
-                    const primaryPlayerUsername = msg.scores && msg.scores.length > 0 ? msg.scores[0].username : null;
-                    
-                    if (username === primaryPlayerUsername) {
-                      if (!existingWords.has(wordEntry.word)) {
-                        words.push({ text: wordEntry.word, valid: true, score: wordEntry.score, player: username });
-                      }
-                    } else {
-                      if (!existingOpponentWords.has(wordEntry.word)) {
-                        opponentWords.push({ word: wordEntry.word, score: wordEntry.score, player: username });
-                      }
+                  } else {
+                    if (!secondaryPlayer && !existingOpponentWords.has(wordEntry.word)) {
+                      opponentWords.push({ word: wordEntry.word, score: wordEntry.score, player: username });
                     }
                   }
                 });
@@ -382,10 +373,11 @@ export const useGameStore = create<StoreState>()(
           const playerName = msg.type === 'player_word' ? msg.player : 'Opponent';
           
           if (state.isViewer) {
-            const currentWordsPlayer = state.words.length > 0 ? state.words[0].player : null;
-            const currentOpponentWordsPlayer = state.opponentWords.length > 0 ? state.opponentWords[0].player : null;
+            const sortedScores = (state.scores || []).sort((a, b) => b.score - a.score);
+            const primaryPlayer = sortedScores.length > 0 ? sortedScores[0].username : null;
+            const secondaryPlayer = sortedScores.length > 1 ? sortedScores[1].username : null;
             
-            if (currentWordsPlayer === playerName) {
+            if (playerName === primaryPlayer) {
               const newWord: Word = { text: msg.word, valid: true, score: msg.score, player: playerName };
               const newWords = [...state.words, newWord];
               set({
@@ -395,8 +387,7 @@ export const useGameStore = create<StoreState>()(
                 roomUsedWords: new Set([...state.roomUsedWords, msg.word]),
                 leaderboard: (msg.type === 'player_word' && msg.leaderboard) ? msg.leaderboard : get().leaderboard
               });
-            }
-            else if (currentOpponentWordsPlayer === playerName) {
+            } else if (playerName === secondaryPlayer || (!secondaryPlayer && playerName !== primaryPlayer)) {
               const newOpponentWord: OpponentWord = {
                 word: msg.word,
                 score: msg.score,
@@ -410,35 +401,6 @@ export const useGameStore = create<StoreState>()(
                 roomUsedWords: new Set([...state.roomUsedWords, msg.word]),
                 leaderboard: (msg.type === 'player_word' && msg.leaderboard) ? msg.leaderboard : get().leaderboard
               });
-            }
-            else {
-              const primaryPlayerUsername = state.scores && state.scores.length > 0 ? state.scores[0].username : null;
-              
-              if (playerName === primaryPlayerUsername) {
-                const newWord: Word = { text: msg.word, valid: true, score: msg.score, player: playerName };
-                const newWords = [...state.words, newWord];
-                set({
-                  words: newWords,
-                  letterPool: msg.letterPool || [],
-                  scores: msg.scores || [],
-                  roomUsedWords: new Set([...state.roomUsedWords, msg.word]),
-                  leaderboard: (msg.type === 'player_word' && msg.leaderboard) ? msg.leaderboard : get().leaderboard
-                });
-              } else {
-                const newOpponentWord: OpponentWord = {
-                  word: msg.word,
-                  score: msg.score,
-                  player: playerName
-                };
-                const newOpponentWords = [...state.opponentWords, newOpponentWord];
-                set({
-                  opponentWords: newOpponentWords,
-                  letterPool: msg.letterPool || [],
-                  scores: msg.scores || [],
-                  roomUsedWords: new Set([...state.roomUsedWords, msg.word]),
-                  leaderboard: (msg.type === 'player_word' && msg.leaderboard) ? msg.leaderboard : get().leaderboard
-                });
-              }
             }
           } else {
             const newOpponentWord: OpponentWord = {

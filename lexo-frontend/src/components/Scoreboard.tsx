@@ -76,21 +76,23 @@ const Scoreboard: React.FC<ScoreboardProps> = React.memo(({ username }) => {
   }
 
   if (isViewer && scores.length >= 2) {
+    const sortedScores = [...scores].sort((a, b) => b.score - a.score);
+    
     return (
       <div className="flex justify-around w-full text-center p-4 bg-white/50 rounded-lg border border-slate-200">
         <div>
-          <div className="text-sm text-slate-500">{scores[0].username}</div>
+          <div className="text-sm text-slate-500">{sortedScores[0].username}</div>
           <div className="text-3xl font-bold text-cyan-600 relative h-10 flex items-center justify-center">
               <AnimatePresence mode="popLayout">
                   <motion.span
-                      key={scores[0].score}
+                      key={sortedScores[0].score}
                       initial={scoreAnimation.initial}
                       animate={scoreAnimation.animate}
                       exit={scoreAnimation.exit}
                       transition={scoreAnimation.transition}
                       className="absolute"
                   >
-                      {scores[0].score}
+                      {sortedScores[0].score}
                   </motion.span>
               </AnimatePresence>
           </div>
@@ -104,18 +106,18 @@ const Scoreboard: React.FC<ScoreboardProps> = React.memo(({ username }) => {
         </div>
 
         <div>
-          <div className="text-sm text-slate-500">{scores[1].username}</div>
+          <div className="text-sm text-slate-500">{sortedScores[1].username}</div>
            <div className="text-3xl font-bold text-purple-600 relative h-10 flex items-center justify-center">
                 <AnimatePresence mode="popLayout">
                     <motion.span
-                        key={scores[1].score}
+                        key={sortedScores[1].score}
                         initial={scoreAnimation.initial}
                         animate={scoreAnimation.animate}
                         exit={scoreAnimation.exit}
                         transition={scoreAnimation.transition}
                         className="absolute"
                     >
-                        {scores[1].score}
+                        {sortedScores[1].score}
                     </motion.span>
                 </AnimatePresence>
             </div>

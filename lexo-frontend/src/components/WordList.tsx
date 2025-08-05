@@ -11,10 +11,16 @@ const WordList: React.FC = () => {
   const scores = useGameStore(state => state.scores);
 
   const getTitle = () => {
-    if (isViewer && words.length > 0 && words[0].player) {
-      return `${words[0].player}'s Words`;
-    } else if (isViewer && scores.length > 0) {
-      return `${scores[0].username}'s Words`;
+    if (isViewer) {
+      const sortedScores = (scores || []).sort((a, b) => b.score - a.score);
+      const primaryPlayer = sortedScores.length > 0 ? sortedScores[0].username : null;
+      
+      if (words.length > 0 && words[0].player) {
+        return `${words[0].player}'s Words`;
+      } else if (primaryPlayer) {
+        return `${primaryPlayer}'s Words`;
+      }
+      return "Player 1's Words";
     }
     return "Your Words";
   };
