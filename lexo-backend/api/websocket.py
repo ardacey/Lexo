@@ -303,11 +303,9 @@ async def websocket_endpoint(
                     elapsed_seconds = (datetime.now() - countdown_start).total_seconds()
                     remaining_time = max(0, BATTLE_ROYALE_COUNTDOWN_SECONDS - int(elapsed_seconds))
             
-            sorted_active_players = sorted(active_players, key=lambda p: p.username)
-            
             player_words = {}
             if is_game_started:
-                for p in sorted_active_players:
+                for p in active_players:
                     words_with_scores = []
                     player_word_list = p.words or []
                     for word in player_word_list:
@@ -324,11 +322,11 @@ async def websocket_endpoint(
                 "room_status": room_status.value,
                 "game_mode": game_mode,
                 "players": all_players,
-                "active_players": [p.username for p in sorted_active_players],
+                "active_players": [p.username for p in active_players],
                 "is_viewer": getattr(player, 'is_viewer', False),
                 "is_owner": getattr(player, 'is_owner', False),
                 "letter_pool": room_obj.letter_pool if is_game_started else [],
-                "scores": [{"username": p.username, "score": p.score} for p in sorted_active_players] if is_game_started else [],
+                "scores": [{"username": p.username, "score": p.score} for p in active_players] if is_game_started else [],
                 "game_started": is_game_started,
                 "time_left": remaining_time,
                 "duration": remaining_time,
@@ -346,7 +344,7 @@ async def websocket_endpoint(
             await connection_manager.broadcast_to_room(room_id, {
                 "type": "player_joined", 
                 "players": all_players,
-                "active_players": [p.username for p in sorted_active_players],
+                "active_players": [p.username for p in active_players],
                 "message": f"{'Viewer' if getattr(player, 'is_viewer', False) else 'Player'} '{player.username}' has connected.",
                 "game_mode": game_mode,
                 "leaderboard": service.get_battle_royale_leaderboard(room_obj) if game_mode == GameMode.BATTLE_ROYALE.value else None

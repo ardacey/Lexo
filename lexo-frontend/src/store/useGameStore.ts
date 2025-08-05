@@ -232,11 +232,11 @@ export const useGameStore = create<StoreState>()(
             if (state.isViewer) {
               const primaryPlayer = (msg.active_players && msg.active_players.length > 0) ? msg.active_players[0] : null;
               
-              const playerEntries = Object.entries(msg.player_words).sort(([a], [b]) => a.localeCompare(b));
+              const playerEntries = Object.entries(msg.player_words);
               
-              playerEntries.forEach(([username, playerWords], index) => {
+              playerEntries.forEach(([username, playerWords]) => {
                 playerWords.forEach(wordEntry => {
-                  if (username === primaryPlayer || (!primaryPlayer && index === 0)) {
+                  if (username === primaryPlayer) {
                     if (!existingWords.has(wordEntry.word)) {
                       words.push({ text: wordEntry.word, valid: true, score: wordEntry.score, player: username });
                     }
@@ -371,7 +371,7 @@ export const useGameStore = create<StoreState>()(
           if (state.isViewer) {
             const primaryPlayer = (state.activePlayers && state.activePlayers.length > 0) ? state.activePlayers[0] : null;
             
-            if (playerName === primaryPlayer || (!primaryPlayer && state.words.length === 0)) {
+            if (playerName === primaryPlayer) {
               const newWord: Word = { text: msg.word, valid: true, score: msg.score, player: playerName };
               const newWords = [...state.words, newWord];
               set({
@@ -397,6 +397,7 @@ export const useGameStore = create<StoreState>()(
               });
             }
           } else {
+            // Non-viewer: all other players' words go to opponent list
             const newOpponentWord: OpponentWord = {
               word: msg.word,
               score: msg.score,

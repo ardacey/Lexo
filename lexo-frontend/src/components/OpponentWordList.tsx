@@ -8,7 +8,7 @@ import { CheckCircle2 } from 'lucide-react';
 const OpponentWordList: React.FC = () => {
   const opponentWords = useGameStore(state => state.opponentWords);
   const isViewer = useGameStore(state => state.isViewer);
-  const scores = useGameStore(state => state.scores);
+  const activePlayers = useGameStore(state => state.activePlayers);
 
   const getTitle = () => {
     if (isViewer) {
@@ -16,7 +16,7 @@ const OpponentWordList: React.FC = () => {
         return `${opponentWords[0].player}'s Words`;
       }
       
-      const secondaryPlayer = (scores && scores.length > 1) ? scores[1].username : null;
+      const secondaryPlayer = (activePlayers && activePlayers.length > 1) ? activePlayers[1] : null;
       if (secondaryPlayer) {
         return `${secondaryPlayer}'s Words`;
       }
