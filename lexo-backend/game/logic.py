@@ -90,7 +90,28 @@ def generate_initial_balanced_pool(size: int) -> List[str]:
 
 @lru_cache(maxsize=100)
 def calculate_score(word: str) -> int:
-    return sum(LETTER_SCORES.get(char, 0) for char in word.lower())
+    word_lower = word.lower()
+    word_length = len(word_lower)
+    
+    base_score = sum(LETTER_SCORES.get(char, 0) for char in word_lower)
+    
+    length_bonus = 0
+    if word_length >= 5:
+        length_bonus = (word_length - 4) * 2
+    if word_length >= 7:
+        length_bonus += (word_length - 6) * 3
+    
+    adjusted_score = 0
+    for char in word_lower:
+        char_score = LETTER_SCORES.get(char, 0)
+        if char_score >= 5:
+            adjusted_score += char_score * 0.8
+        else:
+            adjusted_score += char_score
+    
+    total_score = int(adjusted_score + length_bonus)
+    
+    return max(total_score, word_length)
 
 def has_letters_in_pool(word: str, pool: List[str]) -> bool:
     temp_pool = pool.copy()
