@@ -9,8 +9,13 @@ const OpponentWordList: React.FC = () => {
   const opponentWords = useGameStore(state => state.opponentWords);
   const isViewer = useGameStore(state => state.isViewer);
   const activePlayers = useGameStore(state => state.activePlayers);
+  const gameMode = useGameStore(state => state.gameMode);
 
   const getTitle = () => {
+    if (gameMode === 'battle_royale') {
+      return "All Players' Words";
+    }
+    
     if (isViewer) {
       if (opponentWords.length > 0) {
         const playerCounts: { [key: string]: number } = {};
@@ -62,6 +67,11 @@ const OpponentWordList: React.FC = () => {
                     <span className="font-semibold text-slate-600">
                       {word.word}
                     </span>
+                    {gameMode === 'battle_royale' && word.player && (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-1 rounded">
+                        {word.player}
+                      </span>
+                    )}
                     <span className="text-xs bg-slate-200 text-slate-600 px-1 rounded">
                       +{word.score}
                     </span>
