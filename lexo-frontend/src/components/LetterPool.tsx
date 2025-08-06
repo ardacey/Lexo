@@ -42,10 +42,11 @@ const LetterPool: React.FC<LetterPoolProps> = ({ letters, currentWord }) => {
   return (
     <div className="flex justify-center items-center w-full my-6 min-h-[140px]">
       <motion.div
-        className="flex flex-wrap justify-center items-center gap-2 max-w-5xl px-4"
+        className="flex flex-wrap justify-center items-center content-center gap-2 max-w-5xl px-4 min-h-full"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
+        style={{ alignContent: 'center' }}
       >
         {letters.map((l, i) => {
           const isUsed = usedIndices.has(i);
