@@ -6,8 +6,8 @@ import { UserProfile } from './components/UserProfile';
 function App() {
   return (
     <AuthProvider>
-      <main className="bg-gradient-to-br from-slate-50 to-slate-200 text-slate-900 min-h-screen flex flex-col items-center justify-center p-4 font-mono">
-        <div className="absolute top-4 right-4 z-10">
+      <main className="bg-gradient-to-br from-slate-50 to-slate-200 text-slate-900 min-h-screen flex flex-col p-4 font-mono">
+        <div className="w-full flex justify-end mb-4">
           <UserProfile />
         </div>
         <div className="w-full flex justify-center items-center flex-1">

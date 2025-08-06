@@ -32,17 +32,17 @@ const Scoreboard: React.FC<ScoreboardProps> = React.memo(({ username }) => {
 
   if (gameMode === 'battle_royale') {
     return (
-      <div className="flex justify-around w-full text-center p-4 bg-white/50 rounded-lg border border-slate-200">
-        <div>
-          <div className="text-sm text-slate-500">Time Left</div>
+      <div className="flex flex-wrap justify-center gap-4 w-full max-w-4xl text-center p-4 bg-white/80 rounded-lg border border-slate-200 shadow-sm">
+        <div className="min-w-[120px]">
+          <div className="text-sm text-slate-500 mb-1">Time Left</div>
           <div className={`text-3xl font-bold h-10 flex items-center justify-center transition-colors duration-300 ${timeLeft <= 10 ? 'text-red-600 animate-pulse' : 'text-slate-800'}`}>
               {timeLeft}s
           </div>
         </div>
         
         {eliminationInfo && eliminationInfo.next_elimination_time > 0 && (
-          <div>
-            <div className="text-sm text-slate-500">
+          <div className="min-w-[160px]">
+            <div className="text-sm text-slate-500 mb-1">
               Next Elimination
               {eliminationInfo.players_per_elimination && eliminationInfo.players_per_elimination > 1 && (
                 <span className="text-orange-600 font-medium"> ({eliminationInfo.players_per_elimination}x)</span>

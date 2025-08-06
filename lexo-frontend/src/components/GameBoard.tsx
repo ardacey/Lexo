@@ -130,7 +130,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ username }) => {
         
         <Scoreboard username={username} />
         
-        <div className="w-full flex flex-col justify-center items-center min-h-[80px] my-4">
+        <div className="w-full flex flex-col justify-center items-center min-h-[120px] my-6">
           {!gameStarted && countdown === null ? (
             <div className="flex flex-col items-center space-y-4">
               <div className="text-2xl text-slate-500 animate-pulse">
