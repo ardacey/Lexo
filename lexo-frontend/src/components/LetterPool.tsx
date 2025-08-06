@@ -40,40 +40,42 @@ const LetterPool: React.FC<LetterPoolProps> = ({ letters, currentWord }) => {
   }
 
   return (
-    <motion.div
-      className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 justify-items-center my-6 max-w-5xl mx-auto px-4"
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-    >
-      {letters.map((l, i) => {
-        const isUsed = usedIndices.has(i);
-        const displayLetter = l === 'i' ? 'İ' : l.toLocaleUpperCase('tr-TR');
-        
-        return (
-          <motion.div
-            key={i}
-            className={`
-              w-12 h-14 flex items-center justify-center font-bold text-xl rounded-lg border-b-4 transition-all duration-200
-              ${isUsed 
-                ? 'bg-slate-200 border-slate-400 text-slate-500 scale-90 shadow-inner' 
-                : 'bg-gradient-to-b from-white to-slate-50 border-cyan-400 text-cyan-800 cursor-pointer shadow-lg hover:shadow-xl'
-              }
-            `}
-            variants={letterVariants}
-            whileHover={!isUsed ? { 
-              scale: 1.1, 
-              y: -6, 
-              backgroundColor: '#ecfeff',
-              borderColor: '#22d3ee'
-            } : {}}
-            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-          >
-            {displayLetter}
-          </motion.div>
-        );
-      })}
-    </motion.div>
+    <div className="flex justify-center items-center w-full my-6">
+      <motion.div
+        className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 justify-items-center max-w-5xl px-4"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {letters.map((l, i) => {
+          const isUsed = usedIndices.has(i);
+          const displayLetter = l === 'i' ? 'İ' : l.toLocaleUpperCase('tr-TR');
+          
+          return (
+            <motion.div
+              key={i}
+              className={`
+                w-12 h-14 flex items-center justify-center font-bold text-xl rounded-lg border-b-4 transition-all duration-200
+                ${isUsed 
+                  ? 'bg-slate-200 border-slate-400 text-slate-500 scale-90 shadow-inner' 
+                  : 'bg-gradient-to-b from-white to-slate-50 border-cyan-400 text-cyan-800 cursor-pointer shadow-lg hover:shadow-xl'
+                }
+              `}
+              variants={letterVariants}
+              whileHover={!isUsed ? { 
+                scale: 1.1, 
+                y: -6, 
+                backgroundColor: '#ecfeff',
+                borderColor: '#22d3ee'
+              } : {}}
+              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+            >
+              {displayLetter}
+            </motion.div>
+          );
+        })}
+      </motion.div>
+    </div>
   );
 };
 
