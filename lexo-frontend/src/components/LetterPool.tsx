@@ -41,7 +41,7 @@ const LetterPool: React.FC<LetterPoolProps> = ({ letters, currentWord }) => {
 
   return (
     <motion.div
-      className="flex justify-center items-center gap-3 my-8 flex-wrap max-w-4xl mx-auto"
+      className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 justify-items-center my-6 max-w-5xl mx-auto px-4"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
@@ -54,7 +54,7 @@ const LetterPool: React.FC<LetterPoolProps> = ({ letters, currentWord }) => {
           <motion.div
             key={i}
             className={`
-              w-16 h-18 flex items-center justify-center font-bold text-3xl rounded-lg border-b-4 transition-all duration-200
+              w-12 h-14 flex items-center justify-center font-bold text-xl rounded-lg border-b-4 transition-all duration-200
               ${isUsed 
                 ? 'bg-slate-200 border-slate-400 text-slate-500 scale-90 shadow-inner' 
                 : 'bg-gradient-to-b from-white to-slate-50 border-cyan-400 text-cyan-800 cursor-pointer shadow-lg hover:shadow-xl'
@@ -62,8 +62,8 @@ const LetterPool: React.FC<LetterPoolProps> = ({ letters, currentWord }) => {
             `}
             variants={letterVariants}
             whileHover={!isUsed ? { 
-              scale: 1.15, 
-              y: -8, 
+              scale: 1.1, 
+              y: -6, 
               backgroundColor: '#ecfeff',
               borderColor: '#22d3ee'
             } : {}}
