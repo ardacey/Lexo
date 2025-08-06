@@ -176,7 +176,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ username }) => {
         
         <div className={`w-full grid gap-4 mt-4 ${
           gameMode === 'battle_royale' 
-            ? 'grid-cols-1 md:grid-cols-2' 
+            ? (isViewer ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2')
             : 'grid-cols-1 md:grid-cols-2'
         }`}>
           <WordList />

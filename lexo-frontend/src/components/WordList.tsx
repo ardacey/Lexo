@@ -9,8 +9,13 @@ const WordList: React.FC = () => {
   const words = useGameStore(state => state.words);
   const isViewer = useGameStore(state => state.isViewer);
   const activePlayers = useGameStore(state => state.activePlayers);
+  const gameMode = useGameStore(state => state.gameMode);
 
   const getTitle = () => {
+    if (gameMode === 'battle_royale' && isViewer) {
+      return "";
+    }
+    
     if (isViewer) {
       if (words.length > 0) {
         const playerCounts: { [key: string]: number } = {};
@@ -37,6 +42,10 @@ const WordList: React.FC = () => {
     }
     return "Your Words";
   };
+  
+  if (gameMode === 'battle_royale' && isViewer) {
+    return null;
+  }
 
   return (
     <Card className="w-full bg-white/50 border-slate-200">
