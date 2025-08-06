@@ -40,9 +40,9 @@ const LetterPool: React.FC<LetterPoolProps> = ({ letters, currentWord }) => {
   }
 
   return (
-    <div className="flex justify-center items-center w-full my-6">
+    <div className="flex justify-center items-center w-full my-6 min-h-[140px]">
       <motion.div
-        className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 justify-items-center max-w-5xl px-4"
+        className="flex flex-wrap justify-center items-center gap-2 max-w-5xl px-4"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
