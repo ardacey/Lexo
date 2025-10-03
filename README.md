@@ -1,219 +1,195 @@
 # Lexo
 
-A real-time multiplayer word game built with FastAPI and React. Challenge friends in classic 1v1 matches or compete in exciting Battle Royale tournaments with up to 16 players!
+Gerçek zamanlı çok oyunculu kelime oyunu. FastAPI ve React Native (Expo) ile geliştirildi. Arkadaşlarınızla klasik 1v1 maçlarında yarışın!
 
-## 🌐 Live Demo
+## 🎮 Oyun Modu
 
-**Play now at: [https://lexo-a4ba.onrender.com/](https://lexo-a4ba.onrender.com/)**
+### Klasik Mod
+- **1v1 çok oyunculu**: Tek bir rakiple karşı karşıya
+- **60 saniyelik turlar**: Hızlı tempolu kelime savaşları
+- **16 harf**: Adil rekabet için paylaşılan harf havuzu
+- **Gerçek zamanlı puanlama**: Rakibinizin kelimelerini anlık görün
 
-Experience the full game with all features including real-time multiplayer, Battle Royale mode, and Turkish word validation!
+## ✨ Özellikler
 
-## 🎮 Game Modes
+- **Gerçek zamanlı çok oyunculu** oyun modu ile WebSocket bağlantıları
+- **Türkçe kelime doğrulama** kapsamlı sözlük ile
+- **Harf tabanlı puanlama sistemi** dengeli harf sıklığı ile
+- **Responsive tasarım** tüm cihazlar için optimize edilmiş
 
-### Classic Mode
-- **1v1 multiplayer**: Face off against a single opponent
-- **60-second rounds**: Fast-paced word battles
-- **16 letters**: Shared letter pool for fair competition
-- **Real-time scoring**: See your opponent's words as they play
-
-### Battle Royale Mode
-- **3-16 players**: Massive multiplayer word battles
-- **4-minute matches**: Extended gameplay with elimination rounds
-- **Progressive elimination**: Lowest scoring players eliminated every 30 seconds
-- **50-letter pool**: Larger pool for extended gameplay
-- **Live leaderboard**: Track your ranking in real-time
-
-## ✨ Features
-
-- **Real-time multiplayer** with WebSocket connections
-- **Turkish word validation** with comprehensive dictionary
-- **Letter-based scoring system** with balanced letter frequency
-- **Practice mode** for solo gameplay
-- **User authentication** and statistics tracking
-- **Game history** and performance analytics
-- **Rate limiting** to prevent spam and ensure fair play
-- **Spectator mode** to watch ongoing games
-- **Responsive design** optimized for all devices
-
-## 🛠️ Tech Stack
+## 🛠️ Teknoloji Yığını
 
 ### Backend
-- **FastAPI** - High-performance Python web framework
-- **SQLAlchemy** - Database ORM with PostgreSQL support
-- **Alembic** - Database migration management
-- **WebSockets** - Real-time bidirectional communication
-- **JWT Authentication** - Secure user sessions
-- **Rate Limiting** - Prevent abuse and ensure fair play
+- **FastAPI** - Yüksek performanslı Python web framework'ü
+- **Uvicorn** - ASGI web sunucusu
+- **WebSockets** - Gerçek zamanlı çift yönlü iletişim
+- **Python-dotenv** - Ortam değişkenleri yönetimi
 
 ### Frontend
-- **React 19** - Modern React with latest features
-- **TypeScript** - Type-safe development
-- **Vite** - Fast build tool and development server
-- **Zustand** - Lightweight state management
-- **TanStack Query** - Server state management
-- **Tailwind CSS** - Utility-first CSS framework
-- **Framer Motion** - Smooth animations and transitions
-- **Radix UI** - Accessible component primitives
+- **React Native** - Expo framework ile cross-platform mobil uygulama
+- **TypeScript** - Tip güvenli geliştirme
+- **Expo Router** - Dosya tabanlı navigasyon
+- **NativeWind** - Tailwind CSS ile React Native stillendirme
+- **React Native Reanimated** - Performanslı animasyonlar
 
-## 🚀 Getting Started
+## 🚀 Başlangıç
 
-### Prerequisites
-- **Node.js** 18+ and npm
+### Gereksinimler
+
+- **Node.js** 18+ ve npm
 - **Python** 3.9+
-- **PostgreSQL** (or SQLite for development)
+- **Expo Go** uygulaması (mobil cihazınızda test etmek için)
 
-### Backend Setup
+### Backend Kurulumu
 
-1. **Navigate to backend directory**
+1. **Backend dizinine gidin**
    ```bash
    cd lexo-backend
    ```
 
-2. **Create virtual environment**
+2. **Sanal ortam oluşturun**
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   python3 -m venv venv
+   source venv/bin/activate  # Windows'ta: venv\Scripts\activate
    ```
 
-3. **Install dependencies**
+3. **Bağımlılıkları yükleyin**
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Set up environment variables**
-   Create a `.env` file:
-   ```env
-   DATABASE_URL=postgresql://username:password@localhost/lexo
-   SECRET_KEY=your-secret-key-here
-   ENVIRONMENT=development
-   ```
-
-5. **Initialize database**
+4. **Sunucuyu başlatın**
    ```bash
-   alembic upgrade head
+   python3 -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
    ```
 
-6. **Start the server**
+   Backend şu adreste çalışacak: `http://localhost:8000`
+
+### Frontend (Mobile App) Kurulumu
+
+1. **Frontend dizinine gidin**
    ```bash
-   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+   cd lexo
    ```
 
-### Frontend Setup
-
-1. **Navigate to frontend directory**
-   ```bash
-   cd lexo-frontend
-   ```
-
-2. **Install dependencies**
+2. **Bağımlılıkları yükleyin**
    ```bash
    npm install
    ```
 
-3. **Set up environment variables**
-   Create a `.env` file:
-   ```env
-   VITE_API_BASE_URL=http://localhost:8000/api
-   VITE_WS_BASE_URL=ws://localhost:8000/api/ws
+3. **Geliştirme sunucusunu başlatın**
+
+   **Sadece mobil uygulama:**
+   ```bash
+   npm start
    ```
 
-4. **Start development server**
+   **Mobil uygulama + Backend birlikte:**
    ```bash
    npm run dev
    ```
 
-5. **Open in browser**
-   Visit `http://localhost:5173`
+   **iOS Simulator:**
+   ```bash
+   npm run dev:ios
+   ```
 
-## 🎯 How to Play
+4. **Uygulamayı test edin**
+   - Mobil cihazınızda **Expo Go** uygulamasını açın
+   - QR kodu tarayın
+   - Veya iOS Simulator / Android Emulator kullanın
 
-### Classic Mode
-1. **Join a room** or create a new one
-2. **Wait for an opponent** to join
-3. **Form words** using the shared letter pool
-4. **Score points** based on letter values
-5. **Win** by having the highest score when time runs out
+## 🎯 Nasıl Oynanır
 
-### Battle Royale Mode
-1. **Join a Battle Royale room** (3-16 players required)
-2. **Wait for countdown** to begin
-3. **Form words** to climb the leaderboard
-4. **Avoid elimination** by staying off the bottom
-5. **Survive** until the end to claim victory
+### Klasik Mod
 
-### Scoring System
-- Each letter has a point value based on frequency
-- Longer words = higher scores
-- Common letters = fewer points
-- Rare letters = more points
+1. **Odaya katıl** veya yeni bir oda oluştur
+2. **Rakip bekle** - birinin odaya katılmasını bekle
+3. **Kelime oluştur** - paylaşılan harf havuzunu kullanarak
+4. **Puan kazan** - harf değerlerine göre
+5. **Kazan** - süre bittiğinde en yüksek puana sahip ol
 
-## 📊 Game Statistics
+### Puanlama Sistemi
 
-Track your performance with detailed statistics:
-- **Games played** and win rate
-- **Total score** and average per game
-- **Words formed** and favorites
-- **Game history** with detailed breakdowns
-- **Performance trends** over time
+- Her harfin sıklığına göre bir puan değeri var
+- Uzun kelimeler = daha yüksek puanlar
+- Yaygın harfler = daha az puan
+- Nadir harfler = daha fazla puan
 
-## 🔧 Development
+## 🔧 Geliştirme
 
-### Backend Commands
+### Backend Komutları
+
 ```bash
-# Run tests
-python -m pytest
+# Sunucuyu başlat (geliştirme)
+python3 -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
-# Create new migration
-alembic revision --autogenerate -m "description"
-
-# Apply migrations
-alembic upgrade head
-
-# Format code
-black .
+# Kodu düzenle
+# Backend dosyaları lexo-backend/ dizininde
 ```
 
-### Frontend Commands
+### Frontend Komutları
+
 ```bash
-# Development server
+# Expo sunucusunu başlat
+npm start
+
+# iOS simulator
+npm run ios
+
+# Android emulator
+npm run android
+
+# Hem backend hem frontend'i birlikte başlat
 npm run dev
 
-# Build for production
-npm run build
+# iOS ile birlikte backend
+npm run dev:ios
 
-# Run tests
-npm run test
-
-# Lint code
+# Kodu kontrol et
 npm run lint
-
-# Format code
-npm run format
 ```
 
-## 📝 API Documentation
+## 📝 API Dokümantasyonu
 
-When running the backend, visit:
+Backend çalışırken şu adresleri ziyaret edebilirsiniz:
+
 - **Swagger UI**: `http://localhost:8000/docs`
 - **ReDoc**: `http://localhost:8000/redoc`
 
-## 🤝 Contributing
+## 📱 Proje Yapısı
 
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-3. **Commit changes**: `git commit -m 'Add amazing feature'`
-4. **Push to branch**: `git push origin feature/amazing-feature`
-5. **Open a Pull Request**
+```text
+Lexo/
+├── lexo/                   # React Native (Expo) mobil uygulama
+│   ├── app/               # Expo Router sayfaları
+│   ├── components/        # React bileşenleri
+│   ├── hooks/             # Custom React hooks
+│   ├── utils/             # Yardımcı fonksiyonlar
+│   └── constants/         # Sabitler ve tema
+└── lexo-backend/          # FastAPI backend sunucusu
+    ├── main.py           # Ana uygulama dosyası
+    ├── routes.py         # API route'ları
+    ├── services.py       # İş mantığı servisleri
+    ├── models.py         # Veri modelleri
+    └── utils.py          # Yardımcı fonksiyonlar
+```
 
-## 📄 License
+## 🤝 Katkıda Bulunma
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+1. **Repository'yi fork edin**
+2. **Feature branch oluşturun**: `git checkout -b feature/harika-ozellik`
+3. **Değişikliklerinizi commit edin**: `git commit -m 'Harika özellik eklendi'`
+4. **Branch'inizi push edin**: `git push origin feature/harika-ozellik`
+5. **Pull Request açın**
 
-## 🏆 Acknowledgments
+## 📄 Lisans
 
-- Turkish word list sourced from [factoreminv/turkish-words](https://github.com/factoreminv/turkish-words)
-- Letter frequency analysis based on Turkish language statistics
-- UI components built with Radix UI primitives
-- Icons provided by Lucide React
+Bu proje MIT Lisansı altında lisanslanmıştır - detaylar için [LICENSE](LICENSE) dosyasına bakın.
 
-For support or questions, please open an issue on GitHub or contact us at [ac.ardaceylan@gmail.com](mailto:ac.ardaceylan@gmail.com).
+## 🏆 Teşekkürler
+
+- Türkçe kelime listesi [factoreminv/turkish-words](https://github.com/factoreminv/turkish-words) kaynağından alınmıştır
+- Harf sıklığı analizi Türkçe dil istatistiklerine dayanmaktadır
+
+Destek veya sorularınız için GitHub'da issue açabilir veya [ac.ardaceylan@gmail.com](mailto:ac.ardaceylan@gmail.com) adresinden iletişime geçebilirsiniz.

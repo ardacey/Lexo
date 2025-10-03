@@ -1,12 +1,6 @@
 fastapi
 uvicorn[standard]
 pydantic
-python-dotenv
-typing-extensions
-sqlalchemy
-alembic
-psycopg2-binary
-python-jose[cryptography]
-passlib[bcrypt]
-bcrypt>=4.0.0
 python-multipart
+websockets
+python-dotenv
