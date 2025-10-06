@@ -1,10 +1,8 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
-# Letter frequencies in Turkish language (percentage)
 LETTER_FREQUENCY = {
     'a': 11.92, 'e': 8.91, 'i': 8.60, 'ı': 5.12, 'n': 7.49,
     'r': 6.95, 'l': 5.75, 'k': 4.72, 'd': 4.68, 't': 3.31,
@@ -14,7 +12,6 @@ LETTER_FREQUENCY = {
     'c': 0.80, 'ö': 0.85, 'j': 0.03, 'f': 0.44
 }
 
-# Letter scores for word calculation
 LETTER_SCORES = {
     'a': 1, 'e': 1, 'i': 1, 'ı': 1, 'n': 1, 'r': 1, 'l': 1,
     'k': 2, 'd': 2, 't': 2, 's': 2, 'm': 2, 'y': 2, 'u': 2,
@@ -23,26 +20,21 @@ LETTER_SCORES = {
     'j': 10, 'f': 5
 }
 
-# Turkish vowels
 VOWELS = ['a', 'e', 'i', 'ı', 'o', 'ö', 'u', 'ü']
-
-# Turkish consonants
 CONSONANTS = ['b', 'c', 'ç', 'd', 'f', 'g', 'ğ', 'h', 'j', 'k', 'l', 'm', 'n', 'p', 'r', 's', 'ş', 't', 'v', 'y', 'z']
 
-# Game settings (can be overridden by environment variables)
 GAME_SETTINGS = {
-    'default_duration': int(os.getenv('GAME_DURATION', '60')),  # seconds
+    'default_duration': int(os.getenv('GAME_DURATION', '60')),
     'letter_pool_size': int(os.getenv('LETTER_POOL_SIZE', '16')),
     'min_word_length': int(os.getenv('MIN_WORD_LENGTH', '2')),
     'min_vowel_ratio': 0.3,
     'min_consonant_ratio': 0.5,
-    'length_bonus_threshold_1': 5,  # words >= 5 letters get bonus
-    'length_bonus_threshold_2': 7,  # words >= 7 letters get extra bonus
+    'length_bonus_threshold_1': 5,
+    'length_bonus_threshold_2': 7,
     'length_bonus_multiplier_1': 2,
     'length_bonus_multiplier_2': 3,
 }
 
-# API settings (can be overridden by environment variables)
 API_SETTINGS = {
     'title': os.getenv('API_TITLE', 'Lexo Multiplayer API'),
     'version': os.getenv('API_VERSION', '1.0.0'),
@@ -51,10 +43,13 @@ API_SETTINGS = {
     'cors_origins': os.getenv('CORS_ORIGINS', '*').split(',') if os.getenv('CORS_ORIGINS') != '*' else ['*'],
 }
 
-# File paths (can be overridden by environment variables)
 FILE_PATHS = {
     'words_file': os.getenv('WORDS_FILE', 'turkish_words.txt'),
 }
 
-# Logging configuration (can be overridden by environment variables)
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+
+DATABASE_URL = os.getenv(
+    'DATABASE_URL', 
+    'postgresql://postgres:postgres@localhost:5432/lexo_db'
+)
