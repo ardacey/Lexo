@@ -1,4 +1,3 @@
-// Türkçe harf frekansları ve skorları
 export const LETTER_FREQUENCY: { [key: string]: number } = {
   'a': 11.92, 'e': 8.91, 'i': 8.60, 'ı': 5.12, 'n': 7.49,
   'r': 6.95, 'l': 5.75, 'k': 4.72, 'd': 4.68, 't': 3.31,
@@ -21,9 +20,8 @@ export const CONSONANTS = ['b', 'c', 'ç', 'd', 'f', 'g', 'ğ', 'h', 'j', 'k', '
 
 export const MIN_WORD_LENGTH = 2;
 export const MAX_WORD_LENGTH = 15;
-export const GAME_DURATION = 60; // saniye
+export const GAME_DURATION = 60;
 export const INITIAL_POOL_SIZE = 16;
 
-// API Endpoints
 export const WS_BASE_URL = 'ws://localhost:8000';
 export const API_BASE_URL = 'http://localhost:8000';

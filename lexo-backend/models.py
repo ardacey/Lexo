@@ -66,12 +66,6 @@ class GameRoom:
                 return False
         return True
     
-    def remove_letters(self, word: str):
-        word_lower = word.lower()
-        for letter in word_lower:
-            if letter in self.letter_pool:
-                self.letter_pool.remove(letter)
-    
     def add_letters(self, letters: List[str]):
         self.letter_pool.extend(letters)
     
@@ -111,8 +105,6 @@ class GameRoom:
             "winner": self.get_winner() if self.game_ended else None
         }
 
-
-# Pydantic models for API requests/responses
 class QueueJoinRequest(BaseModel):
     username: str
 

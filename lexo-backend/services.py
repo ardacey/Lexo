@@ -56,21 +56,18 @@ class GameService:
                 'message': f'Kelime en az {min_length} harf olmalıdır'
             }
         
-        # Check if already used
         if word_lower in room.used_words:
             return {
                 'valid': False,
                 'message': 'Bu kelime zaten kullanıldı'
             }
         
-        # Check if letters are available
         if not room.has_letters(word):
             return {
                 'valid': False,
                 'message': 'Havuzda yeterli harf yok'
             }
         
-        # Check if word is valid Turkish word
         if not self.word_service.is_valid_word(word):
             return {
                 'valid': False,
@@ -87,10 +84,6 @@ class GameService:
         score = calculate_word_score(word)
         
         room.add_used_word(word_lower)
-        room.remove_letters(word)
-        
-        replacement_letters = generate_replacement_letters(len(word_lower))
-        room.add_letters(replacement_letters)
         
         player.add_score(score)
         player.add_word(word_lower)

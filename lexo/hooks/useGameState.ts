@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import Toast from 'react-native-toast-message';
-import { generateBalancedPool, calculateScore, hasLettersInPool, replaceLetters } from '../utils/gameLogic';
-import { isValidWord } from '../utils/words';
+import { generateBalancedPool, calculateScore, hasLettersInPool } from '../utils/gameLogic';
+import { validateWord } from '../utils/api';
 
 export interface Word {
   text: string;
@@ -24,7 +24,7 @@ export const useGameState = (poolSize: number = 16) => {
     setUsedWords(new Set());
   }, [poolSize]);
 
-  const submitWord = useCallback((word?: string): boolean => {
+  const submitWord = useCallback(async (word?: string): Promise<boolean> => {
     const wordToSubmit = (word || currentWord).toLowerCase().trim();
 
     if (!wordToSubmit) return false;
@@ -62,34 +62,28 @@ export const useGameState = (poolSize: number = 16) => {
       return false;
     }
 
-    if (!isValidWord(wordToSubmit)) {
+    const validation = await validateWord(wordToSubmit);
+    
+    if (!validation.valid) {
       Toast.show({
         type: 'error',
         text1: 'Hata',
-        text2: 'Geçerli bir Türkçe kelime değil',
+        text2: validation.message,
         position: 'top',
         visibilityTime: 2000,
       });
       return false;
     }
 
-    // Skoru hesapla
     const score = calculateScore(wordToSubmit);
 
-    // State'leri güncelle
     const newWord: Word = { text: wordToSubmit, score };
     setWords(prev => [...prev, newWord]);
     setTotalScore(prev => prev + score);
     setUsedWords(prev => new Set([...prev, wordToSubmit]));
 
-    // Harf havuzunu güncelle
-    const newPool = replaceLetters(wordToSubmit, letterPool);
-    setLetterPool(newPool);
-
-    // Input'u temizle
     setCurrentWord('');
 
-    // Başarı mesajı
     Toast.show({
       type: 'success',
       text1: 'Harika!',

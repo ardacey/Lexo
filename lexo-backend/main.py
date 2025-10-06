@@ -46,6 +46,11 @@ def get_matchmaking_service():
 ws_router = create_websocket_router(matchmaking_service, word_service)
 app.include_router(ws_router)
 
+# Single player API routes
+from routes import setup_api_routes
+api_router_configured = setup_api_routes(word_service)
+app.include_router(api_router_configured)
+
 @app.get("/")
 def read_root():
     stats = matchmaking_service.get_stats()

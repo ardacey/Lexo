@@ -1,6 +1,5 @@
 import { LETTER_FREQUENCY, LETTER_SCORES, VOWELS, CONSONANTS } from './constants';
 
-// Harf havuzu oluştur
 export const generateLetterPool = (count: number): string[] => {
   const letters = Object.keys(LETTER_FREQUENCY);
   const weights: number[] = [];
@@ -24,33 +23,27 @@ export const generateLetterPool = (count: number): string[] => {
   return pool;
 };
 
-// Dengeli harf havuzu oluştur (sesli ve sessiz harf dengesine dikkat et)
 export const generateBalancedPool = (size: number): string[] => {
   const pool: string[] = [];
   const minVowels = Math.floor(size * 0.3);
   const minConsonants = Math.floor(size * 0.5);
   
-  // Sesli harfleri ekle
   for (let i = 0; i < minVowels; i++) {
     const randomVowel = VOWELS[Math.floor(Math.random() * VOWELS.length)];
     pool.push(randomVowel);
   }
   
-  // Sessiz harfleri ekle
   for (let i = 0; i < minConsonants; i++) {
     const randomConsonant = CONSONANTS[Math.floor(Math.random() * CONSONANTS.length)];
     pool.push(randomConsonant);
   }
   
-  // Kalanları ekle
   const remaining = size - pool.length;
   pool.push(...generateLetterPool(remaining));
   
-  // Karıştır
   return pool.sort(() => Math.random() - 0.5);
 };
 
-// Skor hesapla
 export const calculateScore = (word: string): number => {
   const wordLower = word.toLowerCase();
   const wordLength = wordLower.length;
@@ -60,7 +53,6 @@ export const calculateScore = (word: string): number => {
     baseScore += LETTER_SCORES[char] || 0;
   }
   
-  // Uzunluk bonusu
   let lengthBonus = 0;
   if (wordLength >= 5) {
     lengthBonus = (wordLength - 4) * 2;
@@ -73,7 +65,6 @@ export const calculateScore = (word: string): number => {
   return Math.max(totalScore, wordLength);
 };
 
-// Kelimenin harflerinin havuzda olup olmadığını kontrol et
 export const hasLettersInPool = (word: string, pool: string[]): boolean => {
   const tempPool = [...pool];
   for (const letter of word.toLowerCase()) {
@@ -84,24 +75,4 @@ export const hasLettersInPool = (word: string, pool: string[]): boolean => {
     tempPool.splice(index, 1);
   }
   return true;
-};
-
-// Kullanılan harfleri havuzdan çıkar ve yeni harfler ekle
-export const replaceLetters = (word: string, currentPool: string[]): string[] => {
-  const newPool = [...currentPool];
-  const wordLower = word.toLowerCase();
-  
-  // Kullanılan harfleri çıkar
-  for (const letter of wordLower) {
-    const index = newPool.indexOf(letter);
-    if (index !== -1) {
-      newPool.splice(index, 1);
-    }
-  }
-  
-  // Yeni harfler ekle
-  const newLetters = generateLetterPool(wordLower.length);
-  newPool.push(...newLetters);
-  
-  return newPool;
 };

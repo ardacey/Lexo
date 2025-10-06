@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   Alert,
@@ -13,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Toast from 'react-native-toast-message';
-import { WS_BASE_URL } from '../utils/constants';
+import { WS_BASE_URL } from '../../utils/constants';
 
 interface Word {
   text: string;
@@ -139,7 +138,6 @@ export default function Multiplayer() {
 
       case 'word_valid':
         setMyWords(prevWords => [...prevWords, { text: data.word, score: data.score }]);
-        setLetterPool(data.letter_pool);
         setScores(data.scores);
         setCurrentWord('');
         setSelectedIndices([]);
@@ -168,7 +166,6 @@ export default function Multiplayer() {
           score: data.score,
           player: data.player 
         }]);
-        setLetterPool(data.letter_pool);
         setScores(data.scores);
         break;
 
@@ -235,7 +232,6 @@ export default function Multiplayer() {
     if (gameState !== 'playing') return;
     
     if (selectedIndices.includes(index)) {
-      // Harf zaten seçilmişse, seçimi kaldır
       setSelectedIndices(prev => prev.filter(i => i !== index));
       const newWord = selectedIndices
         .filter(i => i !== index)
@@ -243,7 +239,6 @@ export default function Multiplayer() {
         .join('');
       setCurrentWord(newWord);
     } else {
-      // Harfi seçime ekle
       setSelectedIndices(prev => [...prev, index]);
       const newWord = [...selectedIndices, index]
         .map(i => letterPool[i])
@@ -375,7 +370,7 @@ export default function Multiplayer() {
                 selectedIndices.includes(index) 
                   ? 'text-white' 
                   : 'text-text-primary'
-              }`}>{letter.toUpperCase()}</Text>
+              }`}>{letter.toLocaleUpperCase('tr-TR')}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -388,7 +383,7 @@ export default function Multiplayer() {
           <View className="flex-row gap-2 items-center">
             <View className="flex-1 bg-white rounded-lg px-4 py-3 border-2 border-slate-200 min-h-[48px] justify-center">
               <Text className="text-xl font-bold text-text-primary">
-                {currentWord.toUpperCase() || '...'}
+                {currentWord.toLocaleUpperCase('tr-TR') || '...'}
               </Text>
             </View>
             {currentWord && (
@@ -417,7 +412,7 @@ export default function Multiplayer() {
           <ScrollView className="flex-1">
             {myWords.map((word, index) => (
               <View key={index} className="flex-row justify-between items-center bg-green-100 rounded-lg p-2.5 mb-1.5">
-                <Text className="text-sm font-semibold text-text-primary">{word.text.toUpperCase()}</Text>
+                <Text className="text-sm font-semibold text-text-primary">{word.text.toLocaleUpperCase('tr-TR')}</Text>
                 <Text className="text-xs font-bold text-success">+{word.score}</Text>
               </View>
             ))}
@@ -429,7 +424,7 @@ export default function Multiplayer() {
           <ScrollView className="flex-1">
             {opponentWords.map((word, index) => (
               <View key={index} className="flex-row justify-between items-center bg-yellow-100 rounded-lg p-2.5 mb-1.5">
-                <Text className="text-sm font-semibold text-text-primary">{word.text.toUpperCase()}</Text>
+                <Text className="text-sm font-semibold text-text-primary">{word.text.toLocaleUpperCase('tr-TR')}</Text>
                 <Text className="text-xs font-bold text-success">+{word.score}</Text>
               </View>
             ))}

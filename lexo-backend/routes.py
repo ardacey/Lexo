@@ -1,5 +1,6 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from typing import Dict
+from pydantic import BaseModel
 import uuid
 import asyncio
 import logging
@@ -212,3 +213,31 @@ def get_stats():
 @api_router.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+
+class ValidateWordRequest(BaseModel):
+    word: str
+
+
+def setup_api_routes(word_service: WordService):
+    """Single player endpoints için word_service'i inject et"""
+    
+    @api_router.post("/api/validate-word")
+    def validate_word(request: ValidateWordRequest):
+        """Single player mode için kelime validasyonu"""
+        word = request.word.strip().lower()
+        
+        if len(word) < 2:
+            return {
+                "valid": False,
+                "message": "Kelime en az 2 harf olmalıdır"
+            }
+        
+        is_valid = word_service.is_valid_word(word)
+        
+        return {
+            "valid": is_valid,
+            "message": "Geçerli bir Türkçe kelime" if is_valid else "Geçerli bir Türkçe kelime değil"
+        }
+    
+    return api_router
