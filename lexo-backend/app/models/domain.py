@@ -1,7 +1,6 @@
 from typing import List, Dict, Set, Optional
 from datetime import datetime
 from fastapi import WebSocket
-from pydantic import BaseModel
 
 
 class Player:
@@ -11,6 +10,8 @@ class Player:
         self.websocket = websocket
         self.score = 0
         self.words: List[str] = []
+        self.connected = True
+        self.last_disconnect_time: Optional[datetime] = None
     
     def add_score(self, points: int) -> int:
         self.score += points
@@ -24,7 +25,8 @@ class Player:
             "id": self.id,
             "username": self.username,
             "score": self.score,
-            "words": self.words
+            "words": self.words,
+            "connected": self.connected
         }
 
 
@@ -39,6 +41,8 @@ class GameRoom:
         self.start_time: Optional[datetime] = None
         self.game_started = False
         self.game_ended = False
+        self.game_saved = False
+        self.reconnect_grace_period = 30  # seconds
     
     def start_game(self):
         self.game_started = True
@@ -85,6 +89,31 @@ class GameRoom:
             {"username": self.player2.username, "score": self.player2.score}
         ]
     
+    def is_within_grace_period(self) -> bool:
+        if not self.game_started or self.game_ended:
+            return False
+        
+        now = datetime.now()
+        if not self.player1.connected and self.player1.last_disconnect_time:
+            elapsed = (now - self.player1.last_disconnect_time).total_seconds()
+            if elapsed < self.reconnect_grace_period:
+                return True
+        
+        if not self.player2.connected and self.player2.last_disconnect_time:
+            elapsed = (now - self.player2.last_disconnect_time).total_seconds()
+            if elapsed < self.reconnect_grace_period:
+                return True
+        
+        return False
+    
+    def get_time_remaining(self) -> Optional[int]:
+        if not self.start_time or self.game_ended:
+            return None
+        
+        elapsed = (datetime.now() - self.start_time).total_seconds()
+        remaining = self.duration - int(elapsed)
+        return max(0, remaining)
+    
     def get_winner(self) -> Optional[str]:
         if self.player1.score > self.player2.score:
             return self.player1.username
@@ -104,23 +133,3 @@ class GameRoom:
             "game_ended": self.game_ended,
             "winner": self.get_winner() if self.game_ended else None
         }
-
-class QueueJoinRequest(BaseModel):
-    username: str
-
-
-class SubmitWordRequest(BaseModel):
-    word: str
-
-
-class WordValidationResponse(BaseModel):
-    is_valid: bool
-    message: Optional[str] = None
-    score: Optional[int] = None
-
-
-class GameStateResponse(BaseModel):
-    letter_pool: List[str]
-    scores: List[Dict]
-    used_words: List[str]
-    time_remaining: int

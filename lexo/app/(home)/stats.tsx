@@ -1,47 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useUser } from '@clerk/clerk-expo';
-import { getUserStats, getUserGames, type UserStats, type GameHistory } from '@/utils/api';
 import { Ionicons } from '@expo/vector-icons';
+import { useUserStats, useUserGames } from '@/hooks/useApi';
 
 export default function StatsPage() {
   const router = useRouter();
   const { user } = useUser();
-  const [stats, setStats] = useState<UserStats | null>(null);
-  const [games, setGames] = useState<GameHistory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useUserStats(user?.id || null);
+  const { data: games = [], isLoading: gamesLoading, refetch: refetchGames } = useUserGames(user?.id || null, 10);
+  
+  const loading = statsLoading || gamesLoading;
+  const [refreshing, setRefreshing] = React.useState(false);
 
-  const loadData = async () => {
-    if (!user) return;
-
-    try {
-      const clerkId = user.id;
-      const [statsData, gamesData] = await Promise.all([
-        getUserStats(clerkId),
-        getUserGames(clerkId, 10)
-      ]);
-
-      setStats(statsData);
-      setGames(gamesData);
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-  }, [user]);
-
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadData();
+    await Promise.all([refetchStats(), refetchGames()]);
+    setRefreshing(false);
   };
 
   const formatTime = (seconds: number) => {

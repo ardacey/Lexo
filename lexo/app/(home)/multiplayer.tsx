@@ -13,8 +13,11 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Toast from 'react-native-toast-message';
 import { useUser } from '@clerk/clerk-expo';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WS_BASE_URL } from '../../utils/constants';
-import { saveGame, createUser } from '@/utils/api';
+import { useCreateUser, useSaveGame } from '@/hooks/useApi';
+import { EmojiPicker } from '@/components/EmojiPicker';
+import { EmojiNotification } from '@/components/EmojiNotification';
 
 interface Word {
   text: string;
@@ -31,7 +34,11 @@ export default function Multiplayer() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const username = params.username as string || 'Player';
+  const isReconnecting = params.reconnect === 'true';
   const { user } = useUser();
+
+  const createUserMutation = useCreateUser();
+  const saveGameMutation = useSaveGame();
   
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [gameState, setGameState] = useState<'queue' | 'matched' | 'playing' | 'ended'>('queue');
@@ -52,9 +59,19 @@ export default function Multiplayer() {
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [gameStartTime, setGameStartTime] = useState<Date | null>(null);
   const [gameSaved, setGameSaved] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [myEmoji, setMyEmoji] = useState<{emoji: string; visible: boolean}>({
+    emoji: '',
+    visible: false
+  });
+  const [opponentEmoji, setOpponentEmoji] = useState<{emoji: string; visible: boolean}>({
+    emoji: '',
+    visible: false
+  });
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<number | null>(null);
+  const gameEndTimeoutRef = useRef<number | null>(null);
   const gameDataRef = useRef({
     startTime: null as Date | null,
     roomId: '',
@@ -65,22 +82,66 @@ export default function Multiplayer() {
     opponentWords: [] as Word[]
   });
 
+  const saveActiveGameToStorage = async (gameData: any) => {
+    try {
+      await AsyncStorage.setItem('activeGame', JSON.stringify(gameData));
+      console.log('✅ Active game saved to storage');
+    } catch (error) {
+      console.error('❌ Error saving game to storage:', error);
+    }
+  };
+
+  const clearActiveGameFromStorage = async () => {
+    try {
+      await AsyncStorage.removeItem('activeGame');
+      console.log('✅ Active game cleared from storage');
+    } catch (error) {
+      console.error('❌ Error clearing game from storage:', error);
+    }
+  };
+
+  const getActiveGameFromStorage = async () => {
+    try {
+      const gameData = await AsyncStorage.getItem('activeGame');
+      if (gameData) {
+        return JSON.parse(gameData);
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Error getting game from storage:', error);
+      return null;
+    }
+  };
+
   useEffect(() => {
-    if (user) {
-      createUser(user.id, username, user.primaryEmailAddress?.emailAddress).catch(console.error);
+    if (user && !createUserMutation.isPending) {
+      createUserMutation.mutate({
+        clerkId: user.id,
+        username,
+        email: user.primaryEmailAddress?.emailAddress
+      });
     }
     
-    connectToQueue();
+    if (isReconnecting) {
+      reconnectToGame();
+    } else {
+      connectToQueue();
+    }
     
     return () => {
       console.log('Cleaning up multiplayer component...');
-      if (timerRef.current) {
+      if (timerRef.current !== null) {
         clearInterval(timerRef.current);
         timerRef.current = null;
+      }
+      if (gameEndTimeoutRef.current !== null) {
+        clearTimeout(gameEndTimeoutRef.current);
+        gameEndTimeoutRef.current = null;
       }
       if (ws) {
         try {
           ws.close();
+          setWs(null);
         } catch (error) {
           console.error('Error closing WebSocket:', error);
         }
@@ -105,6 +166,47 @@ export default function Multiplayer() {
     }
   }, [timeLeft]);
 
+  const reconnectToGame = () => {
+    if (!user) {
+      Alert.alert('Hata', 'Kullanıcı bilgisi bulunamadı');
+      return;
+    }
+    
+    try {
+      setGameState('matched');
+      const websocket = new WebSocket(`${WS_BASE_URL}/ws/queue`);
+      
+      websocket.onopen = () => {
+        console.log('WebSocket connected for reconnection');
+        websocket.send(JSON.stringify({ 
+          username,
+          clerk_id: user.id,
+          is_reconnect: true
+        }));
+      };
+
+      websocket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log('Received (reconnect):', data);
+        handleMessage(data);
+      };
+
+      websocket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        Alert.alert('Bağlantı Hatası', 'Sunucuya bağlanılamadı');
+      };
+
+      websocket.onclose = () => {
+        console.log('WebSocket closed');
+      };
+
+      setWs(websocket);
+    } catch (error) {
+      console.error('Connection error:', error);
+      Alert.alert('Hata', 'Sunucuya bağlanılamadı');
+    }
+  };
+
   const connectToQueue = () => {
     if (!user) {
       Alert.alert('Hata', 'Kullanıcı bilgisi bulunamadı');
@@ -118,7 +220,8 @@ export default function Multiplayer() {
         console.log('WebSocket connected');
         websocket.send(JSON.stringify({ 
           username,
-          clerk_id: user.id 
+          clerk_id: user.id,
+          is_reconnect: false
         }));
       };
 
@@ -186,6 +289,15 @@ export default function Multiplayer() {
         gameDataRef.current.myWords = [];
         gameDataRef.current.opponentWords = [];
         console.log('✅ Game start time saved:', startTime);
+
+        saveActiveGameToStorage({
+          roomId: gameDataRef.current.roomId,
+          opponent: gameDataRef.current.opponent,
+          opponentClerkId: gameDataRef.current.opponentClerkId,
+          startTime: startTime.toISOString(),
+          duration: data.duration,
+        });
+        
         startTimer(data.duration);
         break;
 
@@ -239,24 +351,40 @@ export default function Multiplayer() {
         setGameState('ended');
         if (timerRef.current) {
           clearInterval(timerRef.current);
+          timerRef.current = null;
         }
-        saveGameToDatabase(data.winner, data.is_tie, data.scores);
+        if (gameEndTimeoutRef.current) {
+          clearTimeout(gameEndTimeoutRef.current);
+          gameEndTimeoutRef.current = null;
+        }
+        if (!data.game_saved_by_server) {
+          console.warn('Game was not saved by server');
+        }
+        clearActiveGameFromStorage();
         showGameEndAlert(data.winner, data.is_tie);
         break;
 
       case 'opponent_disconnected':
-        // Clean up timer
-        if (timerRef.current) {
+        if (timerRef.current !== null) {
           clearInterval(timerRef.current);
+          timerRef.current = null;
         }
         
-        // Close WebSocket connection
+        if (gameEndTimeoutRef.current !== null) {
+          clearTimeout(gameEndTimeoutRef.current);
+          gameEndTimeoutRef.current = null;
+        }
+        
         if (ws) {
-          ws.close();
-          setWs(null);
+          try {
+            ws.close();
+            setWs(null);
+          } catch (error) {
+            console.error('Error closing WebSocket:', error);
+          }
         }
+        clearActiveGameFromStorage();
         
-        // Show alert and navigate back
         Alert.alert(
           'Oyun Bitti',
           'Rakip oyundan ayrıldı. Siz kazandınız!',
@@ -276,150 +404,153 @@ export default function Multiplayer() {
           { cancelable: false }
         );
         break;
+
+      case 'opponent_disconnected_temp':
+        Toast.show({
+          type: 'info',
+          text1: 'Bağlantı Kesildi',
+          text2: data.message,
+          position: 'top',
+          visibilityTime: 3000,
+        });
+        break;
+
+      case 'opponent_reconnected':
+        Toast.show({
+          type: 'success',
+          text1: 'Bağlantı Kuruldu',
+          text2: data.message,
+          position: 'top',
+          visibilityTime: 2000,
+        });
+        break;
+
+      case 'reconnected':
+        console.log('🔄 Reconnected to game:', data);
+        setRoomId(data.room_id);
+        setOpponent(data.opponent);
+        setOpponentClerkId(data.opponent_clerk_id);
+        setLetterPool(data.letter_pool);
+        setInitialLetterPool(data.letter_pool);
+        setScores(data.scores);
+        setGameState('playing');
+ 
+        const restoredWords = data.my_words.map((word: string) => ({ text: word, score: 0 }));
+        setMyWords(restoredWords);
+
+        startTimer(data.time_remaining);
+        
+        Toast.show({
+          type: 'success',
+          text1: 'Oyuna Geri Döndünüz',
+          text2: 'Oyun devam ediyor!',
+          position: 'top',
+          visibilityTime: 2000,
+        });
+        break;
+
+      case 'game_expired':
+        clearActiveGameFromStorage();
+        Alert.alert(
+          'Oyun Süresi Doldu',
+          'Oyun süresi dolduğu için oyuna geri dönemezsiniz.',
+          [
+            {
+              text: 'Tamam',
+              onPress: () => router.replace('/(home)')
+            }
+          ]
+        );
+        break;
+
+      case 'emoji_received':
+        console.log('🎭 Emoji received:', data.emoji, 'from', data.from);
+        console.log('📥 Setting opponent emoji state to visible');
+        setOpponentEmoji({
+          emoji: data.emoji,
+          visible: true
+        });
+        break;
+
+      case 'emoji_error':
+        console.log('❌ Emoji error:', data.message);
+        Toast.show({
+          type: 'error',
+          text1: 'Hata',
+          text2: data.message,
+          position: 'top',
+          visibilityTime: 2000,
+        });
+        break;
     }
+  };
+
+  const handleTimeExpired = () => {
+    console.log('⏰ Time expired, waiting for game_end message...');
+
+    gameEndTimeoutRef.current = setTimeout(() => {
+      console.log('⚠️ No game_end message received after timeout, ending game manually');
+
+      const myScore = getMyScore();
+      const opponentScore = getOpponentScore();
+      
+      let winnerName = null;
+      let tie = false;
+      
+      if (myScore > opponentScore) {
+        winnerName = username;
+      } else if (opponentScore > myScore) {
+        winnerName = opponent;
+      } else {
+        tie = true;
+      }
+      
+      setWinner(winnerName);
+      setIsTie(tie);
+      setGameState('ended');
+      clearActiveGameFromStorage();
+      showGameEndAlert(winnerName, tie);
+    }, 3000) as any;
   };
 
   const startTimer = (duration: number) => {
     setTimeLeft(duration);
     
-    if (timerRef.current) {
+    if (timerRef.current !== null) {
       clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
+    if (gameEndTimeoutRef.current !== null) {
+      clearTimeout(gameEndTimeoutRef.current);
+      gameEndTimeoutRef.current = null;
     }
     
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          if (timerRef.current) {
+          if (timerRef.current !== null) {
             clearInterval(timerRef.current);
+            timerRef.current = null;
           }
+          handleTimeExpired();
           return 0;
         }
         return prev - 1;
       });
-    }, 1000);
-  };
-
-  const saveGameToDatabase = async (winnerName: string | null, tie: boolean, finalScores: Score[]) => {
-    console.log('=== saveGameToDatabase called ===');
-    console.log('State values:', {
-      gameSaved,
-      userId: user?.id,
-      gameStartTime,
-      roomId,
-      opponent
-    });
-    console.log('Ref values:', gameDataRef.current);
-    
-    // Use ref values as fallback
-    const actualStartTime = gameStartTime || gameDataRef.current.startTime;
-    const actualRoomId = roomId || gameDataRef.current.roomId;
-    const actualOpponent = opponent || gameDataRef.current.opponent;
-    const actualOpponentClerkId = opponentClerkId || gameDataRef.current.opponentClerkId;
-    
-    if (gameSaved || !user || !actualStartTime) {
-      console.log('❌ Skipping save:', { 
-        gameSaved, 
-        hasUser: !!user, 
-        hasGameStartTime: !!actualStartTime 
-      });
-      return;
-    }
-    
-    console.log('✅ Saving game to database...');
-    console.log('Using values:', {
-      startTime: actualStartTime,
-      roomId: actualRoomId,
-      opponent: actualOpponent
-    });
-    
-    try {
-      setGameSaved(true);
-
-      console.log('Creating/getting user:', user.id, username);
-      await createUser(user.id, username, user.primaryEmailAddress?.emailAddress);
-
-      const myScore = finalScores.find(s => s.username === username)?.score || 0;
-      const opponentScore = finalScores.find(s => s.username === actualOpponent)?.score || 0;
-
-      console.log('Score comparison:', { myScore, opponentScore, username, actualOpponent, actualOpponentClerkId });
-
-      let winnerClerkId: string | undefined = undefined;
-      if (!tie) {
-        // Determine winner based on actual scores
-        if (myScore > opponentScore) {
-          winnerClerkId = user.id;
-          console.log('🏆 I won! Winner clerk_id:', winnerClerkId);
-        } else if (opponentScore > myScore) {
-          winnerClerkId = actualOpponentClerkId;
-          console.log('🏆 Opponent won! Winner clerk_id:', winnerClerkId);
-        }
-      } else {
-        console.log('🤝 Game is tied, no winner');
-      }
-      
-      // Use ref values for words to ensure they're not lost
-      const actualMyWords = myWords.length > 0 ? myWords : gameDataRef.current.myWords;
-      const actualOpponentWords = opponentWords.length > 0 ? opponentWords : gameDataRef.current.opponentWords;
-      const actualLetterPool = initialLetterPool.length > 0 ? initialLetterPool : gameDataRef.current.initialLetterPool;
-      
-      const myWordsList = actualMyWords.map(w => w.text);
-      const opponentWordsList = actualOpponentWords.map(w => w.text);
-      
-      console.log('Words:', {
-        myWords: myWordsList,
-        opponentWords: opponentWordsList,
-        letterPool: actualLetterPool
-      });
-      
-      // Both players must have real clerk_ids from WebSocket
-      if (!actualOpponentClerkId) {
-        console.error('❌ Cannot save game: opponent clerk_id missing');
-        Toast.show({
-          type: 'error',
-          text1: 'Hata',
-          text2: 'Oyun kaydedilemedi: Rakip bilgisi eksik',
-          position: 'bottom'
-        });
-        return;
-      }
-
-      const gameData = {
-        room_id: actualRoomId,
-        player1_clerk_id: user.id,
-        player2_clerk_id: actualOpponentClerkId,
-        player1_score: myScore,
-        player2_score: opponentScore,
-        player1_words: myWordsList,
-        player2_words: opponentWordsList,
-        winner_clerk_id: winnerClerkId,
-        duration: gameDuration,
-        letter_pool: actualLetterPool,
-        started_at: actualStartTime.toISOString(),
-        ended_at: new Date().toISOString()
-      };
-      
-      console.log('📤 Sending game data:', gameData);
-      const result = await saveGame(gameData);
-      console.log('✅ Game saved to database successfully:', result);
-    } catch (error: any) {
-      console.error('Error saving game to database:', error);
-      const isDuplicate = error?.message?.includes('duplicate key') || 
-                         error?.message?.includes('already exists');
-      
-      if (isDuplicate) {
-        console.log('ℹ️ Game already saved by opponent');
-      } else {
-        Toast.show({
-          type: 'error',
-          text1: 'Oyun kaydedilemedi',
-          text2: 'İstatistikler güncellenemedi',
-          visibilityTime: 3000,
-        });
-      }
-    }
+    }, 1000) as any;
   };
 
   const showGameEndAlert = (winnerName: string | null, tie: boolean) => {
+    if (timerRef.current !== null) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (gameEndTimeoutRef.current !== null) {
+      clearTimeout(gameEndTimeoutRef.current);
+      gameEndTimeoutRef.current = null;
+    }
+
     let message = '';
     if (tie) {
       message = 'Oyun berabere bitti!';
@@ -436,8 +567,7 @@ export default function Multiplayer() {
         [
           { 
             text: 'Ana Menü', 
-            onPress: () => {
-              // Clean up WebSocket before navigating
+            onPress: async () => {
               if (ws) {
                 try {
                   ws.close();
@@ -446,6 +576,7 @@ export default function Multiplayer() {
                   console.error('Error closing WebSocket:', error);
                 }
               }
+              await clearActiveGameFromStorage();
               router.back();
             }
           }
@@ -518,7 +649,14 @@ export default function Multiplayer() {
   };
 
   const handleCancel = () => {
-    // Clean up WebSocket before going back
+    if (timerRef.current !== null) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (gameEndTimeoutRef.current !== null) {
+      clearTimeout(gameEndTimeoutRef.current);
+      gameEndTimeoutRef.current = null;
+    }
     if (ws) {
       try {
         ws.close();
@@ -528,6 +666,62 @@ export default function Multiplayer() {
       }
     }
     router.back();
+  };
+
+  const sendEmoji = (emoji: string) => {
+    console.log('🎭 sendEmoji called with:', emoji);
+    console.log('🔌 WebSocket state:', ws?.readyState, 'Game state:', gameState);
+    
+    if (!ws || gameState !== 'playing') {
+      console.log('❌ Cannot send emoji - ws:', !!ws, 'gameState:', gameState);
+      Toast.show({
+        type: 'error',
+        text1: 'Hata',
+        text2: 'Sadece oyun sırasında emoji gönderebilirsiniz',
+        position: 'top',
+        visibilityTime: 2000,
+      });
+      return;
+    }
+
+    if (ws.readyState !== WebSocket.OPEN) {
+      console.log('❌ WebSocket is not open, state:', ws.readyState);
+      Toast.show({
+        type: 'error',
+        text1: 'Bağlantı Hatası',
+        text2: 'WebSocket bağlantısı açık değil',
+        position: 'top',
+        visibilityTime: 2000,
+      });
+      return;
+    }
+
+    const message = {
+      type: 'send_emoji',
+      emoji: emoji
+    };
+    
+    console.log('📤 Sending emoji message:', JSON.stringify(message));
+    
+    try {
+      ws.send(JSON.stringify(message));
+      console.log('✅ Emoji message sent successfully');
+
+      setMyEmoji({
+        emoji: emoji,
+        visible: true
+      });
+    } catch (error) {
+      console.error('❌ Error sending emoji:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Hata',
+        text2: 'Emoji gönderilemedi',
+        position: 'top',
+        visibilityTime: 2000,
+      });
+      return;
+    }
   };
 
   if (gameState === 'queue') {
@@ -555,10 +749,20 @@ export default function Multiplayer() {
       <SafeAreaView className="flex-1 bg-background">
         <StatusBar style="dark" />
         <View className="flex-1 justify-center items-center p-6">
-          <Text className="text-4xl font-bold text-success mb-6">Eşleşme Bulundu!</Text>
-          <Text className="text-5xl font-bold text-primary my-4">VS</Text>
-          <Text className="text-2xl font-semibold text-text-primary mb-6">{opponent}</Text>
-          <Text className="text-base text-text-secondary">Oyun başlıyor...</Text>
+          {opponent ? (
+            <>
+              <Text className="text-4xl font-bold text-success mb-6">Eşleşme Bulundu!</Text>
+              <Text className="text-5xl font-bold text-primary my-4">VS</Text>
+              <Text className="text-2xl font-semibold text-text-primary mb-6">{opponent}</Text>
+              <Text className="text-base text-text-secondary">Oyun başlıyor...</Text>
+            </>
+          ) : (
+            <>
+              <ActivityIndicator size="large" color="#3b82f6" />
+              <Text className="text-2xl font-bold text-text-primary mt-6">Oyuna Bağlanılıyor...</Text>
+              <Text className="text-base text-text-secondary mt-2">Lütfen bekleyin</Text>
+            </>
+          )}
         </View>
         <Toast />
       </SafeAreaView>
@@ -572,9 +776,15 @@ export default function Multiplayer() {
       {/* Header with Scores */}
       <View className="bg-white p-4 border-b border-slate-200">
         <View className="flex-row justify-between items-center mb-3">
-          <View className="items-center flex-1">
+          <View className="items-center flex-1 relative">
             <Text className="text-sm text-text-secondary font-semibold">{username}</Text>
             <Text className="text-3xl font-bold text-text-primary mt-1">{getMyScore()}</Text>
+            <EmojiNotification
+              emoji={myEmoji.emoji}
+              visible={myEmoji.visible}
+              position="left"
+              onHide={() => setMyEmoji({ emoji: '', visible: false })}
+            />
           </View>
           
           <Animated.View 
@@ -586,9 +796,15 @@ export default function Multiplayer() {
             </Text>
           </Animated.View>
           
-          <View className="items-center flex-1">
+          <View className="items-center flex-1 relative">
             <Text className="text-sm text-text-secondary font-semibold">{opponent}</Text>
             <Text className="text-3xl font-bold text-text-primary mt-1">{getOpponentScore()}</Text>
+            <EmojiNotification
+              emoji={opponentEmoji.emoji}
+              visible={opponentEmoji.visible}
+              position="right"
+              onHide={() => setOpponentEmoji({ emoji: '', visible: false })}
+            />
           </View>
         </View>
       </View>
@@ -632,7 +848,7 @@ export default function Multiplayer() {
             </View>
             {currentWord && (
               <TouchableOpacity
-                className="bg-slate-300 rounded-lg px-4 py-3"
+                className="bg-red-500 rounded-lg px-4 py-3"
                 onPress={handleClearWord}
               >
                 <Text className="text-white text-base font-bold">Temizle</Text>
@@ -651,7 +867,19 @@ export default function Multiplayer() {
 
       {/* Letter Pool at Bottom */}
       <View className="bg-white p-3 border-t border-slate-200">
-        <Text className="text-base font-bold text-text-primary mb-2 text-center">Harfler</Text>
+        <View className="flex-row justify-between items-center mb-2">
+          <Text className="text-base font-bold text-text-primary flex-1 text-center">Harfler</Text>
+          {/* Emoji Button - Clash Royale tarz\u0131 */}
+          {gameState === 'playing' && (
+            <TouchableOpacity
+              className="absolute right-2 bg-yellow-400 w-11 h-11 rounded-full justify-center items-center shadow-md z-10"
+              onPress={() => setShowEmojiPicker(!showEmojiPicker)}
+              activeOpacity={0.7}
+            >
+              <Text className="text-2xl">😊</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         <View className="flex-row flex-wrap justify-center gap-2">
           {letterPool.map((letter, index) => (
             <TouchableOpacity
@@ -673,6 +901,15 @@ export default function Multiplayer() {
           ))}
         </View>
       </View>
+
+      {/* Emoji Picker Modal */}
+      <EmojiPicker
+        visible={showEmojiPicker}
+        onClose={() => setShowEmojiPicker(false)}
+        onSelectEmoji={sendEmoji}
+        disabled={gameState !== 'playing'}
+      />
+
       <Toast />
     </SafeAreaView>
   );

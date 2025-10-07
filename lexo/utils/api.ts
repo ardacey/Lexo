@@ -1,12 +1,9 @@
-// API configuration
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:8000' 
-  : 'https://your-production-api.com';
+import { API_BASE_URL } from './constants';
 
+// API configuration
 export const API_ENDPOINTS = {
   validateWord: `${API_BASE_URL}/api/validate-word`,
   health: `${API_BASE_URL}/health`,
-  websocket: `ws://localhost:8000/ws/queue`,
   createUser: `${API_BASE_URL}/api/users`,
   getUserStats: (clerkId: string) => `${API_BASE_URL}/api/users/${clerkId}/stats`,
   getUserGames: (clerkId: string, limit: number = 10) => `${API_BASE_URL}/api/users/${clerkId}/games?limit=${limit}`,
