@@ -11,6 +11,7 @@ router = APIRouter()
 
 
 @router.post("/validate-word", response_model=ValidateWordResponse)
+@router.post("/validate", response_model=ValidateWordResponse)
 def validate_word(
     request: ValidateWordRequest,
     word_service: WordService = Depends(get_word_service)

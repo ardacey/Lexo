@@ -11,7 +11,11 @@
     "lint": "expo lint",
     "backend": "cd '../lexo-backend' && python3 -m uvicorn main:app --reload --host 0.0.0.0 --port 8000",
     "dev": "concurrently \"npm run backend\" \"npm run start\" --names \"backend,expo\" --prefix-colors \"blue,magenta\" --raw",
-    "dev:ios": "concurrently \"npm run backend\" \"npm run ios\" --names \"backend,expo\" --prefix-colors \"blue,magenta\""
+    "dev:ios": "concurrently \"npm run backend\" \"npm run ios\" --names \"backend,expo\" --prefix-colors \"blue,magenta\"",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:clear": "jest --clearCache"
   },
   "dependencies": {
     "@clerk/clerk-expo": "^2.16.0",
@@ -51,10 +55,16 @@
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "^0.85.0",
+    "@testing-library/jest-native": "^5.4.3",
+    "@testing-library/react-native": "^12.9.0",
+    "@types/jest": "^29.5.14",
     "@types/react": "~19.1.0",
     "concurrently": "^8.2.2",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
+    "jest": "^29.7.0",
+    "jest-expo": "~54.0.0",
+    "react-test-renderer": "^19.1.0",
     "typescript": "~5.9.2"
   },
   "private": true
