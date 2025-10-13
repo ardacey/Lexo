@@ -11,9 +11,16 @@ logger = logging.getLogger(__name__)
 engine = create_engine(
     settings.database.url,
     echo=settings.database.echo,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20
+    # Connection pool settings for optimal performance
+    pool_pre_ping=True,  # Verify connections before using
+    pool_size=20,  # Number of permanent connections
+    max_overflow=40,  # Additional connections when pool is full
+    pool_timeout=30,  # Timeout for getting connection from pool
+    pool_recycle=3600,  # Recycle connections after 1 hour
+    connect_args={
+        "connect_timeout": 10,
+        "options": "-c statement_timeout=30000"  # 30 second query timeout
+    }
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
