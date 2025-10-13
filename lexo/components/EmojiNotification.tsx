@@ -56,6 +56,8 @@ export const EmojiNotification: React.FC<EmojiNotificationProps> = ({
 
       return () => clearTimeout(timer);
     }
+    // fadeAnim, scaleAnim, and onHide are refs/callbacks - stable values
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, emoji]);
 
   if (!visible) return null;

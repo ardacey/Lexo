@@ -147,6 +147,8 @@ export default function Multiplayer() {
         }
       }
     };
+    // Dependencies are intentionally omitted - this should only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -164,6 +166,8 @@ export default function Multiplayer() {
         }),
       ]).start();
     }
+    // pulseAnim and gameState are refs/stable values, not needed in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeLeft]);
 
   const reconnectToGame = () => {

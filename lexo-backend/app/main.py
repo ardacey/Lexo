@@ -15,6 +15,7 @@ from app.dependencies import (
     get_matchmaking_service
 )
 from app.api.v1.router import api_router
+from app.api.v1.endpoints.health import router as health_router
 from app.websocket.game_handler import GameWebSocketHandler
 from app.middleware.error_handler import (
     lexo_exception_handler,
@@ -22,6 +23,7 @@ from app.middleware.error_handler import (
     validation_exception_handler,
     general_exception_handler
 )
+from app.middleware.timing import RequestTimingMiddleware
 
 setup_logging()
 logger = get_logger(__name__)
@@ -82,12 +84,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add request timing middleware
+app.add_middleware(RequestTimingMiddleware)
+
 app.add_exception_handler(LexoException, lexo_exception_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, general_exception_handler)
 
 app.include_router(api_router)
+app.include_router(health_router, tags=["health"])
 
 
 @app.websocket("/ws/queue")
@@ -124,11 +130,6 @@ def get_stats():
         "waiting_players": stats['waiting_players'],
         "total_words": word_service.get_word_count()
     }
-
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
 
 
 if __name__ == "__main__":

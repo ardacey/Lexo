@@ -10,7 +10,15 @@ logger = get_logger(__name__)
 
 
 async def lexo_exception_handler(request: Request, exc: LexoException):
-    logger.error(f"LexoException: {exc.message}", exc_info=True)
+    logger.error(
+        f"LexoException: {exc.message}",
+        extra={
+            "path": request.url.path,
+            "method": request.method,
+            "status_code": exc.status_code
+        },
+        exc_info=True
+    )
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -22,7 +30,14 @@ async def lexo_exception_handler(request: Request, exc: LexoException):
 
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    logger.warning(f"HTTPException: {exc.detail}")
+    logger.warning(
+        f"HTTPException: {exc.detail}",
+        extra={
+            "path": request.url.path,
+            "method": request.method,
+            "status_code": exc.status_code
+        }
+    )
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -33,7 +48,14 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    logger.warning(f"Validation error: {exc.errors()}")
+    logger.warning(
+        f"Validation error: {exc.errors()}",
+        extra={
+            "path": request.url.path,
+            "method": request.method,
+            "errors": exc.errors()
+        }
+    )
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
@@ -45,7 +67,15 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 async def general_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception: {str(exc)}", exc_info=True)
+    logger.error(
+        f"Unhandled exception: {str(exc)}",
+        extra={
+            "path": request.url.path,
+            "method": request.method,
+            "exception_type": type(exc).__name__
+        },
+        exc_info=True
+    )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={

@@ -16,3 +16,4 @@ pyjwt
 redis
 hiredis
 httpx
+psutil

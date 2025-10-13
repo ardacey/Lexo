@@ -45,4 +45,4 @@ def init_db() -> None:
 
 if __name__ == "__main__":
     init_db()
-    print("Database initialized successfully!")
+    logger.info("Database initialized successfully!")
