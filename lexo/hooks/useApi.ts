@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, UseQueryOptions } from '@tanstack/react-query';
 import {
   validateWord,
   createUser,
@@ -13,11 +13,19 @@ import {
   SaveGameData,
 } from '../utils/api';
 
+// Query key factory - daha organize ve type-safe
 export const queryKeys = {
-  userStats: (clerkId: string) => ['userStats', clerkId] as const,
-  userGames: (clerkId: string, limit: number) => ['userGames', clerkId, limit] as const,
-  leaderboard: (limit: number) => ['leaderboard', limit] as const,
-};
+  all: ['lexo'] as const,
+  users: {
+    all: () => [...queryKeys.all, 'users'] as const,
+    stats: (clerkId: string) => [...queryKeys.users.all(), 'stats', clerkId] as const,
+    games: (clerkId: string, limit: number) => [...queryKeys.users.all(), 'games', clerkId, limit] as const,
+  },
+  leaderboard: {
+    all: () => [...queryKeys.all, 'leaderboard'] as const,
+    list: (limit: number) => [...queryKeys.leaderboard.all(), limit] as const,
+  },
+} as const;
 
 export const useValidateWord = () => {
   return useMutation<ValidateWordResponse, Error, string>({
@@ -31,35 +39,37 @@ export const useCreateUser = () => {
   return useMutation<any, Error, { clerkId: string; username: string; email?: string }>({
     mutationFn: ({ clerkId, username, email }) => createUser(clerkId, username, email),
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.userStats(variables.clerkId) });
+      // Yeni kullanıcı oluşturulduğunda stats'ı invalidate et
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.clerkId) });
     },
   });
 };
 
 export const useUserStats = (clerkId: string | null, enabled: boolean = true) => {
   return useQuery<UserStats | null, Error>({
-    queryKey: queryKeys.userStats(clerkId || ''),
+    queryKey: queryKeys.users.stats(clerkId || ''),
     queryFn: () => getUserStats(clerkId!),
     enabled: enabled && !!clerkId,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 5, // 5 dakika
+    retry: 2, // 2 kez dene
   });
 };
 
 export const useUserGames = (clerkId: string | null, limit: number = 10, enabled: boolean = true) => {
   return useQuery<GameHistory[], Error>({
-    queryKey: queryKeys.userGames(clerkId || '', limit),
+    queryKey: queryKeys.users.games(clerkId || '', limit),
     queryFn: () => getUserGames(clerkId!, limit),
     enabled: enabled && !!clerkId,
-    staleTime: 1000 * 60 * 2,
+    staleTime: 1000 * 60 * 2, // 2 dakika
   });
 };
 
 export const useLeaderboard = (limit: number = 100, enabled: boolean = true) => {
   return useQuery<LeaderboardEntry[], Error>({
-    queryKey: queryKeys.leaderboard(limit),
+    queryKey: queryKeys.leaderboard.list(limit),
     queryFn: () => getLeaderboard(limit),
     enabled,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 5, // 5 dakika
   });
 };
 
@@ -69,11 +79,22 @@ export const useSaveGame = () => {
   return useMutation<any, Error, SaveGameData>({
     mutationFn: (gameData: SaveGameData) => saveGame(gameData),
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.userStats(variables.player1_clerk_id) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.userStats(variables.player2_clerk_id) });
-      queryClient.invalidateQueries({ queryKey: ['userGames', variables.player1_clerk_id] });
-      queryClient.invalidateQueries({ queryKey: ['userGames', variables.player2_clerk_id] });
-      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+      // Her iki oyuncunun da verilerini invalidate et
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.player1_clerk_id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.player2_clerk_id) });
+      
+      // Oyun geçmişlerini invalidate et
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.users.all(),
+        predicate: (query) => {
+          const key = query.queryKey;
+          return key.includes('games') && 
+                 (key.includes(variables.player1_clerk_id) || key.includes(variables.player2_clerk_id));
+        }
+      });
+      
+      // Leaderboard'u invalidate et
+      queryClient.invalidateQueries({ queryKey: queryKeys.leaderboard.all() });
     },
   });
 };
@@ -83,11 +104,93 @@ export const useRefreshUserData = (clerkId: string | null) => {
   
   const refreshAll = () => {
     if (clerkId) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.userStats(clerkId) });
-      queryClient.invalidateQueries({ queryKey: ['userGames', clerkId] });
-      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+      // İlgili kullanıcının tüm verilerini yenile
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(clerkId) });
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.users.all(),
+        predicate: (query) => query.queryKey.includes(clerkId)
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leaderboard.all() });
     }
   };
   
   return { refreshAll };
+};
+
+// Prefetch helper - sayfa geçişlerinde performans için
+export const usePrefetchUserData = () => {
+  const queryClient = useQueryClient();
+  
+  const prefetchUserStats = (clerkId: string) => {
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.users.stats(clerkId),
+      queryFn: () => getUserStats(clerkId),
+      staleTime: 1000 * 60 * 5,
+    });
+  };
+  
+  const prefetchLeaderboard = (limit: number = 100) => {
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.leaderboard.list(limit),
+      queryFn: () => getLeaderboard(limit),
+      staleTime: 1000 * 60 * 5,
+    });
+  };
+  
+  return { prefetchUserStats, prefetchLeaderboard };
+};
+
+// Optimistic update helper - daha hızlı UI güncellemeleri için
+type OptimisticContext = {
+  previousPlayer1Stats?: UserStats | null;
+  previousPlayer2Stats?: UserStats | null;
+};
+
+export const useOptimisticGameSave = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation<any, Error, SaveGameData, OptimisticContext>({
+    mutationFn: (gameData: SaveGameData) => saveGame(gameData),
+    onMutate: async (gameData) => {
+      // Optimistic update için mevcut query'leri iptal et
+      await queryClient.cancelQueries({ 
+        queryKey: queryKeys.users.stats(gameData.player1_clerk_id) 
+      });
+      await queryClient.cancelQueries({ 
+        queryKey: queryKeys.users.stats(gameData.player2_clerk_id) 
+      });
+      
+      // Önceki verileri snapshot'la (rollback için)
+      const previousPlayer1Stats = queryClient.getQueryData<UserStats | null>(
+        queryKeys.users.stats(gameData.player1_clerk_id)
+      );
+      const previousPlayer2Stats = queryClient.getQueryData<UserStats | null>(
+        queryKeys.users.stats(gameData.player2_clerk_id)
+      );
+      
+      return { previousPlayer1Stats, previousPlayer2Stats };
+    },
+    onError: (err, gameData, context) => {
+      // Hata durumunda eski verilere geri dön
+      if (context?.previousPlayer1Stats) {
+        queryClient.setQueryData(
+          queryKeys.users.stats(gameData.player1_clerk_id),
+          context.previousPlayer1Stats
+        );
+      }
+      if (context?.previousPlayer2Stats) {
+        queryClient.setQueryData(
+          queryKeys.users.stats(gameData.player2_clerk_id),
+          context.previousPlayer2Stats
+        );
+      }
+    },
+    onSettled: (data, error, variables) => {
+      // Her durumda verileri yenile
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.player1_clerk_id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.player2_clerk_id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leaderboard.all() });
+    },
+  });
 };
