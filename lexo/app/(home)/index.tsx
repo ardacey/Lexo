@@ -51,6 +51,7 @@ export default function Page() {
   const router = useRouter();
   const { user } = useUser();
   const createUserMutation = useCreateUser();
+  const [userInitialized, setUserInitialized] = useState(false);
   
   const [scaleAnims] = useState({
     multiplayer: new Animated.Value(1),
@@ -58,17 +59,28 @@ export default function Page() {
   });
 
   useEffect(() => {
-    if (user && !createUserMutation.isPending) {
+    if (user && !userInitialized && !createUserMutation.isPending) {
       const username = user.username || user.emailAddresses[0].emailAddress?.split('@')[0] || 'Player';
-      createUserMutation.mutate({
-        clerkId: user.id,
-        username,
-        email: user.primaryEmailAddress?.emailAddress
-      });
+      createUserMutation.mutate(
+        {
+          clerkId: user.id,
+          username,
+          email: user.primaryEmailAddress?.emailAddress
+        },
+        {
+          onSuccess: () => {
+            setUserInitialized(true);
+          },
+          onError: () => {
+            // Kullanıcı zaten varsa da initialized olarak işaretle
+            setUserInitialized(true);
+          }
+        }
+      );
 
       checkForActiveGame(username);
     }
-  }, [user]);
+  }, [user, userInitialized, createUserMutation.isPending]);
 
     const checkForActiveGame = async (username: string) => {
     try {

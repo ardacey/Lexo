@@ -9,12 +9,12 @@ import { useUserStats, useUserGames } from '@/hooks/useApi';
 
 export default function StatsPage() {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, isLoaded: userLoaded } = useUser();
   
-  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useUserStats(user?.id || null);
-  const { data: games = [], isLoading: gamesLoading, refetch: refetchGames } = useUserGames(user?.id || null, 10);
+  const { data: stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useUserStats(user?.id || null);
+  const { data: games = [], isLoading: gamesLoading, error: gamesError, refetch: refetchGames } = useUserGames(user?.id || null, 10);
   
-  const loading = statsLoading || gamesLoading;
+  const loading = !userLoaded || (statsLoading || gamesLoading);
   const [refreshing, setRefreshing] = React.useState(false);
 
   const onRefresh = async () => {
@@ -42,10 +42,39 @@ export default function StatsPage() {
     });
   };
 
+  // Kullanıcı yüklenmedi ise veya user yok ise
+  if (!userLoaded || !user) {
+    return (
+      <SafeAreaView className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color="#3b82f6" />
+        <Text className="mt-4 text-gray-600">Kullanıcı bilgileri yükleniyor...</Text>
+      </SafeAreaView>
+    );
+  }
+
   if (loading) {
     return (
       <SafeAreaView className="flex-1 bg-background items-center justify-center">
         <ActivityIndicator size="large" color="#3b82f6" />
+        <Text className="mt-4 text-gray-600">İstatistikler yükleniyor...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // Eğer error varsa göster
+  if (statsError || gamesError) {
+    return (
+      <SafeAreaView className="flex-1 bg-background items-center justify-center px-6">
+        <Text className="text-xl font-bold text-red-600 mb-4">Hata Oluştu</Text>
+        <Text className="text-gray-600 text-center mb-4">
+          {statsError?.message || gamesError?.message || 'Bilinmeyen bir hata oluştu'}
+        </Text>
+        <TouchableOpacity 
+          onPress={onRefresh}
+          className="bg-blue-500 px-6 py-3 rounded-lg"
+        >
+          <Text className="text-white font-semibold">Tekrar Dene</Text>
+        </TouchableOpacity>
       </SafeAreaView>
     );
   }

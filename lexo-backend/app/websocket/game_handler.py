@@ -45,13 +45,13 @@ class GameWebSocketHandler:
                 user_data = await authenticate_websocket(websocket)
                 clerk_id = user_data["clerk_id"]
                 username = user_data.get("username", "Player")
-                logger.info(f"Authenticated user {clerk_id} connected")
+                is_reconnect = user_data.get("is_reconnect", False)
             except WebSocketAuthError as e:
                 logger.warning(f"Authentication failed: {e}")
                 await send_error_response(
                     websocket,
                     "authentication_failed",
-                    "Authentication failed"
+                    str(e)
                 )
                 await websocket.close()
                 return
@@ -60,9 +60,8 @@ class GameWebSocketHandler:
             if clerk_id not in self.rate_limiters:
                 self.rate_limiters[clerk_id] = RateLimiter()
             
-            # Get initial connection data
-            data = await websocket.receive_json()
-            is_reconnect = data.get("is_reconnect", False)
+            # Use data from authentication
+            # No need to receive another message since authenticate_websocket already got it
             
             existing_room = self.matchmaking_service.get_room_by_player(clerk_id)
             if existing_room and existing_room.game_started and not existing_room.game_ended:
@@ -137,9 +136,9 @@ class GameWebSocketHandler:
                     )
                     
                     # Validate message structure
-                    validation_error = validate_message(data)
-                    if validation_error:
-                        logger.warning(f"Invalid message from {clerk_id}: {validation_error}")
+                    is_valid = validate_message(data)
+                    if not is_valid:
+                        logger.warning(f"Invalid message from {clerk_id}: {data}")
                         await send_error_response(
                             websocket,
                             "invalid_message",
@@ -149,7 +148,7 @@ class GameWebSocketHandler:
                     
                     # Check rate limit
                     rate_limiter = self.rate_limiters.get(clerk_id)
-                    if rate_limiter and not rate_limiter.check_rate_limit(clerk_id):
+                    if rate_limiter and not rate_limiter.is_allowed(clerk_id):
                         logger.warning(f"Rate limit exceeded for {clerk_id}")
                         await send_error_response(
                             websocket,
@@ -160,15 +159,13 @@ class GameWebSocketHandler:
                     
                     message_type = data.get("type")
                     
-                    if message_type not in ["ping"]:
-                        logger.info(f"📨 Received message type: {message_type} from {clerk_id}")
+
                     
                     if message_type == "submit_word":
                         await self._handle_word_submission(
                             websocket, clerk_id, data, username
                         )
                     elif message_type == "send_emoji":
-                        logger.info(f"🎭 send_emoji message received, calling handler")
                         await self._handle_emoji_message(
                             websocket, clerk_id, data, username
                         )
@@ -333,21 +330,16 @@ class GameWebSocketHandler:
         data: Dict,
         username: str
     ):
-        logger.info(f"📨 Received emoji message from {username} ({player_id})")
-        
         room = self.matchmaking_service.get_room_by_player(player_id)
         if not room:
-            logger.warning(f"❌ No room found for player {player_id} trying to send emoji")
+            logger.warning(f"No room found for player {player_id} sending emoji")
             await websocket.send_json({
                 "type": "emoji_error",
                 "message": "Rakip oyundan ayrıldı"
             })
             return
         
-        logger.info(f"✅ Room found: {room.id}, game_ended: {room.game_ended}, game_started: {room.game_started}")
-        
         if room.game_ended:
-            logger.warning(f"❌ Game already ended in room {room.id}")
             await websocket.send_json({
                 "type": "emoji_error",
                 "message": "Oyun sona erdi"
@@ -356,19 +348,13 @@ class GameWebSocketHandler:
         
         emoji = data.get("emoji", "")
         if not emoji:
-            logger.warning(f"❌ Empty emoji received from player {player_id}")
             return
-        
-        logger.info(f"📤 Processing emoji: {emoji}")
         
         player = room.get_player(player_id)
         opponent = room.get_opponent(player)
         
         if not opponent:
-            logger.warning(f"❌ No opponent found for player {player_id}")
             return
-            
-        logger.info(f"👤 Opponent found: {opponent.username} ({opponent.id})")
         
         try:
             await opponent.websocket.send_json({
@@ -377,9 +363,8 @@ class GameWebSocketHandler:
                 "from": username,
                 "timestamp": datetime.now().isoformat()
             })
-            logger.info(f"✅ Emoji '{emoji}' sent from {username} to {opponent.username} in room {room.id}")
         except Exception as e:
-            logger.error(f"❌ Error sending emoji to opponent: {e}")
+            logger.error(f"Error sending emoji to opponent: {e}")
     
     async def _handle_grace_period_timeout(self, room: GameRoom, player_id: str):
         remaining_time = room.get_time_remaining()

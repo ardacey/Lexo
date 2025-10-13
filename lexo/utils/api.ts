@@ -122,33 +122,45 @@ export const createUser = async (clerkId: string, username: string, email?: stri
 
 export const getUserStats = async (clerkId: string): Promise<UserStats | null> => {
   try {
-    const response = await fetch(API_ENDPOINTS.getUserStats(clerkId));
+    const response = await fetch(API_ENDPOINTS.getUserStats(clerkId), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
 
     const data = await response.json();
     return data.success ? data.stats : null;
   } catch (error) {
     console.error('Get user stats error:', error);
-    return null;
+    throw error;
   }
 };
 
 export const getUserGames = async (clerkId: string, limit: number = 10): Promise<GameHistory[]> => {
   try {
-    const response = await fetch(API_ENDPOINTS.getUserGames(clerkId, limit));
+    const response = await fetch(API_ENDPOINTS.getUserGames(clerkId, limit), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
 
     const data = await response.json();
     return data.success ? data.games : [];
   } catch (error) {
     console.error('Get user games error:', error);
-    return [];
+    throw error;
   }
 };
 

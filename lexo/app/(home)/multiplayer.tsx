@@ -85,18 +85,16 @@ export default function Multiplayer() {
   const saveActiveGameToStorage = async (gameData: any) => {
     try {
       await AsyncStorage.setItem('activeGame', JSON.stringify(gameData));
-      console.log('✅ Active game saved to storage');
     } catch (error) {
-      console.error('❌ Error saving game to storage:', error);
+      console.error('Error saving game to storage:', error);
     }
   };
 
   const clearActiveGameFromStorage = async () => {
     try {
       await AsyncStorage.removeItem('activeGame');
-      console.log('✅ Active game cleared from storage');
     } catch (error) {
-      console.error('❌ Error clearing game from storage:', error);
+      console.error('Error clearing game from storage:', error);
     }
   };
 
@@ -114,7 +112,7 @@ export default function Multiplayer() {
   };
 
   useEffect(() => {
-    if (user && !createUserMutation.isPending) {
+    if (user && !createUserMutation.isPending && !createUserMutation.isSuccess) {
       createUserMutation.mutate({
         clerkId: user.id,
         username,
@@ -221,17 +219,16 @@ export default function Multiplayer() {
       const websocket = new WebSocket(`${WS_BASE_URL}/ws/queue`);
       
       websocket.onopen = () => {
-        console.log('WebSocket connected');
-        websocket.send(JSON.stringify({ 
+        const payload = { 
           username,
           clerk_id: user.id,
           is_reconnect: false
-        }));
+        };
+        websocket.send(JSON.stringify(payload));
       };
 
       websocket.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        console.log('Received:', data);
         handleMessage(data);
       };
 
@@ -259,7 +256,6 @@ export default function Multiplayer() {
         break;
 
       case 'match_found':
-        console.log('🎮 Match found:', data);
         setRoomId(data.room_id);
         setOpponent(data.opponent);
         setOpponentClerkId(data.opponent_clerk_id);
@@ -277,7 +273,6 @@ export default function Multiplayer() {
         break;
 
       case 'game_start':
-        console.log('🎮 Game start:', data);
         const startTime = new Date();
         setLetterPool(data.letter_pool);
         setInitialLetterPool(data.letter_pool);
@@ -292,7 +287,6 @@ export default function Multiplayer() {
         gameDataRef.current.initialLetterPool = data.letter_pool;
         gameDataRef.current.myWords = [];
         gameDataRef.current.opponentWords = [];
-        console.log('✅ Game start time saved:', startTime);
 
         saveActiveGameToStorage({
           roomId: gameDataRef.current.roomId,
@@ -468,22 +462,18 @@ export default function Multiplayer() {
         break;
 
       case 'emoji_received':
-        console.log('🎭 Emoji received:', data.emoji, 'from', data.from);
-        console.log('📥 Setting opponent emoji state to visible');
         setOpponentEmoji({
           emoji: data.emoji,
           visible: true
         });
         break;
-
+      
       case 'emoji_error':
-        console.log('❌ Emoji error:', data.message);
         Toast.show({
           type: 'error',
-          text1: 'Hata',
-          text2: data.message,
+          text1: 'Emoji Gönderilemedi',
+          text2: data.message || 'Bir hata oluştu',
           position: 'top',
-          visibilityTime: 2000,
         });
         break;
     }

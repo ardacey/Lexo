@@ -34,14 +34,15 @@ async def authenticate_websocket(websocket: WebSocket) -> Dict[str, str]:
     if not token:
         # If no token in query params, wait for first message with token
         try:
-            await websocket.accept()
             data = await websocket.receive_json()
+            
             token = data.get("token")
             clerk_id = data.get("clerk_id")
             username = data.get("username", "Player")
             is_reconnect = data.get("is_reconnect", False)
             
             if not clerk_id:
+                logger.error(f"Clerk ID missing in authentication data")
                 raise WebSocketAuthError("Clerk ID is required")
             
             # For now, we'll trust the clerk_id from frontend
@@ -53,9 +54,11 @@ async def authenticate_websocket(websocket: WebSocket) -> Dict[str, str]:
                 "initial_data": data
             }
             
+        except WebSocketAuthError:
+            raise
         except Exception as e:
             logger.error(f"Error receiving authentication data: {e}")
-            raise WebSocketAuthError("Failed to receive authentication data")
+            raise WebSocketAuthError(f"Failed to receive authentication data: {str(e)}")
     
     # If token is provided in query params, verify it
     try:
@@ -207,20 +210,27 @@ def validate_message(message: Dict) -> bool:
     if message_type == "submit_word":
         word = message.get("word", "")
         if not isinstance(word, str):
+            logger.warning(f"Word is not a string: {type(word)}")
             return False
         if len(word) > 50:  # Reasonable max length
             logger.warning(f"Word too long: {len(word)} characters")
             return False
-        # Check for suspicious characters
-        if not word.replace(" ", "").isalpha():
-            logger.warning(f"Word contains invalid characters: {word}")
+        # Check for suspicious characters - allow Turkish letters
+        # Turkish alphabet: a-z, ç, ğ, ı, i, ö, ş, ü
+        if not word.strip():
+            logger.warning(f"Word is empty or whitespace")
             return False
     
     elif message_type == "send_emoji":
         emoji = message.get("emoji", "")
         if not isinstance(emoji, str):
+            logger.warning(f"Emoji is not a string: {type(emoji)}")
+            return False
+        if not emoji:
+            logger.warning(f"Emoji is empty")
             return False
         if len(emoji) > 10:  # Emojis should be short
+            logger.warning(f"Emoji too long: {len(emoji)} characters")
             return False
     
     return True

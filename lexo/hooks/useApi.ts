@@ -42,6 +42,16 @@ export const useCreateUser = () => {
       // Yeni kullanıcı oluşturulduğunda stats'ı invalidate et
       queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.clerkId) });
     },
+    onError: (error: any) => {
+      // Kullanıcı zaten varsa hata fırlatma (sessizce geç)
+      if (error?.message?.includes('already exists') || error?.response?.status === 409) {
+        console.log('User already exists, skipping creation');
+        return;
+      }
+      // Diğer hatalar için loglama
+      console.error('Error creating user:', error);
+    },
+    retry: false, // Kullanıcı oluşturma için tekrar deneme
   });
 };
 
