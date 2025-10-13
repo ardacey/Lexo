@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter , Link } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Toast from 'react-native-toast-message';
 import { SignedIn, SignedOut, useUser } from '@clerk/clerk-expo';
-import { Link } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SignOutButton } from '@/components/SignOutButton';
 import { useCreateUser } from '@/hooks/useApi';

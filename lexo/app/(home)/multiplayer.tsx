@@ -38,27 +38,27 @@ export default function Multiplayer() {
   const { user } = useUser();
 
   const createUserMutation = useCreateUser();
-  const saveGameMutation = useSaveGame();
+  const _saveGameMutation = useSaveGame();
   
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [gameState, setGameState] = useState<'queue' | 'matched' | 'playing' | 'ended'>('queue');
   const [letterPool, setLetterPool] = useState<string[]>([]);
-  const [initialLetterPool, setInitialLetterPool] = useState<string[]>([]);
+  const [_initialLetterPool, setInitialLetterPool] = useState<string[]>([]);
   const [currentWord, setCurrentWord] = useState('');
   const [myWords, setMyWords] = useState<Word[]>([]);
   const [opponentWords, setOpponentWords] = useState<Word[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
   const [timeLeft, setTimeLeft] = useState(60);
-  const [gameDuration, setGameDuration] = useState(60);
+  const [_gameDuration, setGameDuration] = useState(60);
   const [opponent, setOpponent] = useState('');
-  const [opponentClerkId, setOpponentClerkId] = useState('');
-  const [roomId, setRoomId] = useState('');
-  const [playerId, setPlayerId] = useState('');
-  const [winner, setWinner] = useState<string | null>(null);
-  const [isTie, setIsTie] = useState(false);
+  const [_opponentClerkId, setOpponentClerkId] = useState('');
+  const [_roomId, setRoomId] = useState('');
+  const [_playerId, setPlayerId] = useState('');
+  const [_winner, setWinner] = useState<string | null>(null);
+  const [_isTie, setIsTie] = useState(false);
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
-  const [gameStartTime, setGameStartTime] = useState<Date | null>(null);
-  const [gameSaved, setGameSaved] = useState(false);
+  const [_gameStartTime, setGameStartTime] = useState<Date | null>(null);
+  const [_gameSaved, setGameSaved] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [myEmoji, setMyEmoji] = useState<{emoji: string; visible: boolean}>({
     emoji: '',
@@ -100,7 +100,7 @@ export default function Multiplayer() {
     }
   };
 
-  const getActiveGameFromStorage = async () => {
+  const _getActiveGameFromStorage = async () => {
     try {
       const gameData = await AsyncStorage.getItem('activeGame');
       if (gameData) {

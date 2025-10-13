@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '@clerk/clerk-expo';
-import { WS_BASE_URL, WS_RECONNECT_DELAY, WS_MAX_RECONNECT_ATTEMPTS, WS_PING_INTERVAL } from '../utils/constants';
+import { WS_RECONNECT_DELAY, WS_MAX_RECONNECT_ATTEMPTS, WS_PING_INTERVAL } from '../utils/constants';
 
 interface UseWebSocketProps {
-  onMessage: (data: any) => void;
-  onError?: (error: Error) => void;
+  onMessage: (_data: any) => void;
+  onError?: (_error: Error) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
   autoReconnect?: boolean;

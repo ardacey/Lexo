@@ -83,3 +83,20 @@ def sample_words() -> list[str]:
 def invalid_words() -> list[str]:
     """Sample invalid words for testing"""
     return ['xxx', 'zzz', 'qwerty', 'asdfgh']
+
+
+@pytest.fixture
+def test_user(db_session):
+    """Create a test user for testing"""
+    from app.models.database import User
+    import uuid
+    
+    user = User(
+        clerk_id=f"test_clerk_{uuid.uuid4().hex[:8]}",
+        username=f"testuser_{uuid.uuid4().hex[:8]}",
+        email=f"test_{uuid.uuid4().hex[:8]}@example.com"
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user

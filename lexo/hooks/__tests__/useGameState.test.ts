@@ -1,7 +1,7 @@
 /**
  * Unit tests for useGameState hook
  */
-import { renderHook, act, waitFor } from '@testing-library/react-native';
+import { renderHook, act } from '@testing-library/react-native';
 import { useGameState } from '../useGameState';
 import * as api from '../../utils/api';
 import Toast from 'react-native-toast-message';

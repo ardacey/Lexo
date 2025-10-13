@@ -9,7 +9,7 @@ import {
 interface EmojiPickerProps {
   visible: boolean;
   onClose: () => void;
-  onSelectEmoji: (emoji: string) => void;
+  onSelectEmoji: (_emoji: string) => void;
   disabled?: boolean;
 }
 

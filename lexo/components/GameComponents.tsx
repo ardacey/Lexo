@@ -11,7 +11,7 @@ interface GameHeaderProps {
 }
 
 export const GameHeader: React.FC<GameHeaderProps> = ({
-  timeLeft,
+  timeLeft: _timeLeft,
   formatTime,
   totalScore,
   onBack,
@@ -58,7 +58,7 @@ export const LetterPool: React.FC<LetterPoolProps> = ({ letterPool }) => (
 
 interface WordInputProps {
   currentWord: string;
-  onChangeText: (text: string) => void;
+  onChangeText: (_text: string) => void;
   onSubmit: () => void;
   disabled?: boolean;
 }
@@ -92,7 +92,7 @@ export const WordInput: React.FC<WordInputProps> = ({
 );
 
 interface WordsListProps {
-  words: Array<{ text: string; score: number }>;
+  words: { text: string; score: number }[];
   title: string;
 }
 
