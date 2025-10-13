@@ -8,6 +8,7 @@ python-dotenv
 sqlalchemy
 psycopg2-binary
 alembic
+pyjwt>=2.8.0
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
 pytest-cov>=4.1.0

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useAuth } from '@clerk/clerk-expo';
 import { WS_BASE_URL, WS_RECONNECT_DELAY, WS_MAX_RECONNECT_ATTEMPTS, WS_PING_INTERVAL } from '../utils/constants';
 
 interface UseWebSocketProps {
@@ -16,6 +17,7 @@ export const useWebSocket = ({
   onDisconnect,
   autoReconnect = true,
 }: UseWebSocketProps) => {
+  const { getToken } = useAuth();
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
@@ -50,13 +52,19 @@ export const useWebSocket = ({
     }, WS_PING_INTERVAL);
   }, [clearTimers]);
 
-  const connect = useCallback((url: string, initialData?: any) => {
+  const connect = useCallback(async (url: string, initialData?: any) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       console.log('WebSocket already connected');
       return;
     }
 
     try {
+      // Get authentication token from Clerk
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Failed to get authentication token');
+      }
+
       const websocket = new WebSocket(url);
       wsRef.current = websocket;
 
@@ -66,8 +74,14 @@ export const useWebSocket = ({
         setReconnectAttempts(0);
         setWs(websocket);
         
-        if (initialData) {
-          websocket.send(JSON.stringify(initialData));
+        // Send authentication data first
+        const authData = {
+          ...initialData,
+          token: token,
+        };
+        
+        if (authData) {
+          websocket.send(JSON.stringify(authData));
         }
         
         startPingInterval();
@@ -113,7 +127,7 @@ export const useWebSocket = ({
       console.error('Error creating WebSocket:', error);
       onError?.(error as Error);
     }
-  }, [autoReconnect, reconnectAttempts, onMessage, onConnect, onDisconnect, onError, startPingInterval, clearTimers]);
+  }, [autoReconnect, reconnectAttempts, onMessage, onConnect, onDisconnect, onError, startPingInterval, clearTimers, getToken]);
 
   const disconnect = useCallback(() => {
     isManualClose.current = true;

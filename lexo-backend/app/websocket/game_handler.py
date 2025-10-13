@@ -11,6 +11,13 @@ from app.services.stats_service import StatsService
 from app.services.game_history_service import GameHistoryService
 from app.database.session import get_db
 from app.core.logging import get_logger
+from app.websocket.auth import (
+    authenticate_websocket,
+    WebSocketAuthError,
+    RateLimiter,
+    validate_message,
+    send_error_response
+)
 
 logger = get_logger(__name__)
 
@@ -24,24 +31,38 @@ class GameWebSocketHandler:
     ):
         self.matchmaking_service = matchmaking_service
         self.word_service = word_service
+        # Rate limiter for message throttling (30 messages per 10 seconds)
+        self.rate_limiters: Dict[str, RateLimiter] = {}
     
     async def handle_connection(self, websocket: WebSocket):
         await websocket.accept()
         player = None
+        clerk_id = None
         
         try:
-            data = await websocket.receive_json()
-            username = data.get("username", "Player")
-            clerk_id = data.get("clerk_id")
-            is_reconnect = data.get("is_reconnect", False)
-            
-            if not clerk_id:
-                await websocket.send_json({
-                    "type": "error",
-                    "message": "Clerk ID is required"
-                })
+            # Authenticate the WebSocket connection
+            try:
+                user_data = await authenticate_websocket(websocket)
+                clerk_id = user_data["clerk_id"]
+                username = user_data.get("username", "Player")
+                logger.info(f"Authenticated user {clerk_id} connected")
+            except WebSocketAuthError as e:
+                logger.warning(f"Authentication failed: {e}")
+                await send_error_response(
+                    websocket,
+                    "authentication_failed",
+                    "Authentication failed"
+                )
                 await websocket.close()
                 return
+            
+            # Initialize rate limiter for this user
+            if clerk_id not in self.rate_limiters:
+                self.rate_limiters[clerk_id] = RateLimiter()
+            
+            # Get initial connection data
+            data = await websocket.receive_json()
+            is_reconnect = data.get("is_reconnect", False)
             
             existing_room = self.matchmaking_service.get_room_by_player(clerk_id)
             if existing_room and existing_room.game_started and not existing_room.game_ended:
@@ -114,6 +135,29 @@ class GameWebSocketHandler:
                         websocket.receive_json(),
                         timeout=30.0
                     )
+                    
+                    # Validate message structure
+                    validation_error = validate_message(data)
+                    if validation_error:
+                        logger.warning(f"Invalid message from {clerk_id}: {validation_error}")
+                        await send_error_response(
+                            websocket,
+                            "invalid_message",
+                            "Invalid message format"
+                        )
+                        continue
+                    
+                    # Check rate limit
+                    rate_limiter = self.rate_limiters.get(clerk_id)
+                    if rate_limiter and not rate_limiter.check_rate_limit(clerk_id):
+                        logger.warning(f"Rate limit exceeded for {clerk_id}")
+                        await send_error_response(
+                            websocket,
+                            "rate_limit_exceeded",
+                            "Too many messages, please slow down"
+                        )
+                        continue
+                    
                     message_type = data.get("type")
                     
                     if message_type not in ["ping"]:
@@ -448,6 +492,11 @@ class GameWebSocketHandler:
     async def _handle_disconnect(self, player: Optional[Player], player_id: Optional[str]):
         if not player_id:
             return
+        
+        # Clean up rate limiter for disconnected player
+        if player_id in self.rate_limiters:
+            del self.rate_limiters[player_id]
+            logger.info(f"Cleaned up rate limiter for player {player_id}")
         
         logger.info(f"Handling disconnect for player {player_id}")
 
