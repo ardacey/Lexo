@@ -27,6 +27,14 @@ export const queryKeys = {
   },
 } as const;
 
+(queryKeys as any).userStats = (clerkId: string) => ['userStats', clerkId];
+(queryKeys as any).userGames = (clerkId: string, limit: number) => ['userGames', clerkId, limit];
+
+const __leaderboard = (limit: number) => ['leaderboard', limit] as const;
+(__leaderboard as any).all = () => [...queryKeys.all, 'leaderboard'] as const;
+(__leaderboard as any).list = (limit: number) => [...(__leaderboard as any).all(), limit] as const;
+(queryKeys as any).leaderboard = __leaderboard as any;
+
 export const useValidateWord = () => {
   return useMutation<ValidateWordResponse, Error, string>({
     mutationFn: (word: string) => validateWord(word),
@@ -51,7 +59,7 @@ export const useCreateUser = () => {
       // Diğer hatalar için loglama
       console.error('Error creating user:', error);
     },
-    retry: false, // Kullanıcı oluşturma için tekrar deneme
+    retry: false,
   });
 };
 
@@ -61,7 +69,7 @@ export const useUserStats = (clerkId: string | null, enabled: boolean = true) =>
     queryFn: () => getUserStats(clerkId!),
     enabled: enabled && !!clerkId,
     staleTime: 1000 * 60 * 5, // 5 dakika
-    retry: 2, // 2 kez dene
+    retry: false,
   });
 };
 
