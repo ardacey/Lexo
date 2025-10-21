@@ -215,10 +215,13 @@ def validate_message(message: Dict) -> bool:
         if len(word) > 50:  # Reasonable max length
             logger.warning(f"Word too long: {len(word)} characters")
             return False
-        # Check for suspicious characters - allow Turkish letters
-        # Turkish alphabet: a-z, ç, ğ, ı, i, ö, ş, ü
         if not word.strip():
             logger.warning(f"Word is empty or whitespace")
+            return False
+        import re
+        # Only allow Turkish alphabet (upper/lower), no digits or symbols
+        if not re.fullmatch(r"[a-zA-ZçÇğĞıİöÖşŞüÜ]+", word):
+            logger.warning(f"Word contains invalid characters: {word}")
             return False
     
     elif message_type == "send_emoji":

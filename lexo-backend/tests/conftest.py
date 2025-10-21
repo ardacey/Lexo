@@ -7,7 +7,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi.testclient import TestClient
 
-from app.main import app
+import importlib
+from app.core import config
 from app.models.database import Base
 from app.database.session import get_db
 from app.services.word_service import WordService
@@ -48,13 +49,17 @@ def db_session(test_engine) -> Generator[Session, None, None]:
 
 @pytest.fixture(scope="function")
 def client(db_session) -> Generator[TestClient, None, None]:
-    """Create test client with database override"""
+    """Create test client with database override and patch DB URL for app startup"""
+    # Patch the settings.database.url to use SQLite for app startup (init_db)
+    config.settings.database.url = SQLALCHEMY_TEST_DATABASE_URL
+    # Re-import app after patching config so FastAPI app uses the test DB
+    app_module = importlib.import_module("app.main")
+    app = app_module.app
     def override_get_db():
         try:
             yield db_session
         finally:
             pass
-    
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
         yield test_client

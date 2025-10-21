@@ -47,7 +47,7 @@ class TestAuthentication:
             "username": "TestUser"
         })
         
-        with pytest.raises(WebSocketAuthError, match="Failed to receive authentication data"):
+        with pytest.raises(WebSocketAuthError, match="Clerk ID is required"):
             await authenticate_websocket(mock_ws)
     
     @pytest.mark.asyncio
@@ -280,8 +280,8 @@ class TestIntegrationSecurity:
         # Test: Missing clerk_id
         mock_ws.receive_json = AsyncMock(return_value={"username": "TestUser"})
         
-        with pytest.raises(WebSocketAuthError, match="Failed to receive authentication data"):
-            await authenticate_websocket(mock_ws)
+        with pytest.raises(WebSocketAuthError, match="Clerk ID is required"):
+                await authenticate_websocket(mock_ws)
     
     @pytest.mark.asyncio
     async def test_rate_limiting_with_message_validation(self):

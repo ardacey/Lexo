@@ -7,14 +7,14 @@ from unittest.mock import patch, MagicMock
 import time
 
 from app.main import app
-
-client = TestClient(app)
+# Use the `client` fixture from conftest for tests so the app is started
+# with the test database. Individual test functions accept `client`.
 
 
 class TestHealthEndpoints:
     """Test health check endpoints."""
     
-    def test_health_check(self):
+    def test_health_check(self, client):
         """Test basic health check endpoint."""
         response = client.get("/health")
         
@@ -27,7 +27,7 @@ class TestHealthEndpoints:
         assert isinstance(data["uptime_seconds"], int)
         assert data["uptime_seconds"] >= 0
     
-    def test_readiness_check_healthy(self):
+    def test_readiness_check_healthy(self, client):
         """Test readiness check when all services are healthy."""
         response = client.get("/ready")
         
@@ -41,7 +41,7 @@ class TestHealthEndpoints:
         # Cache is optional
         assert "cache" in data["checks"]
     
-    def test_readiness_check_database_unhealthy(self):
+    def test_readiness_check_database_unhealthy(self, client):
         """Test readiness check when database is unhealthy."""
         from app.database.session import get_db
         from sqlalchemy import text
@@ -67,7 +67,7 @@ class TestHealthEndpoints:
             # Clean up the override
             app.dependency_overrides.clear()
     
-    def test_metrics_endpoint(self):
+    def test_metrics_endpoint(self, client):
         """Test metrics endpoint."""
         response = client.get("/metrics")
         
@@ -104,7 +104,7 @@ class TestHealthEndpoints:
 class TestRequestTiming:
     """Test request timing middleware."""
     
-    def test_request_timing_header(self):
+    def test_request_timing_header(self, client):
         """Test that X-Process-Time header is added."""
         response = client.get("/health")
         
@@ -114,7 +114,7 @@ class TestRequestTiming:
         # Should be a reasonable time (< 1000ms for health check)
         assert 0 < process_time < 1000
     
-    def test_timing_on_different_endpoints(self):
+    def test_timing_on_different_endpoints(self, client):
         """Test timing on various endpoints."""
         endpoints = ["/health", "/ready", "/metrics"]
         
