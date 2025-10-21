@@ -49,19 +49,6 @@ class APISettings(BaseSettings):
         return cors.split(',')
 
 
-class CacheSettings(BaseSettings):
-    redis_url: str = Field(
-        default='redis://localhost:6379/0',
-        alias='REDIS_URL'
-    )
-    default_ttl: int = Field(default=300, alias='CACHE_DEFAULT_TTL')  # 5 minutes
-    enabled: bool = Field(default=True, alias='CACHE_ENABLED')
-    
-    model_config = {
-        'env_file': str(Path(__file__).parent.parent.parent / '.env'),
-        'env_file_encoding': 'utf-8',
-        'extra': 'ignore'
-    }
 
 
 class DatabaseSettings(BaseSettings):
@@ -102,15 +89,10 @@ class LogSettings(BaseSettings):
 class Settings(BaseSettings):
     game: GameSettings = GameSettings()
     api: APISettings = APISettings()
-    cache: CacheSettings = CacheSettings()
     database: DatabaseSettings = DatabaseSettings()
     files: FileSettings = FileSettings()
     log: LogSettings = LogSettings()
     
-    # For backward compatibility
-    @property
-    def REDIS_URL(self) -> str:
-        return self.cache.redis_url
 
 
 settings = Settings()

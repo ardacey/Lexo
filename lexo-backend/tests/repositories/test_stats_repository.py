@@ -2,7 +2,6 @@ import pytest
 from datetime import datetime
 from app.repositories.stats_repository import StatsRepository
 from app.models.database import UserStats, User
-from app.core.cache import cache
 
 
 class TestStatsRepository:
@@ -251,8 +250,6 @@ class TestStatsRepository:
         db_session.query(User).delete()
         db_session.commit()
         
-        # Clear cache to ensure fresh query
-        cache.delete_pattern("leaderboard:*")
         
         # Create multiple users and stats
         users_data = [
@@ -306,8 +303,6 @@ class TestStatsRepository:
         db_session.query(User).delete()
         db_session.commit()
         
-        # Clear cache
-        cache.delete_pattern("leaderboard:*")
         
         # Create 5 users
         for i in range(5):
@@ -351,8 +346,6 @@ class TestStatsRepository:
         db_session.query(User).delete()
         db_session.commit()
         
-        # Clear cache first
-        cache.delete_pattern("leaderboard:*")
         
         # Create a user
         unique_id = uuid.uuid4().hex[:8]
@@ -447,9 +440,6 @@ class TestStatsRepository:
         db_session.add(stats)
         db_session.commit()
         
-        # Set cache values
-        cache.set(f"stats:user:{test_user.id}", {"total_games": 5})
-        cache.set("leaderboard:wins:limit:10", [{"username": "test"}])
         
         # Update stats
         repo.update_after_game(
@@ -461,6 +451,3 @@ class TestStatsRepository:
             game_duration=180
         )
         
-        # Cache should be invalidated
-        user_cache = cache.get(f"stats:user:{test_user.id}")
-        assert user_cache is None  # Should be deleted

@@ -114,8 +114,6 @@ class QueryCounter:
 _metrics = {
     "requests_total": 0,
     "requests_slow": 0,
-    "cache_hits": 0,
-    "cache_misses": 0,
     "db_queries": 0,
 }
 

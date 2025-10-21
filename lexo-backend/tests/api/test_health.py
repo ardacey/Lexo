@@ -38,8 +38,6 @@ class TestHealthEndpoints:
         assert "timestamp" in data
         assert "checks" in data
         assert data["checks"]["database"] == "healthy"
-        # Cache is optional
-        assert "cache" in data["checks"]
     
     def test_readiness_check_database_unhealthy(self, client):
         """Test readiness check when database is unhealthy."""

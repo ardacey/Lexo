@@ -3,7 +3,6 @@ from pathlib import Path
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.core.cache import cache
 
 logger = get_logger(__name__)
 
@@ -34,19 +33,8 @@ class WordService:
         """
         word_lower = word.lower()
         
-        # Try cache first
-        cache_key = f"word:valid:{word_lower}"
-        cached_result = cache.get(cache_key)
-        if cached_result is not None:
-            return cached_result
-        
         # Check in word set
-        is_valid = word_lower in self.valid_words
-        
-        # Cache result (24 hour TTL since word dictionary doesn't change)
-        cache.set(cache_key, is_valid, ttl=86400)
-        
-        return is_valid
+        return word_lower in self.valid_words
     
     def get_word_count(self) -> int:
         return len(self.valid_words)

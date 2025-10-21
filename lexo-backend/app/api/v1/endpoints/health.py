@@ -10,7 +10,6 @@ import psutil
 import time
 
 from app.database.session import get_db
-from app.core.cache import cache
 
 router = APIRouter()
 
@@ -39,7 +38,6 @@ async def readiness_check(db: Session = Depends(get_db)):
     """
     checks = {
         "database": "unknown",
-        "cache": "unknown"
     }
     
     # Check database connection
@@ -49,15 +47,6 @@ async def readiness_check(db: Session = Depends(get_db)):
     except Exception as e:
         checks["database"] = f"unhealthy: {str(e)}"
     
-    # Check cache connection (Redis is optional)
-    try:
-        if cache.enabled and cache.redis_client:
-            cache.redis_client.ping()
-            checks["cache"] = "healthy"
-        else:
-            checks["cache"] = "not_configured"
-    except Exception as e:
-        checks["cache"] = f"unhealthy: {str(e)}"
     
     # Determine overall status
     is_ready = checks["database"] == "healthy"

@@ -32,6 +32,22 @@ interface Score {
 
 export default function Multiplayer() {
   const router = useRouter();
+  // Safe back helper: try to go back, otherwise navigate to home
+  const safeBack = () => {
+    try {
+      // Some router implementations may not have a history to go back to.
+      // router.back() may throw or be unhandled in that case; catch failures
+      // and replace with a navigation to the home route.
+      router.back();
+    } catch (err) {
+      console.warn('router.back() failed, replacing to home instead', err);
+      try {
+        router.replace('/(home)');
+      } catch (e) {
+        console.error('router.replace failed as fallback:', e);
+      }
+    }
+  };
   const params = useLocalSearchParams();
   const username = params.username as string || 'Player';
   const isReconnecting = params.reconnect === 'true';
@@ -571,7 +587,8 @@ export default function Multiplayer() {
                 }
               }
               await clearActiveGameFromStorage();
-              router.back();
+              // Use safeBack to avoid calling goBack when there's no previous screen
+              safeBack();
             }
           }
         ],
@@ -659,7 +676,8 @@ export default function Multiplayer() {
         console.error('Error closing WebSocket:', error);
       }
     }
-    router.back();
+    // Try to go back safely, otherwise replace to home
+    safeBack();
   };
 
   const sendEmoji = (emoji: string) => {
@@ -818,7 +836,7 @@ export default function Multiplayer() {
         </View>
         
         <View className="flex-1">
-          <Text className="text-sm font-bold text-text-primary mb-2">Rakip ({opponentWords.length})</Text>
+          <Text className="text-sm font-bold text-text-primary mb-2 text-right">Rakip ({opponentWords.length})</Text>
           <ScrollView className="flex-1">
             {opponentWords.map((word, index) => (
               <View key={index} className="flex-row justify-between items-center bg-yellow-100 rounded-lg p-2.5 mb-1.5">

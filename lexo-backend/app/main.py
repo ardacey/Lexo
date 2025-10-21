@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 from app.core.exceptions import LexoException
-from app.core.cache import cache
 from app.database.session import init_db
 from app.dependencies import (
     init_services, 
@@ -40,14 +39,6 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Database initialization failed: {e}")
         raise
 
-    try:
-        cache.connect()
-        if cache.enabled:
-            logger.info("✅ Redis cache connected successfully")
-        else:
-            logger.warning("⚠️  Redis cache disabled, running without cache")
-    except Exception as e:
-        logger.warning(f"⚠️  Redis connection failed: {e}. Continuing without cache...")
 
     try:
         init_services()
@@ -63,9 +54,7 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("Shutting down application...")
-    cache.disconnect()
     logger.info("Application shutdown complete")
-    
     logger.info("Shutting down Lexo Multiplayer API")
 
 

@@ -5,7 +5,6 @@ import pytest
 from datetime import datetime
 from app.repositories.user_repository import UserRepository
 from app.models.database import User, UserStats
-from app.core.cache import cache
 
 
 class TestUserRepository:
@@ -28,8 +27,6 @@ class TestUserRepository:
         db_session.add(user)
         db_session.commit()
         
-        # Clear cache
-        cache.delete_pattern("user:*")
         
         # Get by clerk_id
         found_user = repo.get_by_clerk_id("test_clerk_123")
@@ -47,8 +44,6 @@ class TestUserRepository:
         db_session.query(User).delete()
         db_session.commit()
         
-        # Clear cache
-        cache.delete_pattern("user:*")
         
         found_user = repo.get_by_clerk_id("nonexistent_clerk")
         
@@ -63,8 +58,6 @@ class TestUserRepository:
         db_session.query(User).delete()
         db_session.commit()
         
-        # Clear cache
-        cache.delete_pattern("user:*")
         
         # Create user with stats
         user = User(
@@ -327,8 +320,6 @@ class TestUserRepository:
         db_session.query(User).delete()
         db_session.commit()
         
-        # Clear cache
-        cache.delete_pattern("user:*")
         
         # Create user first
         existing_user = User(
@@ -362,8 +353,6 @@ class TestUserRepository:
         db_session.query(User).delete()
         db_session.commit()
         
-        # Clear cache
-        cache.delete_pattern("user:*")
         
         # Get or create (should create new)
         user, created = repo.get_or_create(
