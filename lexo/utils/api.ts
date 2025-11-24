@@ -110,7 +110,18 @@ export const createUser = async (clerkId: string, username: string, email?: stri
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // Ignore JSON parse error
+      }
+      throw new Error(errorMessage);
     }
 
     return await response.json();
