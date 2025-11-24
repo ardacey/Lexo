@@ -9,31 +9,46 @@ interface ToastContextType {
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [visible, setVisible] = useState(false);
-  const [message, setMessage] = useState('');
-  const [type, setType] = useState<ToastType>('info');
-  const [duration, setDuration] = useState(3000);
+  const [state, setState] = useState<{
+    visible: boolean;
+    message: string;
+    type: ToastType;
+    duration: number;
+    id: number;
+  }>({
+    visible: false,
+    message: '',
+    type: 'info',
+    duration: 3000,
+    id: 0,
+  });
 
-  const showToast = useCallback((msg: string, t: ToastType = 'info', d: number = 3000) => {
-    setMessage(msg);
-    setType(t);
-    setDuration(d);
-    setVisible(true);
+  const showToast = useCallback((message: string, type: ToastType = 'info', duration: number = 3000) => {
+    setState({
+      visible: true,
+      message,
+      type,
+      duration,
+      id: Date.now(), // Benzersiz ID ile timer'ın sıfırlanmasını garanti altına alıyoruz
+    });
   }, []);
 
   const hideToast = useCallback(() => {
-    setVisible(false);
+    setState((prev) => ({ ...prev, visible: false }));
   }, []);
 
+  const value = React.useMemo(() => ({ showToast, hideToast }), [showToast, hideToast]);
+
   return (
-    <ToastContext.Provider value={{ showToast, hideToast }}>
+    <ToastContext.Provider value={value}>
       {children}
       <Toast
-        message={message}
-        type={type}
-        visible={visible}
+        key={state.id} // Her yeni toast mesajında bileşeni yeniden oluşturarak animasyon ve timer'ı sıfırlar
+        message={state.message}
+        type={state.type}
+        visible={state.visible}
         onHide={hideToast}
-        duration={duration}
+        duration={state.duration}
       />
     </ToastContext.Provider>
   );
