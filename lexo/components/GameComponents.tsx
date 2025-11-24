@@ -10,7 +10,7 @@ interface GameHeaderProps {
   isWarning?: boolean;
 }
 
-export const GameHeader: React.FC<GameHeaderProps> = ({
+export const GameHeader: React.FC<GameHeaderProps> = React.memo(({
   timeLeft: _timeLeft,
   formatTime,
   totalScore,
@@ -37,13 +37,13 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
       <Text className="text-2xl font-bold text-text-primary">{totalScore}</Text>
     </View>
   </View>
-);
+));
 
 interface LetterPoolProps {
   letterPool: string[];
 }
 
-export const LetterPool: React.FC<LetterPoolProps> = ({ letterPool }) => (
+export const LetterPool: React.FC<LetterPoolProps> = React.memo(({ letterPool }) => (
   <View className="p-4">
     <Text className="text-base font-bold text-text-primary mb-3">Harfler</Text>
     <View className="flex-row flex-wrap justify-center gap-2">
@@ -54,7 +54,42 @@ export const LetterPool: React.FC<LetterPoolProps> = ({ letterPool }) => (
       ))}
     </View>
   </View>
-);
+));
+
+interface InteractiveLetterPoolProps {
+  letterPool: string[];
+  selectedIndices: number[];
+  onLetterClick: (index: number) => void;
+  disabled?: boolean;
+}
+
+export const InteractiveLetterPool: React.FC<InteractiveLetterPoolProps> = React.memo(({ 
+  letterPool, 
+  selectedIndices, 
+  onLetterClick, 
+  disabled = false 
+}) => (
+  <View className="flex-row flex-wrap justify-center gap-2">
+    {letterPool.map((letter, index) => (
+      <TouchableOpacity
+        key={`${letter}-${index}`}
+        onPress={() => onLetterClick(index)}
+        disabled={disabled}
+        className={`w-16 h-16 rounded-xl justify-center items-center shadow-sm ${
+          selectedIndices.includes(index) 
+            ? 'bg-primary' 
+            : 'bg-slate-100'
+        }`}
+      >
+        <Text className={`text-3xl font-bold ${
+          selectedIndices.includes(index) 
+            ? 'text-white' 
+            : 'text-text-primary'
+        }`}>{letter.toLocaleUpperCase('tr-TR')}</Text>
+      </TouchableOpacity>
+    ))}
+  </View>
+));
 
 interface WordInputProps {
   currentWord: string;

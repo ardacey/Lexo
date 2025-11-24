@@ -1,5 +1,5 @@
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, or_
 from datetime import datetime
 import json
@@ -20,7 +20,10 @@ class GameRepository(BaseRepository[GameHistory]):
         return self.db.query(GameHistory).filter(GameHistory.room_id == room_id).first()
     
     def get_user_games(self, user_id: int, limit: int = 10) -> List[GameHistory]:
-        games = self.db.query(GameHistory).filter(
+        games = self.db.query(GameHistory).options(
+            joinedload(GameHistory.player1),
+            joinedload(GameHistory.player2)
+        ).filter(
             or_(
                 GameHistory.player1_id == user_id,
                 GameHistory.player2_id == user_id

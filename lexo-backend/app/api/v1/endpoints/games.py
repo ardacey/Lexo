@@ -42,8 +42,7 @@ def get_user_games(
                     winner = game.player2
                 won = winner.clerk_id == clerk_id
             
-            opponent_id = game.player2_id if game.player1_id == user.id else game.player1_id
-            opponent = user_service.get_user_by_id(opponent_id)
+            opponent = game.player2 if game.player1_id == user.id else game.player1
             
             if game.player1_id == user.id:
                 user_score = game.player1_score

@@ -2,14 +2,12 @@ import { LETTER_FREQUENCY, LETTER_SCORES, VOWELS, CONSONANTS } from './constants
 
 export const generateLetterPool = (count: number): string[] => {
   const letters = Object.keys(LETTER_FREQUENCY);
-  const weights: number[] = [];
-  for (const key in LETTER_FREQUENCY) {
-    weights.push(LETTER_FREQUENCY[key]);
-  }
+  const weights = Object.values(LETTER_FREQUENCY);
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
   const pool: string[] = [];
   
   for (let i = 0; i < count; i++) {
-    const random = Math.random() * weights.reduce((a: number, b: number) => a + b, 0);
+    const random = Math.random() * totalWeight;
     let sum = 0;
     for (let j = 0; j < weights.length; j++) {
       sum += weights[j];
@@ -66,13 +64,16 @@ export const calculateScore = (word: string): number => {
 };
 
 export const hasLettersInPool = (word: string, pool: string[]): boolean => {
-  const tempPool = [...pool];
+  const poolCounts: Record<string, number> = {};
+  for (const char of pool) {
+    poolCounts[char] = (poolCounts[char] || 0) + 1;
+  }
+
   for (const letter of word.toLowerCase()) {
-    const index = tempPool.indexOf(letter);
-    if (index === -1) {
+    if (!poolCounts[letter]) {
       return false;
     }
-    tempPool.splice(index, 1);
+    poolCounts[letter]--;
   }
   return true;
 };

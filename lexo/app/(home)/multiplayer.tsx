@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { WS_BASE_URL } from '../../utils/constants';
 import { useCreateUser, useSaveGame } from '@/hooks/useApi';
 import { EmojiPicker } from '@/components/EmojiPicker';
 import { EmojiNotification } from '@/components/EmojiNotification';
+import { InteractiveLetterPool } from '@/components/GameComponents';
 
 interface Word {
   text: string;
@@ -88,6 +89,8 @@ export default function Multiplayer() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<number | null>(null);
   const gameEndTimeoutRef = useRef<number | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const isMounted = useRef(true);
   const gameDataRef = useRef({
     startTime: null as Date | null,
     roomId: '',
@@ -95,7 +98,8 @@ export default function Multiplayer() {
     opponentClerkId: '',
     initialLetterPool: [] as string[],
     myWords: [] as Word[],
-    opponentWords: [] as Word[]
+    opponentWords: [] as Word[],
+    scores: [] as Score[]
   });
 
   const saveActiveGameToStorage = async (gameData: any) => {
@@ -128,6 +132,7 @@ export default function Multiplayer() {
   };
 
   useEffect(() => {
+    isMounted.current = true;
     if (user && !createUserMutation.isPending && !createUserMutation.isSuccess) {
       createUserMutation.mutate({
         clerkId: user.id,
@@ -143,6 +148,7 @@ export default function Multiplayer() {
     }
     
     return () => {
+      isMounted.current = false;
       console.log('Cleaning up multiplayer component...');
       if (timerRef.current !== null) {
         clearInterval(timerRef.current);
@@ -152,10 +158,10 @@ export default function Multiplayer() {
         clearTimeout(gameEndTimeoutRef.current);
         gameEndTimeoutRef.current = null;
       }
-      if (ws) {
+      if (wsRef.current) {
         try {
-          ws.close();
-          setWs(null);
+          wsRef.current.close();
+          wsRef.current = null;
         } catch (error) {
           console.error('Error closing WebSocket:', error);
         }
@@ -193,6 +199,7 @@ export default function Multiplayer() {
     try {
       setGameState('matched');
       const websocket = new WebSocket(`${WS_BASE_URL}/ws/queue`);
+      wsRef.current = websocket;
       
       websocket.onopen = () => {
         console.log('WebSocket connected for reconnection');
@@ -204,14 +211,22 @@ export default function Multiplayer() {
       };
 
       websocket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        console.log('Received (reconnect):', data);
-        handleMessage(data);
+        try {
+          const data = JSON.parse(event.data);
+          console.log('Received (reconnect):', data);
+          if (isMounted.current) {
+            handleMessage(data);
+          }
+        } catch (e) {
+          console.error('Error parsing message:', e);
+        }
       };
 
       websocket.onerror = (error) => {
         console.error('WebSocket error:', error);
-        Alert.alert('Bağlantı Hatası', 'Sunucuya bağlanılamadı');
+        if (isMounted.current) {
+          Alert.alert('Bağlantı Hatası', 'Sunucuya bağlanılamadı');
+        }
       };
 
       websocket.onclose = () => {
@@ -233,6 +248,7 @@ export default function Multiplayer() {
     
     try {
       const websocket = new WebSocket(`${WS_BASE_URL}/ws/queue`);
+      wsRef.current = websocket;
       
       websocket.onopen = () => {
         const payload = { 
@@ -244,13 +260,21 @@ export default function Multiplayer() {
       };
 
       websocket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        handleMessage(data);
+        try {
+          const data = JSON.parse(event.data);
+          if (isMounted.current) {
+            handleMessage(data);
+          }
+        } catch (e) {
+          console.error('Error parsing message:', e);
+        }
       };
 
       websocket.onerror = (error) => {
         console.error('WebSocket error:', error);
-        Alert.alert('Bağlantı Hatası', 'Sunucuya bağlanılamadı');
+        if (isMounted.current) {
+          Alert.alert('Bağlantı Hatası', 'Sunucuya bağlanılamadı');
+        }
       };
 
       websocket.onclose = () => {
@@ -293,6 +317,7 @@ export default function Multiplayer() {
         setLetterPool(data.letter_pool);
         setInitialLetterPool(data.letter_pool);
         setScores(data.scores);
+        gameDataRef.current.scores = data.scores;
         setGameState('playing');
         setGameDuration(data.duration);
         setGameStartTime(startTime);
@@ -323,6 +348,7 @@ export default function Multiplayer() {
           return updated;
         });
         setScores(data.scores);
+        gameDataRef.current.scores = data.scores;
         setCurrentWord('');
         setSelectedIndices([]);
         Toast.show({
@@ -356,12 +382,14 @@ export default function Multiplayer() {
           return updated;
         });
         setScores(data.scores);
+        gameDataRef.current.scores = data.scores;
         break;
 
       case 'game_end':
         setWinner(data.winner);
         setIsTie(data.is_tie);
         setScores(data.scores);
+        gameDataRef.current.scores = data.scores;
         setGameState('ended');
         if (timerRef.current) {
           clearInterval(timerRef.current);
@@ -389,10 +417,10 @@ export default function Multiplayer() {
           gameEndTimeoutRef.current = null;
         }
         
-        if (ws) {
+        if (wsRef.current) {
           try {
-            ws.close();
-            setWs(null);
+            wsRef.current.close();
+            wsRef.current = null;
           } catch (error) {
             console.error('Error closing WebSocket:', error);
           }
@@ -447,6 +475,7 @@ export default function Multiplayer() {
         setLetterPool(data.letter_pool);
         setInitialLetterPool(data.letter_pool);
         setScores(data.scores);
+        gameDataRef.current.scores = data.scores;
         setGameState('playing');
  
         const restoredWords = data.my_words.map((word: string) => ({ text: word, score: 0 }));
@@ -501,8 +530,14 @@ export default function Multiplayer() {
     gameEndTimeoutRef.current = setTimeout(() => {
       console.log('⚠️ No game_end message received after timeout, ending game manually');
 
-      const myScore = getMyScore();
-      const opponentScore = getOpponentScore();
+      const currentScores = gameDataRef.current.scores || [];
+      const myScoreData = currentScores.find(s => s.username === username);
+      const myScore = myScoreData?.score || 0;
+      
+      const oppScoreData = currentScores.find(s => s.username !== username);
+      const opponentScore = oppScoreData?.score || 0;
+      
+      const currentOpponent = gameDataRef.current.opponent || opponent;
       
       let winnerName = null;
       let tie = false;
@@ -510,7 +545,7 @@ export default function Multiplayer() {
       if (myScore > opponentScore) {
         winnerName = username;
       } else if (opponentScore > myScore) {
-        winnerName = opponent;
+        winnerName = currentOpponent;
       } else {
         tie = true;
       }
@@ -551,7 +586,7 @@ export default function Multiplayer() {
     }, 1000) as any;
   };
 
-  const showGameEndAlert = (winnerName: string | null, tie: boolean) => {
+  const showGameEndAlert = useCallback((winnerName: string | null, tie: boolean) => {
     if (timerRef.current !== null) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -578,10 +613,10 @@ export default function Multiplayer() {
           { 
             text: 'Ana Menü', 
             onPress: async () => {
-              if (ws) {
+              if (wsRef.current) {
                 try {
-                  ws.close();
-                  setWs(null);
+                  wsRef.current.close();
+                  wsRef.current = null;
                 } catch (error) {
                   console.error('Error closing WebSocket:', error);
                 }
@@ -595,9 +630,9 @@ export default function Multiplayer() {
         { cancelable: false }
       );
     }, 500);
-  };
+  }, [username]);
 
-  const handleLetterClick = (index: number) => {
+  const handleLetterClick = useCallback((index: number) => {
     if (gameState !== 'playing') return;
     
     if (selectedIndices.includes(index)) {
@@ -614,15 +649,15 @@ export default function Multiplayer() {
         .join('');
       setCurrentWord(newWord);
     }
-  };
+  }, [gameState, selectedIndices, letterPool]);
 
-  const handleClearWord = () => {
+  const handleClearWord = useCallback(() => {
     setSelectedIndices([]);
     setCurrentWord('');
-  };
+  }, []);
 
-  const submitWord = () => {
-    if (!currentWord.trim() || !ws || gameState !== 'playing') return;
+  const submitWord = useCallback(() => {
+    if (!currentWord.trim() || !wsRef.current || gameState !== 'playing') return;
 
     const word = currentWord.trim();
 
@@ -637,11 +672,11 @@ export default function Multiplayer() {
       return;
     }
 
-    ws.send(JSON.stringify({
+    wsRef.current.send(JSON.stringify({
       type: 'submit_word',
       word: word
     }));
-  };
+  }, [currentWord, gameState]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -659,7 +694,7 @@ export default function Multiplayer() {
     return oppScore?.score || 0;
   };
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     if (timerRef.current !== null) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -668,24 +703,24 @@ export default function Multiplayer() {
       clearTimeout(gameEndTimeoutRef.current);
       gameEndTimeoutRef.current = null;
     }
-    if (ws) {
+    if (wsRef.current) {
       try {
-        ws.close();
-        setWs(null);
+        wsRef.current.close();
+        wsRef.current = null;
       } catch (error) {
         console.error('Error closing WebSocket:', error);
       }
     }
     // Try to go back safely, otherwise replace to home
     safeBack();
-  };
+  }, []);
 
-  const sendEmoji = (emoji: string) => {
+  const sendEmoji = useCallback((emoji: string) => {
     console.log('🎭 sendEmoji called with:', emoji);
-    console.log('🔌 WebSocket state:', ws?.readyState, 'Game state:', gameState);
+    console.log('🔌 WebSocket state:', wsRef.current?.readyState, 'Game state:', gameState);
     
-    if (!ws || gameState !== 'playing') {
-      console.log('❌ Cannot send emoji - ws:', !!ws, 'gameState:', gameState);
+    if (!wsRef.current || gameState !== 'playing') {
+      console.log('❌ Cannot send emoji - ws:', !!wsRef.current, 'gameState:', gameState);
       Toast.show({
         type: 'error',
         text1: 'Hata',
@@ -696,8 +731,8 @@ export default function Multiplayer() {
       return;
     }
 
-    if (ws.readyState !== WebSocket.OPEN) {
-      console.log('❌ WebSocket is not open, state:', ws.readyState);
+    if (wsRef.current.readyState !== WebSocket.OPEN) {
+      console.log('❌ WebSocket is not open, state:', wsRef.current.readyState);
       Toast.show({
         type: 'error',
         text1: 'Bağlantı Hatası',
@@ -716,7 +751,7 @@ export default function Multiplayer() {
     console.log('📤 Sending emoji message:', JSON.stringify(message));
     
     try {
-      ws.send(JSON.stringify(message));
+      wsRef.current.send(JSON.stringify(message));
       console.log('✅ Emoji message sent successfully');
 
       setMyEmoji({
@@ -734,7 +769,7 @@ export default function Multiplayer() {
       });
       return;
     }
-  };
+  }, [gameState]);
 
   if (gameState === 'queue') {
     return (
@@ -892,26 +927,12 @@ export default function Multiplayer() {
             </TouchableOpacity>
           )}
         </View>
-        <View className="flex-row flex-wrap justify-center gap-2">
-          {letterPool.map((letter, index) => (
-            <TouchableOpacity
-              key={`${letter}-${index}`}
-              onPress={() => handleLetterClick(index)}
-              disabled={gameState !== 'playing'}
-              className={`w-16 h-16 rounded-xl justify-center items-center shadow-sm ${
-                selectedIndices.includes(index) 
-                  ? 'bg-primary' 
-                  : 'bg-slate-100'
-              }`}
-            >
-              <Text className={`text-3xl font-bold ${
-                selectedIndices.includes(index) 
-                  ? 'text-white' 
-                  : 'text-text-primary'
-              }`}>{letter.toLocaleUpperCase('tr-TR')}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <InteractiveLetterPool
+          letterPool={letterPool}
+          selectedIndices={selectedIndices}
+          onLetterClick={handleLetterClick}
+          disabled={gameState !== 'playing'}
+        />
       </View>
 
       {/* Emoji Picker Modal */}
