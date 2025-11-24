@@ -10,7 +10,7 @@ interface GameHeaderProps {
   isWarning?: boolean;
 }
 
-export const GameHeader: React.FC<GameHeaderProps> = React.memo(({
+const GameHeaderComponent: React.FC<GameHeaderProps> = ({
   timeLeft: _timeLeft,
   formatTime,
   totalScore,
@@ -37,13 +37,16 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({
       <Text className="text-2xl font-bold text-text-primary">{totalScore}</Text>
     </View>
   </View>
-));
+);
+
+export const GameHeader = React.memo(GameHeaderComponent);
+GameHeader.displayName = 'GameHeader';
 
 interface LetterPoolProps {
   letterPool: string[];
 }
 
-export const LetterPool: React.FC<LetterPoolProps> = React.memo(({ letterPool }) => (
+const LetterPoolComponent: React.FC<LetterPoolProps> = ({ letterPool }) => (
   <View className="p-4">
     <Text className="text-base font-bold text-text-primary mb-3">Harfler</Text>
     <View className="flex-row flex-wrap justify-center gap-2">
@@ -54,7 +57,10 @@ export const LetterPool: React.FC<LetterPoolProps> = React.memo(({ letterPool })
       ))}
     </View>
   </View>
-));
+);
+
+export const LetterPool = React.memo(LetterPoolComponent);
+LetterPool.displayName = 'LetterPool';
 
 interface InteractiveLetterPoolProps {
   letterPool: string[];
@@ -63,7 +69,7 @@ interface InteractiveLetterPoolProps {
   disabled?: boolean;
 }
 
-export const InteractiveLetterPool: React.FC<InteractiveLetterPoolProps> = React.memo(({ 
+const InteractiveLetterPoolComponent: React.FC<InteractiveLetterPoolProps> = ({ 
   letterPool, 
   selectedIndices, 
   onLetterClick, 
@@ -89,7 +95,10 @@ export const InteractiveLetterPool: React.FC<InteractiveLetterPoolProps> = React
       </TouchableOpacity>
     ))}
   </View>
-));
+);
+
+export const InteractiveLetterPool = React.memo(InteractiveLetterPoolComponent);
+InteractiveLetterPool.displayName = 'InteractiveLetterPool';
 
 interface WordInputProps {
   currentWord: string;

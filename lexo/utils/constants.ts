@@ -23,17 +23,7 @@ export const MAX_WORD_LENGTH = 15;
 export const GAME_DURATION = 60;
 export const INITIAL_POOL_SIZE = 16;
 
-// Environment-based configuration
-const IS_DEV = __DEV__;
-
-// Use environment variables if available, otherwise use defaults
-export const API_BASE_URL = IS_DEV 
-  ? process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000'
-  : process.env.EXPO_PUBLIC_API_URL || 'https://your-production-api.com';
-
-export const WS_BASE_URL = IS_DEV
-  ? process.env.EXPO_PUBLIC_WS_URL || 'ws://localhost:8000'
-  : process.env.EXPO_PUBLIC_WS_URL || 'wss://your-production-api.com';
+export { API_BASE_URL, WS_BASE_URL, ENVIRONMENT as APP_ENV, IS_PRODUCTION } from './environment';
 
 // WebSocket configuration
 export const WS_RECONNECT_DELAY = 3000; // 3 seconds
