@@ -4,10 +4,13 @@ import { useSignUp } from '@clerk/clerk-expo'
 import { Link, useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
+import { useToast } from '../../context/ToastContext'
+import { getErrorMessage } from '../../utils/errorMessages'
 
 export default function SignUpScreen() {
   const { isLoaded, signUp, setActive } = useSignUp()
   const router = useRouter()
+  const { showToast } = useToast()
 
   const [emailAddress, setEmailAddress] = React.useState('')
   const [password, setPassword] = React.useState('')
@@ -15,7 +18,6 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = React.useState(false)
   const [pendingVerification, setPendingVerification] = React.useState(false)
   const [code, setCode] = React.useState('')
-  const [error, setError] = React.useState('')
   const fadeAnim = React.useRef(new Animated.Value(0)).current
   const slideAnim = React.useRef(new Animated.Value(50)).current
 
@@ -36,7 +38,6 @@ export default function SignUpScreen() {
 
   const onSignUpPress = async () => {
     if (!isLoaded) return
-    setError('')
 
     try {
       await signUp.create({
@@ -47,15 +48,15 @@ export default function SignUpScreen() {
 
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
       setPendingVerification(true)
+      showToast('Doğrulama kodu e-posta adresinize gönderildi.', 'success')
     } catch (err: any) {
-      setError(err.errors?.[0]?.message || 'Kayıt başarısız. Lütfen tekrar deneyin.')
       console.error(JSON.stringify(err, null, 2))
+      showToast(getErrorMessage(err), 'error')
     }
   }
 
   const onVerifyPress = async () => {
     if (!isLoaded) return
-    setError('')
 
     try {
       const signUpAttempt = await signUp.attemptEmailAddressVerification({
@@ -66,10 +67,11 @@ export default function SignUpScreen() {
         router.replace('/')
       } else {
         console.error(JSON.stringify(signUpAttempt, null, 2))
+        showToast('Doğrulama tamamlanamadı. Lütfen tekrar deneyin.', 'error')
       }
     } catch (err: any) {
-      setError(err.errors?.[0]?.message || 'Doğrulama başarısız. Lütfen tekrar deneyin.')
       console.error(JSON.stringify(err, null, 2))
+      showToast(getErrorMessage(err), 'error')
     }
   }
 
@@ -113,14 +115,6 @@ export default function SignUpScreen() {
                   {emailAddress} adresine gönderilen 6 haneli kodu gir
                 </Text>
               </View>
-
-              {/* Error Message */}
-              {error ? (
-                <View style={styles.errorContainer}>
-                  <Ionicons name="alert-circle" size={20} color="#ff6b6b" />
-                  <Text style={styles.errorText}>{error}</Text>
-                </View>
-              ) : null}
 
               {/* Code Input */}
               <View style={styles.inputContainer}>
@@ -203,14 +197,6 @@ export default function SignUpScreen() {
               <Text style={styles.title}>Hesap Oluştur</Text>
               <Text style={styles.subtitle}>Yeni bir hesap oluştur ve oyuna katıl</Text>
             </View>
-
-            {/* Error Message */}
-            {error ? (
-              <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={20} color="#ff6b6b" />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
 
             {/* Username Input */}
             <View style={styles.inputContainer}>

@@ -4,15 +4,17 @@ import { Text, TextInput, TouchableOpacity, View, StyleSheet, KeyboardAvoidingVi
 import React from 'react'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
+import { useToast } from '../../context/ToastContext'
+import { getErrorMessage } from '../../utils/errorMessages'
 
 export default function Page() {
   const { signIn, setActive, isLoaded } = useSignIn()
   const router = useRouter()
+  const { showToast } = useToast()
 
   const [emailAddress, setEmailAddress] = React.useState('')
   const [password, setPassword] = React.useState('')
   const [showPassword, setShowPassword] = React.useState(false)
-  const [error, setError] = React.useState('')
   const fadeAnim = React.useRef(new Animated.Value(0)).current
   const slideAnim = React.useRef(new Animated.Value(50)).current
 
@@ -33,7 +35,6 @@ export default function Page() {
 
   const onSignInPress = async () => {
     if (!isLoaded) return
-    setError('')
 
     try {
       const signInAttempt = await signIn.create({
@@ -46,10 +47,11 @@ export default function Page() {
         router.replace('/')
       } else {
         console.error(JSON.stringify(signInAttempt, null, 2))
+        showToast('Giriş yapılamadı. Lütfen tekrar deneyin.', 'error')
       }
     } catch (err: any) {
-      setError(err.errors?.[0]?.message || 'Giriş başarısız. Lütfen tekrar deneyin.')
       console.error(JSON.stringify(err, null, 2))
+      showToast(getErrorMessage(err), 'error')
     }
   }
 
@@ -91,14 +93,6 @@ export default function Page() {
               <Text style={styles.title}>Hoş Geldin!</Text>
               <Text style={styles.subtitle}>Hesabına giriş yap ve oyuna başla</Text>
             </View>
-
-            {/* Error Message */}
-            {error ? (
-              <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={20} color="#ff6b6b" />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
 
             {/* Email Input */}
             <View style={styles.inputContainer}>
