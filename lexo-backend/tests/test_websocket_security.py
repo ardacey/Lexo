@@ -21,14 +21,15 @@ class TestAuthentication:
     """Test WebSocket authentication"""
     
     @pytest.mark.asyncio
-    async def test_authenticate_websocket_success(self):
+    @patch("app.websocket.auth.verify_clerk_jwt", new_callable=AsyncMock)
+    async def test_authenticate_websocket_success(self, mock_verify):
         """Test successful authentication with clerk_id"""
+        mock_verify.return_value = {"sub": "user_123", "username": "TestUser"}
         mock_ws = AsyncMock(spec=WebSocket)
         mock_ws.query_params = Mock()
         mock_ws.query_params.get = Mock(return_value=None)
         mock_ws.receive_json = AsyncMock(return_value={
-            "clerk_id": "user_123",
-            "username": "TestUser"
+            "token": "fake-token"
         })
         
         result = await authenticate_websocket(mock_ws)
@@ -38,27 +39,28 @@ class TestAuthentication:
         assert result["is_reconnect"] is False
     
     @pytest.mark.asyncio
-    async def test_authenticate_websocket_missing_clerk_id(self):
-        """Test authentication fails when clerk_id is missing"""
+    @patch("app.websocket.auth.verify_clerk_jwt", new_callable=AsyncMock)
+    async def test_authenticate_websocket_missing_clerk_id(self, mock_verify):
+        """Test authentication fails when clerk_id (sub) is missing"""
+        mock_verify.return_value = {"username": "TestUser"}
         mock_ws = AsyncMock(spec=WebSocket)
         mock_ws.query_params = Mock()
         mock_ws.query_params.get = Mock(return_value=None)
-        mock_ws.receive_json = AsyncMock(return_value={
-            "username": "TestUser"
-        })
+        mock_ws.receive_json = AsyncMock(return_value={"token": "fake-token"})
         
-        with pytest.raises(WebSocketAuthError, match="Clerk ID is required"):
+        with pytest.raises(WebSocketAuthError, match="Token missing subject claim"):
             await authenticate_websocket(mock_ws)
     
     @pytest.mark.asyncio
-    async def test_authenticate_websocket_reconnect(self):
+    @patch("app.websocket.auth.verify_clerk_jwt", new_callable=AsyncMock)
+    async def test_authenticate_websocket_reconnect(self, mock_verify):
         """Test authentication with reconnect flag"""
+        mock_verify.return_value = {"sub": "user_123", "username": "TestUser"}
         mock_ws = AsyncMock(spec=WebSocket)
         mock_ws.query_params = Mock()
         mock_ws.query_params.get = Mock(return_value=None)
         mock_ws.receive_json = AsyncMock(return_value={
-            "clerk_id": "user_123",
-            "username": "TestUser",
+            "token": "fake-token",
             "is_reconnect": True
         })
         
@@ -244,13 +246,15 @@ class TestIntegrationSecurity:
     """Integration tests for security features"""
     
     @pytest.mark.asyncio
-    async def test_full_authentication_flow(self):
+    @patch("app.websocket.auth.verify_clerk_jwt", new_callable=AsyncMock)
+    async def test_full_authentication_flow(self, mock_verify):
         """Test complete authentication flow"""
+        mock_verify.return_value = {"sub": "user_123", "username": "TestUser"}
         mock_ws = AsyncMock(spec=WebSocket)
         mock_ws.query_params = Mock()
         mock_ws.query_params.get = Mock(return_value=None)
         mock_ws.receive_json = AsyncMock(return_value={
-            "clerk_id": "user_123",
+            "token": "fake-token",
             "username": "TestUser"
         })
         
@@ -271,17 +275,24 @@ class TestIntegrationSecurity:
         assert limiter.is_allowed(user_data["clerk_id"]) is False
     
     @pytest.mark.asyncio
-    async def test_security_prevents_unauthorized_access(self):
+    @patch("app.websocket.auth.verify_clerk_jwt", new_callable=AsyncMock)
+    async def test_security_prevents_unauthorized_access(self, mock_verify):
         """Test that security measures prevent unauthorized access"""
         mock_ws = AsyncMock(spec=WebSocket)
         mock_ws.query_params = Mock()
         mock_ws.query_params.get = Mock(return_value=None)
         
         # Test: Missing clerk_id
-        mock_ws.receive_json = AsyncMock(return_value={"username": "TestUser"})
+        mock_verify.return_value = {"username": "TestUser"}
+        mock_ws.receive_json = AsyncMock(return_value={"token": "fake-token"})
         
-        with pytest.raises(WebSocketAuthError, match="Clerk ID is required"):
-                await authenticate_websocket(mock_ws)
+        with pytest.raises(WebSocketAuthError, match="Token missing subject claim"):
+            await authenticate_websocket(mock_ws)
+
+        # Test: Invalid token scenario propagates error
+        mock_verify.side_effect = WebSocketAuthError("Invalid token")
+        with pytest.raises(WebSocketAuthError, match="Invalid token"):
+            await authenticate_websocket(mock_ws)
     
     @pytest.mark.asyncio
     async def test_rate_limiting_with_message_validation(self):

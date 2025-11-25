@@ -1,16 +1,26 @@
 """
 WebSocket authentication utilities
 """
-from typing import Optional, Dict
-from fastapi import WebSocket, WebSocketDisconnect
+from __future__ import annotations
+
+import asyncio
+import json
+from datetime import datetime, timedelta
+from typing import Dict, Any
+
+import httpx
 import jwt
+from fastapi import WebSocket
 from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
-import os
 
 from app.core.logging import get_logger
 from app.core.config import settings
 
 logger = get_logger(__name__)
+
+_jwks_cache: Dict[str, Any] | None = None
+_jwks_cache_expires_at: datetime | None = None
+_jwks_lock = asyncio.Lock()
 
 
 class WebSocketAuthError(Exception):
@@ -18,7 +28,7 @@ class WebSocketAuthError(Exception):
     pass
 
 
-async def authenticate_websocket(websocket: WebSocket) -> Dict[str, str]:
+async def authenticate_websocket(websocket: WebSocket) -> Dict[str, Any]:
     """
     Authenticate WebSocket connection using JWT token from query params or first message.
     
@@ -28,98 +38,134 @@ async def authenticate_websocket(websocket: WebSocket) -> Dict[str, str]:
     Raises:
         WebSocketAuthError: If authentication fails
     """
-    # Try to get token from query params first
     token = websocket.query_params.get("token")
+    initial_data: Dict[str, Any] | None = None
     
     if not token:
-        # If no token in query params, wait for first message with token
         try:
             data = await websocket.receive_json()
-            
-            token = data.get("token")
-            clerk_id = data.get("clerk_id")
-            username = data.get("username", "Player")
-            is_reconnect = data.get("is_reconnect", False)
-            
-            if not clerk_id:
-                logger.error(f"Clerk ID missing in authentication data")
-                raise WebSocketAuthError("Clerk ID is required")
-            
-            # For now, we'll trust the clerk_id from frontend
-            # In production, you should verify the Clerk JWT token
-            return {
-                "clerk_id": clerk_id,
-                "username": username,
-                "is_reconnect": is_reconnect,
-                "initial_data": data
-            }
-            
-        except WebSocketAuthError:
-            raise
-        except Exception as e:
-            logger.error(f"Error receiving authentication data: {e}")
-            raise WebSocketAuthError(f"Failed to receive authentication data: {str(e)}")
+        except Exception as exc:
+            logger.error(f"Error receiving authentication data: {exc}")
+            raise WebSocketAuthError("Failed to receive authentication data")
+
+        token = data.get("token")
+        if not token:
+            logger.error("Authentication token missing from initial payload")
+            raise WebSocketAuthError("Authentication token is required")
+        initial_data = data
     
-    # If token is provided in query params, verify it
-    try:
-        # Note: In production, use Clerk's public key to verify the token
-        # For now, we'll do basic JWT decoding without verification
-        # You should add proper Clerk JWT verification here
-        payload = jwt.decode(token, options={"verify_signature": False})
-        
-        clerk_id = payload.get("sub")
-        username = payload.get("username") or payload.get("email", "Player")
-        
-        if not clerk_id:
-            raise WebSocketAuthError("Invalid token: missing user ID")
-        
-        return {
-            "clerk_id": clerk_id,
-            "username": username,
-            "is_reconnect": False,
-            "initial_data": None
-        }
-        
-    except ExpiredSignatureError:
-        raise WebSocketAuthError("Token has expired")
-    except InvalidTokenError as e:
-        raise WebSocketAuthError(f"Invalid token: {str(e)}")
-    except Exception as e:
-        logger.error(f"Error verifying token: {e}")
-        raise WebSocketAuthError("Authentication failed")
+    payload = await verify_clerk_jwt(token)
+
+    clerk_id = payload.get("sub")
+    if not clerk_id:
+        raise WebSocketAuthError("Token missing subject claim")
+
+    username = (
+        payload.get("username")
+        or payload.get("email")
+        or payload.get("name")
+        or (initial_data or {}).get("username")
+        or "Player"
+    )
+
+    is_reconnect = bool((initial_data or {}).get("is_reconnect", False))
+
+    return {
+        "clerk_id": clerk_id,
+        "username": username,
+        "is_reconnect": is_reconnect,
+        "initial_data": initial_data,
+        "token_claims": payload,
+    }
 
 
-def verify_clerk_jwt(token: str) -> Optional[Dict]:
-    """
-    Verify Clerk JWT token.
-    
-    In production, this should use Clerk's public key from their JWKS endpoint.
-    For now, we'll do basic validation.
-    
-    Args:
-        token: JWT token from Clerk
-        
-    Returns:
-        Decoded token payload if valid, None otherwise
-    """
+async def _get_clerk_jwks(force_refresh: bool = False) -> Dict[str, Any]:
+    global _jwks_cache, _jwks_cache_expires_at
+
+    issuer = settings.clerk.issuer_url.rstrip('/') if settings.clerk.issuer_url else ''
+    if not issuer:
+        logger.error("Clerk issuer URL is not configured")
+        raise WebSocketAuthError("Clerk issuer URL is not configured")
+
+    async with _jwks_lock:
+        now = datetime.utcnow()
+        if (
+            not force_refresh
+            and _jwks_cache is not None
+            and _jwks_cache_expires_at is not None
+            and now < _jwks_cache_expires_at
+        ):
+            return _jwks_cache
+
+        jwks_url = f"{issuer}/.well-known/jwks.json"
+
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(jwks_url)
+                response.raise_for_status()
+                _jwks_cache = response.json()
+                ttl = max(60, settings.clerk.jwks_cache_ttl_seconds)
+                _jwks_cache_expires_at = now + timedelta(seconds=ttl)
+                logger.debug("Refreshed Clerk JWKS")
+                return _jwks_cache
+        except httpx.HTTPError as exc:
+            logger.error(f"Unable to fetch Clerk JWKS: {exc}")
+            raise WebSocketAuthError("Unable to fetch Clerk signing keys") from exc
+
+
+async def verify_clerk_jwt(token: str) -> Dict[str, Any]:
+    """Verify a Clerk-issued JWT using JWKS."""
+
+    if not token:
+        raise WebSocketAuthError("Authentication token is required")
+
     try:
-        # TODO: Implement proper Clerk JWT verification
-        # 1. Fetch Clerk's JWKS from https://clerk.YOUR_DOMAIN/.well-known/jwks.json
-        # 2. Verify the token signature using the public key
-        # 3. Verify token claims (exp, iss, etc.)
-        
-        # For now, decode without verification (NOT SECURE FOR PRODUCTION)
-        payload = jwt.decode(token, options={"verify_signature": False})
-        
-        # Basic validation
-        if not payload.get("sub"):
-            return None
-            
-        return payload
-        
-    except Exception as e:
-        logger.error(f"Error verifying Clerk JWT: {e}")
-        return None
+        headers = jwt.get_unverified_header(token)
+    except jwt.JWTError as exc:
+        raise WebSocketAuthError("Invalid token header") from exc
+
+    kid = headers.get("kid")
+    if not kid:
+        raise WebSocketAuthError("Token is missing key identifier")
+
+    jwks = await _get_clerk_jwks()
+    keys = jwks.get("keys", [])
+    key_data = next((key for key in keys if key.get("kid") == kid), None)
+
+    if key_data is None:
+        # The key might have rotated; refresh cache once and retry.
+        jwks = await _get_clerk_jwks(force_refresh=True)
+        keys = jwks.get("keys", [])
+        key_data = next((key for key in keys if key.get("kid") == kid), None)
+
+    if key_data is None:
+        raise WebSocketAuthError("Unable to find signing key for token")
+
+    public_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key_data))
+
+    issuer = settings.clerk.issuer_url.rstrip('/')
+    audience = settings.clerk.audience
+
+    options = {"require": ["exp", "iat", "sub"], "verify_aud": bool(audience)}
+
+    decode_kwargs: Dict[str, Any] = {
+        "algorithms": [key_data.get("alg", "RS256")],
+        "issuer": issuer,
+        "options": options,
+    }
+
+    if audience:
+        decode_kwargs["audience"] = audience
+
+    try:
+        return jwt.decode(token, public_key, **decode_kwargs)
+    except ExpiredSignatureError as exc:
+        raise WebSocketAuthError("Token has expired") from exc
+    except InvalidTokenError as exc:
+        raise WebSocketAuthError(f"Invalid token: {exc}") from exc
+    except Exception as exc:
+        logger.error(f"Unexpected error during JWT verification: {exc}")
+        raise WebSocketAuthError("Authentication failed") from exc
 
 
 class RateLimiter:

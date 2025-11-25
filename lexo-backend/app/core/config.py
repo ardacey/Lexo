@@ -86,12 +86,25 @@ class LogSettings(BaseSettings):
     }
 
 
+class ClerkSettings(BaseSettings):
+    issuer_url: str = Field(default='', alias='CLERK_ISSUER_URL')
+    audience: str | None = Field(default=None, alias='CLERK_AUDIENCE')
+    jwks_cache_ttl_seconds: int = Field(default=300, alias='CLERK_JWKS_CACHE_TTL')
+
+    model_config = {
+        'env_file': str(Path(__file__).parent.parent.parent / '.env'),
+        'env_file_encoding': 'utf-8',
+        'extra': 'ignore'
+    }
+
+
 class Settings(BaseSettings):
     game: GameSettings = GameSettings()
     api: APISettings = APISettings()
     database: DatabaseSettings = DatabaseSettings()
     files: FileSettings = FileSettings()
     log: LogSettings = LogSettings()
+    clerk: ClerkSettings = ClerkSettings()
     
 
 
