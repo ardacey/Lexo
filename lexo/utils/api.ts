@@ -90,8 +90,7 @@ export const validateWord = async (word: string): Promise<ValidateWordResponse> 
     }
 
     return await response.json();
-  } catch (error) {
-    console.error('Word validation error:', error);
+  } catch {
     return {
       valid: false,
       message: 'Sunucuya bağlanılamadı',
@@ -126,7 +125,6 @@ export const createUser = async (clerkId: string, username: string, email?: stri
 
     return await response.json();
   } catch (error) {
-    console.error('Create user error:', error);
     throw error;
   }
 };
@@ -148,7 +146,6 @@ export const getUserStats = async (clerkId: string): Promise<UserStats | null> =
     const data = await response.json();
     return data.success ? data.stats : null;
   } catch (error) {
-    console.error('Get user stats error:', error);
     throw error;
   }
 };
@@ -170,7 +167,6 @@ export const getUserGames = async (clerkId: string, limit: number = 10): Promise
     const data = await response.json();
     return data.success ? data.games : [];
   } catch (error) {
-    console.error('Get user games error:', error);
     throw error;
   }
 };
@@ -185,15 +181,13 @@ export const getLeaderboard = async (limit: number = 100): Promise<LeaderboardEn
 
     const data = await response.json();
     return data.success ? data.leaderboard : [];
-  } catch (error) {
-    console.error('Get leaderboard error:', error);
+  } catch {
     return [];
   }
 };
 
 export const saveGame = async (gameData: SaveGameData) => {
   try {
-    console.log('API: Calling saveGame endpoint:', API_ENDPOINTS.saveGame);
     const response = await fetch(API_ENDPOINTS.saveGame, {
       method: 'POST',
       headers: {
@@ -206,18 +200,14 @@ export const saveGame = async (gameData: SaveGameData) => {
       const errorText = await response.text();
       // Check if this is a duplicate key error - this is expected behavior
       if (errorText.includes('duplicate key') && errorText.includes('ix_game_history_room_id')) {
-        console.log('ℹ️ Game already saved by opponent');
         return { success: true, message: 'Game already saved by opponent' };
       }
-      console.error('API Error Response:', errorText);
       throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
 
     const result = await response.json();
-    console.log('API: saveGame success:', result);
     return result;
   } catch (error) {
-    console.error('Save game error:', error);
     throw error;
   }
 };

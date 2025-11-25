@@ -9,8 +9,8 @@ export const SignOutButton = () => {
     try {
       await signOut()
       Linking.openURL(Linking.createURL('/'))
-    } catch (err) {
-      console.error(JSON.stringify(err, null, 2))
+    } catch {
+      // Silent sign out error
     }
   }
   return (

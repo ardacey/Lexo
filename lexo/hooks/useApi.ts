@@ -53,11 +53,8 @@ export const useCreateUser = () => {
     onError: (error: any) => {
       // Kullanıcı zaten varsa hata fırlatma (sessizce geç)
       if (error?.message?.includes('already exists') || error?.response?.status === 409) {
-        console.log('User already exists, skipping creation');
         return;
       }
-      // Diğer hatalar için loglama
-      console.error('Error creating user:', error);
     },
     retry: false,
   });

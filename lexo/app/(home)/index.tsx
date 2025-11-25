@@ -93,18 +93,16 @@ export default function Page() {
         const remaining = game.duration - elapsed;
 
         if (remaining > 0) {
-          console.log('🔄 Active game found, reconnecting... (elapsed: ' + Math.floor(elapsed) + 's, remaining: ' + Math.floor(remaining) + 's)');
           router.push({
             pathname: '/multiplayer',
             params: { username, reconnect: 'true' }
           });
         } else {
-          console.log('⏰ Game time expired, clearing storage (elapsed: ' + Math.floor(elapsed) + 's, remaining: ' + Math.floor(remaining) + 's)');
           await AsyncStorage.removeItem('activeGame');
         }
       }
-    } catch (error) {
-      console.error('Error checking for active game:', error);
+    } catch {
+      // Silent error
     }
   };
 

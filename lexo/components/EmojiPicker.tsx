@@ -25,13 +25,9 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
   disabled = false,
 }) => {
   const handleEmojiSelect = (emoji: string) => {
-    console.log('🎯 EmojiPicker: handleEmojiSelect called with:', emoji, 'disabled:', disabled);
     if (!disabled) {
-      console.log('✅ EmojiPicker: Calling onSelectEmoji');
       onSelectEmoji(emoji);
       onClose();
-    } else {
-      console.log('❌ EmojiPicker: Disabled, not sending emoji');
     }
   };
 
@@ -52,10 +48,8 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
                 key={`${rowIndex}-${index}`}
                 style={styles.emojiButton}
                 onPress={() => {
-                  console.log('👆 TouchableOpacity onPress triggered for emoji:', emoji);
                   handleEmojiSelect(emoji);
                 }}
-                onPressIn={() => console.log('👇 onPressIn for emoji:', emoji)}
                 disabled={disabled}
                 activeOpacity={0.7}
               >

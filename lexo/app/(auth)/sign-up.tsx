@@ -50,7 +50,6 @@ export default function SignUpScreen() {
       setPendingVerification(true)
       showToast('Doğrulama kodu e-posta adresinize gönderildi.', 'success')
     } catch (err: any) {
-      console.error(JSON.stringify(err, null, 2))
       showToast(getErrorMessage(err), 'error')
     }
   }
@@ -66,11 +65,9 @@ export default function SignUpScreen() {
         await setActive({ session: signUpAttempt.createdSessionId })
         router.replace('/')
       } else {
-        console.error(JSON.stringify(signUpAttempt, null, 2))
         showToast('Doğrulama tamamlanamadı. Lütfen tekrar deneyin.', 'error')
       }
     } catch (err: any) {
-      console.error(JSON.stringify(err, null, 2))
       showToast(getErrorMessage(err), 'error')
     }
   }

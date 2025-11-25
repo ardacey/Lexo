@@ -46,11 +46,9 @@ export default function Page() {
         await setActive({ session: signInAttempt.createdSessionId })
         router.replace('/')
       } else {
-        console.error(JSON.stringify(signInAttempt, null, 2))
         showToast('Giriş yapılamadı. Lütfen tekrar deneyin.', 'error')
       }
     } catch (err: any) {
-      console.error(JSON.stringify(err, null, 2))
       showToast(getErrorMessage(err), 'error')
     }
   }

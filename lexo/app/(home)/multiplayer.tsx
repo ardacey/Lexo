@@ -36,16 +36,12 @@ export default function Multiplayer() {
   // Safe back helper: try to go back, otherwise navigate to home
   const safeBack = () => {
     try {
-      // Some router implementations may not have a history to go back to.
-      // router.back() may throw or be unhandled in that case; catch failures
-      // and replace with a navigation to the home route.
       router.back();
-    } catch (err) {
-      console.warn('router.back() failed, replacing to home instead', err);
+    } catch {
       try {
         router.replace('/(home)');
-      } catch (e) {
-        console.error('router.replace failed as fallback:', e);
+      } catch {
+        // Silent navigation error
       }
     }
   };
@@ -105,16 +101,16 @@ export default function Multiplayer() {
   const saveActiveGameToStorage = async (gameData: any) => {
     try {
       await AsyncStorage.setItem('activeGame', JSON.stringify(gameData));
-    } catch (error) {
-      console.error('Error saving game to storage:', error);
+    } catch {
+      // Silent storage error
     }
   };
 
   const clearActiveGameFromStorage = async () => {
     try {
       await AsyncStorage.removeItem('activeGame');
-    } catch (error) {
-      console.error('Error clearing game from storage:', error);
+    } catch {
+      // Silent storage error
     }
   };
 
@@ -125,8 +121,7 @@ export default function Multiplayer() {
         return JSON.parse(gameData);
       }
       return null;
-    } catch (error) {
-      console.error('❌ Error getting game from storage:', error);
+    } catch {
       return null;
     }
   };
@@ -149,7 +144,6 @@ export default function Multiplayer() {
     
     return () => {
       isMounted.current = false;
-      console.log('Cleaning up multiplayer component...');
       if (timerRef.current !== null) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -163,7 +157,7 @@ export default function Multiplayer() {
           wsRef.current.close();
           wsRef.current = null;
         } catch (error) {
-          console.error('Error closing WebSocket:', error);
+          // Silent close
         }
       }
     };
@@ -202,7 +196,6 @@ export default function Multiplayer() {
       wsRef.current = websocket;
       
       websocket.onopen = () => {
-        console.log('WebSocket connected for reconnection');
         websocket.send(JSON.stringify({ 
           username,
           clerk_id: user.id,
@@ -213,29 +206,26 @@ export default function Multiplayer() {
       websocket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('Received (reconnect):', data);
           if (isMounted.current) {
             handleMessage(data);
           }
         } catch (e) {
-          console.error('Error parsing message:', e);
+          // Silent parse error
         }
       };
 
       websocket.onerror = (error) => {
-        console.error('WebSocket error:', error);
         if (isMounted.current) {
           Alert.alert('Bağlantı Hatası', 'Sunucuya bağlanılamadı');
         }
       };
 
       websocket.onclose = () => {
-        console.log('WebSocket closed');
+        // WebSocket closed
       };
 
       setWs(websocket);
     } catch (error) {
-      console.error('Connection error:', error);
       Alert.alert('Hata', 'Sunucuya bağlanılamadı');
     }
   };
@@ -266,24 +256,22 @@ export default function Multiplayer() {
             handleMessage(data);
           }
         } catch (e) {
-          console.error('Error parsing message:', e);
+          // Silent parse error
         }
       };
 
       websocket.onerror = (error) => {
-        console.error('WebSocket error:', error);
         if (isMounted.current) {
           Alert.alert('Bağlantı Hatası', 'Sunucuya bağlanılamadı');
         }
       };
 
       websocket.onclose = () => {
-        console.log('WebSocket closed');
+        // WebSocket closed
       };
 
       setWs(websocket);
     } catch (error) {
-      console.error('Connection error:', error);
       Alert.alert('Hata', 'Sunucuya bağlanılamadı');
     }
   };
@@ -400,7 +388,7 @@ export default function Multiplayer() {
           gameEndTimeoutRef.current = null;
         }
         if (!data.game_saved_by_server) {
-          console.warn('Game was not saved by server');
+          // Game was not saved by server - silent warning
         }
         clearActiveGameFromStorage();
         showGameEndAlert(data.winner, data.is_tie);
@@ -421,8 +409,8 @@ export default function Multiplayer() {
           try {
             wsRef.current.close();
             wsRef.current = null;
-          } catch (error) {
-            console.error('Error closing WebSocket:', error);
+          } catch {
+            // Silent close error
           }
         }
         clearActiveGameFromStorage();
@@ -436,8 +424,7 @@ export default function Multiplayer() {
               onPress: () => {
                 try {
                   router.replace('/(home)');
-                } catch (error) {
-                  console.error('Navigation error:', error);
+                } catch {
                   router.push('/(home)');
                 }
               }
@@ -468,7 +455,6 @@ export default function Multiplayer() {
         break;
 
       case 'reconnected':
-        console.log('🔄 Reconnected to game:', data);
         setRoomId(data.room_id);
         setOpponent(data.opponent);
         setOpponentClerkId(data.opponent_clerk_id);
@@ -525,11 +511,7 @@ export default function Multiplayer() {
   };
 
   const handleTimeExpired = () => {
-    console.log('⏰ Time expired, waiting for game_end message...');
-
     gameEndTimeoutRef.current = setTimeout(() => {
-      console.log('⚠️ No game_end message received after timeout, ending game manually');
-
       const currentScores = gameDataRef.current.scores || [];
       const myScoreData = currentScores.find(s => s.username === username);
       const myScore = myScoreData?.score || 0;
@@ -617,8 +599,8 @@ export default function Multiplayer() {
                 try {
                   wsRef.current.close();
                   wsRef.current = null;
-                } catch (error) {
-                  console.error('Error closing WebSocket:', error);
+                } catch {
+                  // Silent close error
                 }
               }
               await clearActiveGameFromStorage();
@@ -707,8 +689,8 @@ export default function Multiplayer() {
       try {
         wsRef.current.close();
         wsRef.current = null;
-      } catch (error) {
-        console.error('Error closing WebSocket:', error);
+      } catch {
+        // Silent close error
       }
     }
     // Try to go back safely, otherwise replace to home
@@ -716,11 +698,7 @@ export default function Multiplayer() {
   }, []);
 
   const sendEmoji = useCallback((emoji: string) => {
-    console.log('🎭 sendEmoji called with:', emoji);
-    console.log('🔌 WebSocket state:', wsRef.current?.readyState, 'Game state:', gameState);
-    
     if (!wsRef.current || gameState !== 'playing') {
-      console.log('❌ Cannot send emoji - ws:', !!wsRef.current, 'gameState:', gameState);
       Toast.show({
         type: 'error',
         text1: 'Hata',
@@ -732,7 +710,6 @@ export default function Multiplayer() {
     }
 
     if (wsRef.current.readyState !== WebSocket.OPEN) {
-      console.log('❌ WebSocket is not open, state:', wsRef.current.readyState);
       Toast.show({
         type: 'error',
         text1: 'Bağlantı Hatası',
@@ -748,18 +725,14 @@ export default function Multiplayer() {
       emoji: emoji
     };
     
-    console.log('📤 Sending emoji message:', JSON.stringify(message));
-    
     try {
       wsRef.current.send(JSON.stringify(message));
-      console.log('✅ Emoji message sent successfully');
 
       setMyEmoji({
         emoji: emoji,
         visible: true
       });
     } catch (error) {
-      console.error('❌ Error sending emoji:', error);
       Toast.show({
         type: 'error',
         text1: 'Hata',

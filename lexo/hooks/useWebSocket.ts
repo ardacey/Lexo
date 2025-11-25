@@ -45,8 +45,8 @@ export const useWebSocket = ({
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         try {
           wsRef.current.send(JSON.stringify({ type: 'ping' }));
-        } catch (error) {
-          console.error('Error sending ping:', error);
+        } catch {
+          // Silent ping error
         }
       }
     }, WS_PING_INTERVAL);
@@ -54,7 +54,6 @@ export const useWebSocket = ({
 
   const connect = useCallback(async (url: string, initialData?: any) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      console.log('WebSocket already connected');
       return;
     }
 
@@ -69,7 +68,6 @@ export const useWebSocket = ({
       wsRef.current = websocket;
 
       websocket.onopen = () => {
-        console.log('WebSocket connected');
         setIsConnected(true);
         setReconnectAttempts(0);
         setWs(websocket);
@@ -92,18 +90,16 @@ export const useWebSocket = ({
         try {
           const data = JSON.parse(event.data);
           onMessage(data);
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
+        } catch {
+          // Silent parse error
         }
       };
 
-      websocket.onerror = (error) => {
-        console.error('WebSocket error:', error);
+      websocket.onerror = () => {
         onError?.(new Error('WebSocket connection error'));
       };
 
       websocket.onclose = (event) => {
-        console.log('WebSocket closed:', event.code, event.reason);
         setIsConnected(false);
         setWs(null);
         wsRef.current = null;
@@ -112,19 +108,15 @@ export const useWebSocket = ({
 
         // Auto-reconnect if not manually closed
         if (autoReconnect && !isManualClose.current && reconnectAttempts < WS_MAX_RECONNECT_ATTEMPTS) {
-          console.log(`Attempting to reconnect... (${reconnectAttempts + 1}/${WS_MAX_RECONNECT_ATTEMPTS})`);
-          
           reconnectTimeoutRef.current = setTimeout(() => {
             setReconnectAttempts(prev => prev + 1);
             connect(url, initialData);
           }, WS_RECONNECT_DELAY);
         } else if (reconnectAttempts >= WS_MAX_RECONNECT_ATTEMPTS) {
-          console.error('Max reconnection attempts reached');
           onError?.(new Error('Failed to reconnect to server'));
         }
       };
     } catch (error) {
-      console.error('Error creating WebSocket:', error);
       onError?.(error as Error);
     }
   }, [autoReconnect, reconnectAttempts, onMessage, onConnect, onDisconnect, onError, startPingInterval, clearTimers, getToken]);
@@ -136,8 +128,8 @@ export const useWebSocket = ({
     if (wsRef.current) {
       try {
         wsRef.current.close();
-      } catch (error) {
-        console.error('Error closing WebSocket:', error);
+      } catch {
+        // Silent close error
       }
       wsRef.current = null;
     }
@@ -152,12 +144,10 @@ export const useWebSocket = ({
       try {
         wsRef.current.send(JSON.stringify(data));
         return true;
-      } catch (error) {
-        console.error('Error sending message:', error);
+      } catch {
         return false;
       }
     }
-    console.warn('WebSocket is not connected');
     return false;
   }, []);
 
@@ -169,8 +159,8 @@ export const useWebSocket = ({
       if (wsRef.current) {
         try {
           wsRef.current.close();
-        } catch (error) {
-          console.error('Error closing WebSocket on unmount:', error);
+        } catch {
+          // Silent close error
         }
       }
     };
