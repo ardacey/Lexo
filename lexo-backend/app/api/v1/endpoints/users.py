@@ -7,6 +7,7 @@ from app.services.stats_service import StatsService
 from app.database.session import get_db
 from app.core.logging import get_logger
 from app.core.exceptions import DatabaseError
+from app.api.dependencies.auth import AuthenticatedUser, get_current_user
 
 logger = get_logger(__name__)
 
@@ -16,9 +17,13 @@ router = APIRouter()
 @router.post("/users", response_model=dict)
 def create_user(
     request: CreateUserRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
+        if current_user["clerk_id"] != request.clerk_id:
+            raise HTTPException(status_code=403, detail="Cannot create user for different Clerk ID")
+
         user_service = UserService(db)
         stats_service = StatsService(db)
         
@@ -66,9 +71,13 @@ def create_user(
 @router.get("/users/{clerk_id}/stats", response_model=dict)
 def get_user_stats(
     clerk_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
+        if current_user["clerk_id"] != clerk_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+
         user_service = UserService(db)
         stats_service = StatsService(db)
         

@@ -8,6 +8,7 @@ from app.services.stats_service import StatsService
 from app.services.game_history_service import GameHistoryService
 from app.database.session import get_db
 from app.core.logging import get_logger
+from app.api.dependencies.auth import AuthenticatedUser, get_current_user
 
 logger = get_logger(__name__)
 
@@ -18,9 +19,13 @@ router = APIRouter()
 def get_user_games(
     clerk_id: str,
     limit: int = 10,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
+        if current_user["clerk_id"] != clerk_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+
         user_service = UserService(db)
         game_history_service = GameHistoryService(db)
         
@@ -79,9 +84,13 @@ def get_user_games(
 @router.post("/games/save", response_model=SaveGameResponse)
 def save_game(
     request: SaveGameRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
+        if current_user["clerk_id"] not in {request.player1_clerk_id, request.player2_clerk_id}:
+            raise HTTPException(status_code=403, detail="Not authorized to save this game")
+
         user_service = UserService(db)
         stats_service = StatsService(db)
         game_history_service = GameHistoryService(db)

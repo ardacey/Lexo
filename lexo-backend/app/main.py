@@ -39,6 +39,12 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Database initialization failed: {e}")
         raise
 
+    # Safety check: prevent starting in production with permissive CORS
+    env = __import__('os').environ.get('ENVIRONMENT', 'development')
+    if env == 'production' and settings.api.cors_origins == ['*']:
+        logger.error('CORS_ORIGINS is set to "*" in production. This is insecure.')
+        raise RuntimeError('CORS_ORIGINS must be restricted in production')
+
 
     try:
         init_services()

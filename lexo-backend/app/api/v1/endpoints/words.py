@@ -4,6 +4,7 @@ from app.models.schemas import ValidateWordRequest, ValidateWordResponse
 from app.services.word_service import WordService
 from app.dependencies import get_word_service
 from app.core.logging import get_logger
+from app.api.dependencies.auth import AuthenticatedUser, get_current_user
 
 logger = get_logger(__name__)
 
@@ -14,7 +15,8 @@ router = APIRouter()
 @router.post("/validate", response_model=ValidateWordResponse)
 def validate_word(
     request: ValidateWordRequest,
-    word_service: WordService = Depends(get_word_service)
+    word_service: WordService = Depends(get_word_service),
+    _current_user: AuthenticatedUser = Depends(get_current_user)
 ) -> ValidateWordResponse:
     try:
         word = request.word.strip().lower()

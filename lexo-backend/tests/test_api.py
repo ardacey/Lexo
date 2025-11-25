@@ -4,6 +4,8 @@ Integration tests for API endpoints
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api.dependencies.auth import get_current_user
+
 
 class TestHealthEndpoint:
     """Tests for health check endpoint"""
@@ -85,3 +87,17 @@ class TestCORSHeaders:
         
         # Should allow CORS
         assert response.status_code in [200, 405]
+
+
+class TestAuthProtection:
+    """Ensure REST endpoints enforce Clerk auth"""
+
+    @pytest.mark.integration
+    def test_missing_authorization_header_returns_401(self, client: TestClient):
+        """Requests without Authorization header should be blocked."""
+        client.app.dependency_overrides.pop(get_current_user, None)
+
+        response = client.post("/api/v1/words/validate", json={"word": "test"})
+        assert response.status_code == 401
+        data = response.json()
+        assert data["error"] == "Authorization header missing"

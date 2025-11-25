@@ -1,6 +1,7 @@
 """
 Pytest configuration and shared fixtures
 """
+import os
 import pytest
 from typing import Generator
 from sqlalchemy import create_engine
@@ -13,6 +14,12 @@ from app.models.database import Base
 from app.database.session import get_db
 from app.services.word_service import WordService
 from app.core.config import settings
+from app.api.dependencies.auth import get_current_user
+
+os.environ[
+    "CORS_ORIGINS"
+] = "http://localhost:8081,http://localhost:19006,http://localhost:19000"
+os.environ["ENVIRONMENT"] = "development"
 
 
 # Test database URL
@@ -61,6 +68,9 @@ def client(db_session) -> Generator[TestClient, None, None]:
         finally:
             pass
     app.dependency_overrides[get_db] = override_get_db
+    async def override_get_current_user():
+        return {"clerk_id": "test_clerk_id", "claims": {"sub": "test_clerk_id"}}
+    app.dependency_overrides[get_current_user] = override_get_current_user
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

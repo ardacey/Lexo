@@ -26,10 +26,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     apiUrl: process.env.EXPO_PUBLIC_API_URL ?? base.extra?.apiUrl,
     wsUrl: process.env.EXPO_PUBLIC_WS_URL ?? base.extra?.wsUrl,
     clerkPublishableKey: process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? base.extra?.clerkPublishableKey,
-    eas: {
-      projectId: process.env.EAS_PROJECT_ID ?? base.extra?.eas?.projectId ?? '00000000-0000-0000-0000-000000000000',
-    },
-  };
+  } as Record<string, unknown>;
+
+  // Only include eas.projectId when it's explicitly set (avoid bundling a placeholder ID)
+  const easProjectId = process.env.EAS_PROJECT_ID ?? (base.extra as any)?.eas?.projectId;
+  if (easProjectId) {
+    extra.eas = { projectId: easProjectId } as unknown;
+  }
+  
 
   const updatesUrl = process.env.EXPO_UPDATES_URL ?? base.updates?.url;
 
