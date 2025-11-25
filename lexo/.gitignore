@@ -43,3 +43,6 @@ app-example
 # generated native folders
 /ios
 /android
+
+# credentials and secrets
+credentials/
