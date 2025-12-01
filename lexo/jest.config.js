@@ -10,9 +10,11 @@ module.exports = {
     '!**/node_modules/**',
     '!**/babel.config.js',
     '!**/jest.setup.js',
+    '!**/jest.env.js',
     '!**/generated/**',
   ],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
+  setupFiles: ['<rootDir>/jest.env.js'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testMatch: [
     '**/__tests__/**/*.[jt]s?(x)',
