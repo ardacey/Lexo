@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter , Link, Redirect } from 'expo-router';
+import { useRouter, Link } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Toast from 'react-native-toast-message';
 import { useAuth } from '../../context/AuthContext';
@@ -108,8 +108,19 @@ export default function Page() {
   }, [user, userInitialized, createUserMutation.isPending]);
 
   // Redirect to sign-in if not authenticated
-  if (!isLoading && !isSignedIn) {
-    return <Redirect href="/(auth)/sign-in" />;
+  useEffect(() => {
+    if (!isLoading && !isSignedIn) {
+      router.replace('/(auth)/sign-in');
+    }
+  }, [isLoading, isSignedIn, router]);
+
+  // Show loading while checking auth
+  if (isLoading || !isSignedIn) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' }}>
+        <ActivityIndicator size="large" color="#667eea" />
+      </View>
+    );
   }
 
   const handleMultiplayer = () => {
