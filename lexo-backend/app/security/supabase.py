@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 from datetime import datetime, timedelta
 from typing import Any, Dict
@@ -51,11 +52,17 @@ async def verify_supabase_jwt(token: str) -> Dict[str, Any]:
     jwt_secret = _get_jwt_secret()
     
     try:
-        # Supabase uses HS256 algorithm with JWT secret
+        # First, decode header to check the algorithm
+        unverified_header = jwt.get_unverified_header(token)
+        algorithm = unverified_header.get("alg", "HS256")
+        
+        logger.debug(f"Token algorithm: {algorithm}")
+        
+        # Supabase uses HS256 with JWT secret
         payload = jwt.decode(
             token,
             jwt_secret,
-            algorithms=["HS256"],
+            algorithms=[algorithm, "HS256"],
             options={
                 "require": ["exp", "sub"],
                 "verify_exp": True,

@@ -12,6 +12,7 @@ import {
   LeaderboardEntry,
   SaveGameData,
 } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 // Query key factory - daha organize ve type-safe
 export const queryKeys = {
@@ -43,27 +44,34 @@ export const useValidateWord = () => {
 
 export const useCreateUser = () => {
   const queryClient = useQueryClient();
+  const { getToken } = useAuth();
   
   return useMutation<any, Error, { userId: string; username: string; email?: string }>({
-    mutationFn: ({ userId, username, email }) => createUser(userId, username, email),
+    mutationFn: async ({ userId, username, email }) => {
+      const token = await getToken();
+      return createUser(userId, username, email, token ?? undefined);
+    },
     onSuccess: (data, variables) => {
       // Yeni kullanıcı oluşturulduğunda stats'ı invalidate et
       queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.userId) });
     },
-    onError: (error: any) => {
-      // Kullanıcı zaten varsa hata fırlatma (sessizce geç)
-      if (error?.message?.includes('already exists') || error?.response?.status === 409) {
-        return;
-      }
-    },
     retry: false,
+    // Global hata handler'ı devre dışı bırak - hatalar sessizce handle edilecek
+    meta: {
+      skipGlobalErrorHandler: true,
+    },
   });
 };
 
 export const useUserStats = (userId: string | null, enabled: boolean = true) => {
+  const { getToken } = useAuth();
+  
   return useQuery<UserStats | null, Error>({
     queryKey: queryKeys.users.stats(userId || ''),
-    queryFn: () => getUserStats(userId!),
+    queryFn: async () => {
+      const token = await getToken();
+      return getUserStats(userId!, token ?? undefined);
+    },
     enabled: enabled && !!userId,
     staleTime: 1000 * 60 * 5, // 5 dakika
     retry: false,
@@ -71,18 +79,28 @@ export const useUserStats = (userId: string | null, enabled: boolean = true) => 
 };
 
 export const useUserGames = (userId: string | null, limit: number = 10, enabled: boolean = true) => {
+  const { getToken } = useAuth();
+  
   return useQuery<GameHistory[], Error>({
     queryKey: queryKeys.users.games(userId || '', limit),
-    queryFn: () => getUserGames(userId!, limit),
+    queryFn: async () => {
+      const token = await getToken();
+      return getUserGames(userId!, limit, token ?? undefined);
+    },
     enabled: enabled && !!userId,
     staleTime: 1000 * 60 * 2, // 2 dakika
   });
 };
 
 export const useLeaderboard = (limit: number = 100, enabled: boolean = true) => {
+  const { getToken } = useAuth();
+  
   return useQuery<LeaderboardEntry[], Error>({
     queryKey: queryKeys.leaderboard.list(limit),
-    queryFn: () => getLeaderboard(limit),
+    queryFn: async () => {
+      const token = await getToken();
+      return getLeaderboard(limit, token ?? undefined);
+    },
     enabled,
     staleTime: 1000 * 60 * 5, // 5 dakika
   });
@@ -90,9 +108,13 @@ export const useLeaderboard = (limit: number = 100, enabled: boolean = true) => 
 
 export const useSaveGame = () => {
   const queryClient = useQueryClient();
+  const { getToken } = useAuth();
   
   return useMutation<any, Error, SaveGameData>({
-    mutationFn: (gameData: SaveGameData) => saveGame(gameData),
+    mutationFn: async (gameData: SaveGameData) => {
+      const token = await getToken();
+      return saveGame(gameData, token ?? undefined);
+    },
     onSuccess: (data, variables) => {
       // Her iki oyuncunun da verilerini invalidate et
       queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.player1_user_id) });

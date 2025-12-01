@@ -98,13 +98,18 @@ export const validateWord = async (word: string): Promise<ValidateWordResponse> 
   }
 };
 
-export const createUser = async (userId: string, username: string, email?: string) => {
+export const createUser = async (userId: string, username: string, email?: string, token?: string) => {
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(API_ENDPOINTS.createUser, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({ user_id: userId, username, email }),
     });
 
@@ -129,13 +134,18 @@ export const createUser = async (userId: string, username: string, email?: strin
   }
 };
 
-export const getUserStats = async (userId: string): Promise<UserStats | null> => {
+export const getUserStats = async (userId: string, token?: string): Promise<UserStats | null> => {
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(API_ENDPOINTS.getUserStats(userId), {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
 
     if (!response.ok) {
@@ -150,13 +160,18 @@ export const getUserStats = async (userId: string): Promise<UserStats | null> =>
   }
 };
 
-export const getUserGames = async (userId: string, limit: number = 10): Promise<GameHistory[]> => {
+export const getUserGames = async (userId: string, limit: number = 10, token?: string): Promise<GameHistory[]> => {
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(API_ENDPOINTS.getUserGames(userId, limit), {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
 
     if (!response.ok) {
@@ -171,9 +186,14 @@ export const getUserGames = async (userId: string, limit: number = 10): Promise<
   }
 };
 
-export const getLeaderboard = async (limit: number = 100): Promise<LeaderboardEntry[]> => {
+export const getLeaderboard = async (limit: number = 100, token?: string): Promise<LeaderboardEntry[]> => {
   try {
-    const response = await fetch(API_ENDPOINTS.getLeaderboard(limit));
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(API_ENDPOINTS.getLeaderboard(limit), { headers });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -186,13 +206,18 @@ export const getLeaderboard = async (limit: number = 100): Promise<LeaderboardEn
   }
 };
 
-export const saveGame = async (gameData: SaveGameData) => {
+export const saveGame = async (gameData: SaveGameData, token?: string) => {
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(API_ENDPOINTS.saveGame, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(gameData),
     });
 

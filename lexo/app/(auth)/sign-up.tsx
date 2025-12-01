@@ -50,16 +50,16 @@ export default function SignUpScreen() {
 
     setIsSubmitting(true)
     try {
-      const { error, needsVerification } = await signUp(emailAddress, password, username)
+      const { error } = await signUp(emailAddress, password, username)
 
       if (error) {
         showToast(getErrorMessage(error), 'error')
-      } else if (needsVerification) {
-        showToast('Doğrulama kodu e-postanıza gönderildi', 'success')
-        router.replace({ pathname: '/(auth)/verify-email', params: { email: emailAddress } })
       } else {
         showToast('Kayıt başarılı!', 'success')
-        router.replace('/(home)')
+        // Küçük bir delay ile navigate et
+        setTimeout(() => {
+          router.replace('/(home)')
+        }, 500)
       }
     } catch (err: unknown) {
       showToast(getErrorMessage(err as Error), 'error')

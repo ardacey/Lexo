@@ -8,11 +8,9 @@ interface AuthContextType {
   isLoading: boolean;
   isSignedIn: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null; needsVerification?: boolean }>;
+  signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   getToken: () => Promise<string | null>;
-  verifyOtp: (email: string, token: string) => Promise<{ error: Error | null }>;
-  resendVerification: (email: string) => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -85,11 +83,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: new Error(error.message) };
       }
       
-      // Check if email confirmation is required
-      if (data.user && !data.session) {
-        return { error: null, needsVerification: true };
-      }
-      
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -105,41 +98,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return session?.access_token ?? null;
   }, []);
 
-  const verifyOtp = useCallback(async (email: string, token: string) => {
-    try {
-      const { error } = await supabase.auth.verifyOtp({
-        email,
-        token,
-        type: 'signup',
-      });
-      
-      if (error) {
-        return { error: new Error(error.message) };
-      }
-      
-      return { error: null };
-    } catch (error) {
-      return { error: error as Error };
-    }
-  }, []);
-
-  const resendVerification = useCallback(async (email: string) => {
-    try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email,
-      });
-      
-      if (error) {
-        return { error: new Error(error.message) };
-      }
-      
-      return { error: null };
-    } catch (error) {
-      return { error: error as Error };
-    }
-  }, []);
-
   const value = {
     session,
     user,
@@ -149,8 +107,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signUp,
     signOut,
     getToken,
-    verifyOtp,
-    resendVerification,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

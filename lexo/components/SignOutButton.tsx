@@ -1,14 +1,16 @@
 import { useAuth } from '../context/AuthContext'
-import * as Linking from 'expo-linking'
+import { useRouter } from 'expo-router'
 import React from 'react'
 import { Text, TouchableOpacity, View, StyleSheet } from 'react-native'
 
 export const SignOutButton = () => {
   const { signOut } = useAuth()
+  const router = useRouter()
+  
   const handleSignOut = async () => {
     try {
       await signOut()
-      Linking.openURL(Linking.createURL('/'))
+      router.replace('/(auth)/sign-in')
     } catch {
       // Silent sign out error
     }

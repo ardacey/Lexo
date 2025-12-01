@@ -1,83 +1,15 @@
 import "../global.css";
-import { Stack, useRouter } from 'expo-router';
-import React, { useState, useEffect } from 'react';
+import { Stack } from 'expo-router';
+import React, { useState } from 'react';
 import { AuthProvider } from '../context/AuthContext';
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { Platform } from 'react-native';
 import { ToastProvider, useToast } from '../context/ToastContext';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { getErrorMessage } from '../utils/errorMessages';
-import * as Linking from 'expo-linking';
-import { supabase } from '../utils/supabase';
 
 function AppContent() {
   const { showToast } = useToast();
-  const router = useRouter();
-
-  // Handle deep links for Supabase auth
-  useEffect(() => {
-    const handleDeepLink = async (url: string) => {
-      // Parse the URL to extract tokens
-      const parsedUrl = Linking.parse(url);
-      
-      // Check if this is an auth callback
-      if (parsedUrl.queryParams) {
-        const { access_token, refresh_token, token, type, error, error_description } = parsedUrl.queryParams as {
-          access_token?: string;
-          refresh_token?: string;
-          token?: string;
-          type?: string;
-          error?: string;
-          error_description?: string;
-        };
-
-        // Handle error
-        if (error) {
-          const errorMsg = error_description?.replace(/\+/g, ' ') || 'Doğrulama hatası';
-          showToast(errorMsg, 'error');
-          return;
-        }
-
-        // Handle token-based verification (from email link)
-        if (access_token && refresh_token) {
-          try {
-            const { error: sessionError } = await supabase.auth.setSession({
-              access_token,
-              refresh_token,
-            });
-
-            if (sessionError) {
-              showToast(sessionError.message, 'error');
-            } else {
-              showToast('E-posta doğrulandı!', 'success');
-              router.replace('/(home)');
-            }
-          } catch (err) {
-            showToast('Doğrulama sırasında bir hata oluştu', 'error');
-          }
-        }
-      }
-    };
-
-    // Handle the initial URL (app opened via deep link)
-    const getInitialURL = async () => {
-      const initialUrl = await Linking.getInitialURL();
-      if (initialUrl) {
-        handleDeepLink(initialUrl);
-      }
-    };
-
-    getInitialURL();
-
-    // Listen for incoming links while app is open
-    const subscription = Linking.addEventListener('url', (event) => {
-      handleDeepLink(event.url);
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, []);
 
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
@@ -106,7 +38,11 @@ function AppContent() {
       },
     }),
     mutationCache: new MutationCache({
-      onError: (error: Error) => {
+      onError: (error: Error, _variables, _context, mutation) => {
+        // skipGlobalErrorHandler meta flag'i varsa toast gösterme
+        if (mutation.meta?.skipGlobalErrorHandler) {
+          return;
+        }
         showToast(getErrorMessage(error), 'error');
       },
     }),
@@ -116,6 +52,7 @@ function AppContent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(home)" />
         </Stack>
