@@ -58,11 +58,31 @@ export default function Page() {
     stats: new Animated.Value(1),
   });
 
-  // Redirect to sign-in if not authenticated
-  if (!isLoading && !isSignedIn) {
-    return <Redirect href="/(auth)/sign-in" />;
-  }
+  const checkForActiveGame = async (username: string) => {
+    try {
+      const gameData = await AsyncStorage.getItem('activeGame');
+      if (gameData) {
+        const game = JSON.parse(gameData);
+        const startTime = new Date(game.startTime);
+        const now = new Date();
+        const elapsed = (now.getTime() - startTime.getTime()) / 1000;
+        const remaining = game.duration - elapsed;
 
+        if (remaining > 0) {
+          router.push({
+            pathname: '/multiplayer',
+            params: { username, reconnect: 'true' }
+          });
+        } else {
+          await AsyncStorage.removeItem('activeGame');
+        }
+      }
+    } catch {
+      // Silent error
+    }
+  };
+
+  // Initialize user on mount
   useEffect(() => {
     if (user && !userInitialized && !createUserMutation.isPending) {
       const username = user.user_metadata?.username || user.email?.split('@')[0] || 'Player';
@@ -87,29 +107,10 @@ export default function Page() {
     }
   }, [user, userInitialized, createUserMutation.isPending]);
 
-    const checkForActiveGame = async (username: string) => {
-    try {
-      const gameData = await AsyncStorage.getItem('activeGame');
-      if (gameData) {
-        const game = JSON.parse(gameData);
-        const startTime = new Date(game.startTime);
-        const now = new Date();
-        const elapsed = (now.getTime() - startTime.getTime()) / 1000;
-        const remaining = game.duration - elapsed;
-
-        if (remaining > 0) {
-          router.push({
-            pathname: '/multiplayer',
-            params: { username, reconnect: 'true' }
-          });
-        } else {
-          await AsyncStorage.removeItem('activeGame');
-        }
-      }
-    } catch {
-      // Silent error
-    }
-  };
+  // Redirect to sign-in if not authenticated
+  if (!isLoading && !isSignedIn) {
+    return <Redirect href="/(auth)/sign-in" />;
+  }
 
   const handleMultiplayer = () => {
     const username = user?.user_metadata?.username || user?.email?.split('@')[0] || 'Player';

@@ -101,7 +101,7 @@ export default function SignUpScreen() {
                 </LinearGradient>
               </View>
               <Text style={styles.title}>Hesap Oluştur</Text>
-              <Text style={styles.subtitle}>Lexo'ya katıl ve oynamaya başla!</Text>
+              <Text style={styles.subtitle}>Lexo&apos;ya katıl ve oynamaya başla!</Text>
             </View>
 
             {/* Form */}
