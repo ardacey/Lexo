@@ -152,7 +152,7 @@ export default function Page() {
             {/* Sign Up Link */}
             <View style={styles.footer}>
               <Text style={styles.footerText}>Hesabın yok mu? </Text>
-              <Link href="/sign-up" asChild>
+              <Link href="/(auth)/sign-up" asChild>
                 <TouchableOpacity>
                   <Text style={styles.linkText}>Kayıt Ol</Text>
                 </TouchableOpacity>

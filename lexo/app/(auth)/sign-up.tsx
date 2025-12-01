@@ -177,7 +177,7 @@ export default function SignUpScreen() {
             {/* Sign In Link */}
             <View style={styles.footer}>
               <Text style={styles.footerText}>Zaten hesabın var mı? </Text>
-              <Link href="/sign-in" asChild>
+              <Link href="/(auth)/sign-in" asChild>
                 <TouchableOpacity>
                   <Text style={styles.linkText}>Giriş Yap</Text>
                 </TouchableOpacity>
