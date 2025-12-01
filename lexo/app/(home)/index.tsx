@@ -107,15 +107,8 @@ export default function Page() {
     }
   }, [user, userInitialized, createUserMutation.isPending]);
 
-  // Redirect to sign-in if not authenticated
-  useEffect(() => {
-    if (!isLoading && !isSignedIn) {
-      router.replace('/(auth)/sign-in');
-    }
-  }, [isLoading, isSignedIn, router]);
-
-  // Show loading while checking auth
-  if (isLoading || !isSignedIn) {
+  // Show loading while initializing
+  if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' }}>
         <ActivityIndicator size="large" color="#667eea" />
