@@ -10,7 +10,7 @@ from app.models.database import User, UserStats
 class TestUserRepository:
     """Test suite for UserRepository"""
     
-    def test_get_by_supabase_id(self, db_session):
+    def test_get_by_supabase_user_id(self, db_session):
         """Test getting user by supabase_user_id"""
         repo = UserRepository(db_session)
         
@@ -29,14 +29,14 @@ class TestUserRepository:
         
         
         # Get by supabase_user_id
-        found_user = repo.get_by_supabase_id("test_user_123")
+        found_user = repo.get_by_supabase_user_id("test_user_123")
         
         assert found_user is not None
         assert found_user.supabase_user_id == "test_user_123"
         assert found_user.username == "testuser"
         assert found_user.email == "test@example.com"
     
-    def test_get_by_supabase_id_not_found(self, db_session):
+    def test_get_by_supabase_user_id_not_found(self, db_session):
         """Test getting user by supabase_user_id that doesn't exist"""
         repo = UserRepository(db_session)
         
@@ -45,11 +45,11 @@ class TestUserRepository:
         db_session.commit()
         
         
-        found_user = repo.get_by_supabase_id("nonexistent_user")
+        found_user = repo.get_by_supabase_user_id("nonexistent_user")
         
         assert found_user is None
     
-    def test_get_by_supabase_id_with_stats(self, db_session):
+    def test_get_by_supabase_user_id_with_stats(self, db_session):
         """Test getting user with eager-loaded stats"""
         repo = UserRepository(db_session)
         
@@ -82,7 +82,7 @@ class TestUserRepository:
         db_session.commit()
         
         # Get with stats
-        found_user = repo.get_by_supabase_id("test_user_456", with_stats=True)
+        found_user = repo.get_by_supabase_user_id("test_user_456", with_stats=True)
         
         assert found_user is not None
         assert found_user.username == "statuser"
@@ -262,7 +262,7 @@ class TestUserRepository:
         assert new_user.created_at is not None
         
         # Verify it's in the database
-        found_user = repo.get_by_supabase_id("new_supabase_user")
+        found_user = repo.get_by_supabase_user_id("new_supabase_user")
         assert found_user is not None
         assert found_user.username == "newuser"
     
@@ -368,6 +368,6 @@ class TestUserRepository:
         assert user.email == "brandnew@test.com"
         
         # Verify in database
-        found_user = repo.get_by_supabase_id("brand_new_supabase_user")
+        found_user = repo.get_by_supabase_user_id("brand_new_supabase_user")
         assert found_user is not None
         assert found_user.username == "brandnew"
