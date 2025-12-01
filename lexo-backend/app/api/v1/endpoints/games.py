@@ -15,21 +15,21 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/users/{clerk_id}/games", response_model=dict)
+@router.get("/users/{user_id}/games", response_model=dict)
 def get_user_games(
-    clerk_id: str,
+    user_id: str,
     limit: int = 10,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
-        if current_user["clerk_id"] != clerk_id:
+        if current_user["user_id"] != user_id:
             raise HTTPException(status_code=403, detail="Forbidden")
 
         user_service = UserService(db)
         game_history_service = GameHistoryService(db)
         
-        user = user_service.get_user_by_clerk_id(clerk_id)
+        user = user_service.get_user_by_supabase_id(user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -45,7 +45,7 @@ def get_user_games(
                     winner = game.player1
                 else:
                     winner = game.player2
-                won = winner.clerk_id == clerk_id
+                won = winner.supabase_user_id == user_id
             
             opponent = game.player2 if game.player1_id == user.id else game.player1
             
@@ -88,15 +88,15 @@ def save_game(
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
-        if current_user["clerk_id"] not in {request.player1_clerk_id, request.player2_clerk_id}:
+        if current_user["user_id"] not in {request.player1_user_id, request.player2_user_id}:
             raise HTTPException(status_code=403, detail="Not authorized to save this game")
 
         user_service = UserService(db)
         stats_service = StatsService(db)
         game_history_service = GameHistoryService(db)
         
-        player1 = user_service.get_user_by_clerk_id(request.player1_clerk_id)
-        player2 = user_service.get_user_by_clerk_id(request.player2_clerk_id)
+        player1 = user_service.get_user_by_supabase_id(request.player1_user_id)
+        player2 = user_service.get_user_by_supabase_id(request.player2_user_id)
         
         if not player1:
             raise HTTPException(status_code=404, detail="Player 1 not found")
@@ -104,8 +104,8 @@ def save_game(
             raise HTTPException(status_code=404, detail="Player 2 not found")
         
         winner_id = None
-        if request.winner_clerk_id:
-            winner = user_service.get_user_by_clerk_id(request.winner_clerk_id)
+        if request.winner_user_id:
+            winner = user_service.get_user_by_supabase_id(request.winner_user_id)
             if winner:
                 winner_id = winner.id
         

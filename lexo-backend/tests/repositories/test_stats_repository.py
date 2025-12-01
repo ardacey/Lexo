@@ -264,7 +264,7 @@ class TestStatsRepository:
             username = f"player_{unique_id}"
             player_names.append((username, wins))
             user = User(
-                clerk_id=f"clerk_{unique_id}",
+                user_id=f"user_{unique_id}",
                 username=username,
                 email=f"user_{unique_id}@test.com"
             )
@@ -308,7 +308,7 @@ class TestStatsRepository:
         for i in range(5):
             unique_id = uuid.uuid4().hex[:8]
             user = User(
-                clerk_id=f"clerk_{unique_id}",
+                user_id=f"user_{unique_id}",
                 username=f"player_{unique_id}",
                 email=f"user_{unique_id}@test.com"
             )
@@ -350,7 +350,7 @@ class TestStatsRepository:
         # Create a user
         unique_id = uuid.uuid4().hex[:8]
         user = User(
-            clerk_id=f"clerk_{unique_id}",
+            user_id=f"user_{unique_id}",
             username=f"player_{unique_id}",
             email=f"user_{unique_id}@test.com"
         )
@@ -398,7 +398,7 @@ class TestStatsRepository:
         for i in range(5):
             unique_id = uuid.uuid4().hex[:8]
             user = User(
-                clerk_id=f"clerk_rank_{unique_id}",
+                user_id=f"user_rank_{unique_id}",
                 username=f"ranker_{unique_id}",
                 email=f"rank_{unique_id}@test.com"
             )

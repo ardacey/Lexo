@@ -37,13 +37,13 @@ class GameWebSocketHandler:
     async def handle_connection(self, websocket: WebSocket):
         await websocket.accept()
         player = None
-        clerk_id = None
+        user_id = None
         
         try:
             # Authenticate the WebSocket connection
             try:
                 user_data = await authenticate_websocket(websocket)
-                clerk_id = user_data["clerk_id"]
+                user_id = user_data["user_id"]
                 username = user_data.get("username", "Player")
                 is_reconnect = user_data.get("is_reconnect", False)
             except WebSocketAuthError as e:
@@ -57,19 +57,19 @@ class GameWebSocketHandler:
                 return
             
             # Initialize rate limiter for this user
-            if clerk_id not in self.rate_limiters:
-                self.rate_limiters[clerk_id] = RateLimiter()
+            if user_id not in self.rate_limiters:
+                self.rate_limiters[user_id] = RateLimiter()
             
             # Use data from authentication
             # No need to receive another message since authenticate_websocket already got it
             
-            existing_room = self.matchmaking_service.get_room_by_player(clerk_id)
+            existing_room = self.matchmaking_service.get_room_by_player(user_id)
             if existing_room and existing_room.game_started and not existing_room.game_ended:
-                logger.info(f"Player {clerk_id} reconnecting to existing game {existing_room.id}")
+                logger.info(f"Player {user_id} reconnecting to existing game {existing_room.id}")
                 
                 time_remaining = existing_room.get_time_remaining()
                 if time_remaining and time_remaining > 0:
-                    existing_player = existing_room.get_player(clerk_id)
+                    existing_player = existing_room.get_player(user_id)
                     if existing_player:
                         existing_player.websocket = websocket
                         existing_player.connected = True
@@ -81,7 +81,7 @@ class GameWebSocketHandler:
                             "type": "reconnected",
                             "room_id": existing_room.id,
                             "opponent": opponent.username,
-                            "opponent_clerk_id": opponent.id,
+                            "opponent_user_id": opponent.id,
                             "letter_pool": existing_room.letter_pool,
                             "scores": existing_room.get_scores(),
                             "time_remaining": time_remaining,
@@ -98,10 +98,10 @@ class GameWebSocketHandler:
                             except Exception as e:
                                 logger.error(f"Error notifying opponent of reconnection: {e}")
                         
-                        logger.info(f"Player {clerk_id} successfully reconnected to game {existing_room.id}")
+                        logger.info(f"Player {user_id} successfully reconnected to game {existing_room.id}")
                         player = existing_player
                     else:
-                        logger.error(f"Could not find player {clerk_id} in room {existing_room.id}")
+                        logger.error(f"Could not find player {user_id} in room {existing_room.id}")
                 else:
                     logger.info(f"Game {existing_room.id} time expired, cleaning up")
                     existing_room.end_game()
@@ -114,13 +114,13 @@ class GameWebSocketHandler:
                     await websocket.close()
                     return
             else:
-                player = Player(clerk_id, username, websocket)
+                player = Player(user_id, username, websocket)
                 queue_position = self.matchmaking_service.add_to_queue(player)
                 
                 await websocket.send_json({
                     "type": "queue_joined",
                     "message": "Oyun aranıyor...",
-                    "player_id": clerk_id,
+                    "player_id": user_id,
                     "queue_position": queue_position
                 })
                 
@@ -138,7 +138,7 @@ class GameWebSocketHandler:
                     # Validate message structure
                     is_valid = validate_message(data)
                     if not is_valid:
-                        logger.warning(f"Invalid message from {clerk_id}: {data}")
+                        logger.warning(f"Invalid message from {user_id}: {data}")
                         await send_error_response(
                             websocket,
                             "invalid_message",
@@ -147,9 +147,9 @@ class GameWebSocketHandler:
                         continue
                     
                     # Check rate limit
-                    rate_limiter = self.rate_limiters.get(clerk_id)
-                    if rate_limiter and not rate_limiter.is_allowed(clerk_id):
-                        logger.warning(f"Rate limit exceeded for {clerk_id}")
+                    rate_limiter = self.rate_limiters.get(user_id)
+                    if rate_limiter and not rate_limiter.is_allowed(user_id):
+                        logger.warning(f"Rate limit exceeded for {user_id}")
                         await send_error_response(
                             websocket,
                             "rate_limit_exceeded",
@@ -163,11 +163,11 @@ class GameWebSocketHandler:
                     
                     if message_type == "submit_word":
                         await self._handle_word_submission(
-                            websocket, clerk_id, data, username
+                            websocket, user_id, data, username
                         )
                     elif message_type == "send_emoji":
                         await self._handle_emoji_message(
-                            websocket, clerk_id, data, username
+                            websocket, user_id, data, username
                         )
                     elif message_type == "ping":
                         await websocket.send_json({"type": "pong"})
@@ -176,34 +176,34 @@ class GameWebSocketHandler:
                     try:
                         await websocket.send_json({"type": "ping"})
                     except:
-                        logger.warning(f"Client {clerk_id} not responding to ping")
+                        logger.warning(f"Client {user_id} not responding to ping")
                         break
                 except WebSocketDisconnect:
-                    logger.info(f"Client {clerk_id} disconnected normally")
+                    logger.info(f"Client {user_id} disconnected normally")
                     break
                 except Exception as e:
-                    logger.error(f"Error processing message from {clerk_id}: {e}")
+                    logger.error(f"Error processing message from {user_id}: {e}")
                     break
         
         except WebSocketDisconnect:
-            logger.info(f"Player {clerk_id if player else 'unknown'} disconnected")
+            logger.info(f"Player {user_id if player else 'unknown'} disconnected")
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
         finally:
-            await self._handle_disconnect(player, clerk_id if player else None)
+            await self._handle_disconnect(player, user_id if player else None)
     
     async def _handle_match_found(self, room: GameRoom):
         match_message_p1 = {
             "type": "match_found",
             "room_id": room.id,
             "opponent": room.player2.username,
-            "opponent_clerk_id": room.player2.id
+            "opponent_user_id": room.player2.id
         }
         match_message_p2 = {
             "type": "match_found",
             "room_id": room.id,
             "opponent": room.player1.username,
-            "opponent_clerk_id": room.player1.id
+            "opponent_user_id": room.player1.id
         }
         
         await room.player1.websocket.send_json(match_message_p1)
@@ -416,8 +416,8 @@ class GameWebSocketHandler:
                 stats_service = StatsService(db)
                 game_history_service = GameHistoryService(db)
 
-                player1 = user_service.get_user_by_clerk_id(room.player1.id)
-                player2 = user_service.get_user_by_clerk_id(room.player2.id)
+                player1 = user_service.get_user_by_supabase_id(room.player1.id)
+                player2 = user_service.get_user_by_supabase_id(room.player2.id)
                 
                 if not player1 or not player2:
                     logger.error(f"Cannot save game {room.id}: Player not found in database")

@@ -51,7 +51,6 @@
       "environment": "development",
       "apiUrl": "https://lexo-production.up.railway.app",
       "wsUrl": "wss://lexo-production.up.railway.app",
-      "clerkPublishableKey": "pk_live_ZnVsbC1zZWFndWxsLTgzLmNsZXJrLmFjY291bnRzLmRldiQ",
       "router": {},
       "eas": {
         "projectId": "04e02cd6-3815-4543-889c-0dd47b7bb2b5"

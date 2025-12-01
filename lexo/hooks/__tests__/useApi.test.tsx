@@ -84,7 +84,7 @@ describe('useApi hooks', () => {
 
   describe('useCreateUser', () => {
     it('creates a user successfully', async () => {
-      const mockUser = { id: 1, clerk_id: 'user_123', username: 'testuser' };
+      const mockUser = { id: 1, user_id: 'user_123', username: 'testuser' };
       mockCreateUser.mockResolvedValue(mockUser);
 
       const { result } = renderHook(() => useCreateUser(), {
@@ -92,7 +92,7 @@ describe('useApi hooks', () => {
       });
 
       result.current.mutate({
-        clerkId: 'user_123',
+        userId: 'user_123',
         username: 'testuser',
         email: 'test@example.com',
       });
@@ -114,7 +114,7 @@ describe('useApi hooks', () => {
       });
 
       result.current.mutate({
-        clerkId: 'user_123',
+        userId: 'user_123',
         username: 'testuser',
       });
 
@@ -158,7 +158,7 @@ describe('useApi hooks', () => {
       expect(result.current.data).toEqual(mockStats);
     });
 
-    it('does not fetch when clerkId is null', () => {
+    it('does not fetch when userId is null', () => {
       const { result } = renderHook(() => useUserStats(null), {
         wrapper: createWrapper(),
       });
@@ -232,7 +232,7 @@ describe('useApi hooks', () => {
       expect(result.current.data).toEqual(mockGames);
     });
 
-    it('does not fetch when clerkId is null', () => {
+    it('does not fetch when userId is null', () => {
       const { result } = renderHook(() => useUserGames(null, 10), {
         wrapper: createWrapper(),
       });
@@ -313,13 +313,13 @@ describe('useApi hooks', () => {
 
       const gameData: api.SaveGameData = {
         room_id: 'room_123',
-        player1_clerk_id: 'user_123',
-        player2_clerk_id: 'user_456',
+        player1_user_id: 'user_123',
+        player2_user_id: 'user_456',
         player1_score: 50,
         player2_score: 35,
         player1_words: ['word1', 'word2'],
         player2_words: ['word3'],
-        winner_clerk_id: 'user_123',
+        winner_user_id: 'user_123',
         duration: 300,
         letter_pool: ['A', 'B', 'C', 'D', 'E'],
         started_at: '2024-01-01T00:00:00Z',
@@ -346,13 +346,13 @@ describe('useApi hooks', () => {
 
       const gameData: api.SaveGameData = {
         room_id: 'room_123',
-        player1_clerk_id: 'user_123',
-        player2_clerk_id: 'user_456',
+        player1_user_id: 'user_123',
+        player2_user_id: 'user_456',
         player1_score: 50,
         player2_score: 35,
         player1_words: ['word1'],
         player2_words: ['word2'],
-        winner_clerk_id: 'user_123',
+        winner_user_id: 'user_123',
         duration: 300,
         letter_pool: ['A', 'B', 'C'],
         started_at: '2024-01-01T00:00:00Z',
@@ -371,18 +371,18 @@ describe('useApi hooks', () => {
 
   describe('queryKeys', () => {
     it('generates correct userStats key', () => {
-      const key = queryKeys.userStats('user_123');
-      expect(key).toEqual(['userStats', 'user_123']);
+      const key = queryKeys.users.stats('user_123');
+      expect(key).toEqual(['lexo', 'users', 'stats', 'user_123']);
     });
 
     it('generates correct userGames key', () => {
-      const key = queryKeys.userGames('user_123', 10);
-      expect(key).toEqual(['userGames', 'user_123', 10]);
+      const key = queryKeys.users.games('user_123', 10);
+      expect(key).toEqual(['lexo', 'users', 'games', 'user_123', 10]);
     });
 
     it('generates correct leaderboard key', () => {
-      const key = queryKeys.leaderboard(10);
-      expect(key).toEqual(['leaderboard', 10]);
+      const key = queryKeys.leaderboard.list(10);
+      expect(key).toEqual(['lexo', 'leaderboard', 10]);
     });
   });
 });

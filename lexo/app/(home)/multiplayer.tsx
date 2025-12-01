@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Toast from 'react-native-toast-message';
-import { useUser } from '@clerk/clerk-expo';
+import { useAuth } from '../../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WS_BASE_URL } from '../../utils/constants';
 import { useCreateUser, useSaveGame } from '@/hooks/useApi';
@@ -48,7 +48,7 @@ export default function Multiplayer() {
   const params = useLocalSearchParams();
   const username = params.username as string || 'Player';
   const isReconnecting = params.reconnect === 'true';
-  const { user } = useUser();
+  const { user, getToken } = useAuth();
 
   const createUserMutation = useCreateUser();
   const _saveGameMutation = useSaveGame();
@@ -64,7 +64,7 @@ export default function Multiplayer() {
   const [timeLeft, setTimeLeft] = useState(60);
   const [_gameDuration, setGameDuration] = useState(60);
   const [opponent, setOpponent] = useState('');
-  const [_opponentClerkId, setOpponentClerkId] = useState('');
+  const [_opponentUserId, setOpponentUserId] = useState('');
   const [_roomId, setRoomId] = useState('');
   const [_playerId, setPlayerId] = useState('');
   const [_winner, setWinner] = useState<string | null>(null);
@@ -91,7 +91,7 @@ export default function Multiplayer() {
     startTime: null as Date | null,
     roomId: '',
     opponent: '',
-    opponentClerkId: '',
+    opponentUserId: '',
     initialLetterPool: [] as string[],
     myWords: [] as Word[],
     opponentWords: [] as Word[],
@@ -130,9 +130,9 @@ export default function Multiplayer() {
     isMounted.current = true;
     if (user && !createUserMutation.isPending && !createUserMutation.isSuccess) {
       createUserMutation.mutate({
-        clerkId: user.id,
+        userId: user.id,
         username,
-        email: user.primaryEmailAddress?.emailAddress
+        email: user.email
       });
     }
     
@@ -184,13 +184,19 @@ export default function Multiplayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeLeft]);
 
-  const reconnectToGame = () => {
+  const reconnectToGame = async () => {
     if (!user) {
       Alert.alert('Hata', 'Kullanıcı bilgisi bulunamadı');
       return;
     }
     
     try {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert('Hata', 'Oturum süresi dolmuş');
+        return;
+      }
+      
       setGameState('matched');
       const websocket = new WebSocket(`${WS_BASE_URL}/ws/queue`);
       wsRef.current = websocket;
@@ -198,7 +204,7 @@ export default function Multiplayer() {
       websocket.onopen = () => {
         websocket.send(JSON.stringify({ 
           username,
-          clerk_id: user.id,
+          token,
           is_reconnect: true
         }));
       };
@@ -230,20 +236,26 @@ export default function Multiplayer() {
     }
   };
 
-  const connectToQueue = () => {
+  const connectToQueue = async () => {
     if (!user) {
       Alert.alert('Hata', 'Kullanıcı bilgisi bulunamadı');
       return;
     }
     
     try {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert('Hata', 'Oturum süresi dolmuş');
+        return;
+      }
+      
       const websocket = new WebSocket(`${WS_BASE_URL}/ws/queue`);
       wsRef.current = websocket;
       
       websocket.onopen = () => {
         const payload = { 
           username,
-          clerk_id: user.id,
+          token,
           is_reconnect: false
         };
         websocket.send(JSON.stringify(payload));
@@ -286,10 +298,10 @@ export default function Multiplayer() {
       case 'match_found':
         setRoomId(data.room_id);
         setOpponent(data.opponent);
-        setOpponentClerkId(data.opponent_clerk_id);
+        setOpponentUserId(data.opponent_user_id);
         gameDataRef.current.roomId = data.room_id;
         gameDataRef.current.opponent = data.opponent;
-        gameDataRef.current.opponentClerkId = data.opponent_clerk_id;
+        gameDataRef.current.opponentUserId = data.opponent_user_id;
         setGameState('matched');
         Toast.show({
           type: 'success',
@@ -320,7 +332,7 @@ export default function Multiplayer() {
         saveActiveGameToStorage({
           roomId: gameDataRef.current.roomId,
           opponent: gameDataRef.current.opponent,
-          opponentClerkId: gameDataRef.current.opponentClerkId,
+          opponentUserId: gameDataRef.current.opponentUserId,
           startTime: startTime.toISOString(),
           duration: data.duration,
         });
@@ -457,7 +469,7 @@ export default function Multiplayer() {
       case 'reconnected':
         setRoomId(data.room_id);
         setOpponent(data.opponent);
-        setOpponentClerkId(data.opponent_clerk_id);
+        setOpponentUserId(data.opponent_user_id);
         setLetterPool(data.letter_pool);
         setInitialLetterPool(data.letter_pool);
         setScores(data.scores);

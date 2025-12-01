@@ -20,14 +20,14 @@ class ValidateWordResponse(BaseModel):
 
 
 class CreateUserRequest(BaseModel):
-    clerk_id: str = Field(..., min_length=1)
+    user_id: str = Field(..., min_length=1)
     username: str = Field(..., min_length=1, max_length=30)
     email: Optional[str] = Field(None, max_length=100)
 
 
 class UserResponse(BaseModel):
     id: int
-    clerk_id: str
+    user_id: str
     username: str
     email: Optional[str]
     created_at: datetime
@@ -81,13 +81,13 @@ class LeaderboardEntry(BaseModel):
 
 class SaveGameRequest(BaseModel):
     room_id: str
-    player1_clerk_id: str
-    player2_clerk_id: str
+    player1_user_id: str
+    player2_user_id: str
     player1_score: int = Field(..., ge=0)
     player2_score: int = Field(..., ge=0)
     player1_words: List[str]
     player2_words: List[str]
-    winner_clerk_id: Optional[str] = None
+    winner_user_id: Optional[str] = None
     duration: int = Field(..., gt=0)
     letter_pool: List[str]
     started_at: str

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useAuth } from '@clerk/clerk-expo';
+import { useAuth } from '../context/AuthContext';
 import { WS_RECONNECT_DELAY, WS_MAX_RECONNECT_ATTEMPTS, WS_PING_INTERVAL } from '../utils/constants';
 
 interface UseWebSocketProps {
@@ -58,7 +58,7 @@ export const useWebSocket = ({
     }
 
     try {
-      // Get authentication token from Clerk
+      // Get authentication token from Supabase
       const token = await getToken();
       if (!token) {
         throw new Error('Failed to get authentication token');

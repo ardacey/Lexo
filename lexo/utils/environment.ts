@@ -4,7 +4,8 @@ type Extra = {
   environment?: 'development' | 'preview' | 'production' | string;
   apiUrl?: string;
   wsUrl?: string;
-  clerkPublishableKey?: string;
+  supabaseUrl?: string;
+  supabaseAnonKey?: string;
 };
 
 type Manifest2 = {
@@ -58,11 +59,17 @@ if (!wsFromExtra) {
   throw new Error('Missing WebSocket URL. Set EXPO_PUBLIC_WS_URL or extra.wsUrl.');
 }
 
-const clerkKey = extra.clerkPublishableKey ?? process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
-if (!clerkKey) {
-  throw new Error('Missing Clerk publishable key. Set EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY or extra.clerkPublishableKey.');
+const supabaseUrl = extra.supabaseUrl ?? process.env.EXPO_PUBLIC_SUPABASE_URL;
+if (!supabaseUrl) {
+  throw new Error('Missing Supabase URL. Set EXPO_PUBLIC_SUPABASE_URL or extra.supabaseUrl.');
+}
+
+const supabaseAnonKey = extra.supabaseAnonKey ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+if (!supabaseAnonKey) {
+  throw new Error('Missing Supabase anon key. Set EXPO_PUBLIC_SUPABASE_ANON_KEY or extra.supabaseAnonKey.');
 }
 
 export const API_BASE_URL = apiFromExtra;
 export const WS_BASE_URL = wsFromExtra;
-export const CLERK_PUBLISHABLE_KEY = clerkKey;
+export const SUPABASE_URL = supabaseUrl;
+export const SUPABASE_ANON_KEY = supabaseAnonKey;

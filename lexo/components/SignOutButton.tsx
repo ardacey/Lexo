@@ -1,10 +1,10 @@
-import { useClerk } from '@clerk/clerk-expo'
+import { useAuth } from '../context/AuthContext'
 import * as Linking from 'expo-linking'
 import React from 'react'
 import { Text, TouchableOpacity, View, StyleSheet } from 'react-native'
 
 export const SignOutButton = () => {
-  const { signOut } = useClerk()
+  const { signOut } = useAuth()
   const handleSignOut = async () => {
     try {
       await signOut()

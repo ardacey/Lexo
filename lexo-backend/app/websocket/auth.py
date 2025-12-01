@@ -8,7 +8,7 @@ from typing import Dict, Any
 from fastapi import WebSocket
 
 from app.core.logging import get_logger
-from app.security.clerk import verify_clerk_jwt, ClerkAuthError
+from app.security.supabase import verify_supabase_jwt, SupabaseAuthError
 
 logger = get_logger(__name__)
 
@@ -23,7 +23,7 @@ async def authenticate_websocket(websocket: WebSocket) -> Dict[str, Any]:
     Authenticate WebSocket connection using JWT token from query params or first message.
     
     Returns:
-        Dict with user info (clerk_id, username)
+        Dict with user info (user_id, username)
     
     Raises:
         WebSocketAuthError: If authentication fails
@@ -45,18 +45,21 @@ async def authenticate_websocket(websocket: WebSocket) -> Dict[str, Any]:
         initial_data = data
     
     try:
-        payload = await verify_clerk_jwt(token)
-    except ClerkAuthError as exc:
+        payload = await verify_supabase_jwt(token)
+    except SupabaseAuthError as exc:
         raise WebSocketAuthError(str(exc)) from exc
 
-    clerk_id = payload.get("sub")
-    if not clerk_id:
+    user_id = payload.get("sub")
+    if not user_id:
         raise WebSocketAuthError("Token missing subject claim")
 
+    # Get user metadata from Supabase token
+    user_metadata = payload.get("user_metadata", {})
+    
     username = (
-        payload.get("username")
+        user_metadata.get("username")
+        or user_metadata.get("name")
         or payload.get("email")
-        or payload.get("name")
         or (initial_data or {}).get("username")
         or "Player"
     )
@@ -64,7 +67,7 @@ async def authenticate_websocket(websocket: WebSocket) -> Dict[str, Any]:
     is_reconnect = bool((initial_data or {}).get("is_reconnect", False))
 
     return {
-        "clerk_id": clerk_id,
+        "user_id": user_id,
         "username": username,
         "is_reconnect": is_reconnect,
         "initial_data": initial_data,
@@ -90,7 +93,7 @@ class RateLimiter:
         Check if client is allowed to send a message based on rate limit.
         
         Args:
-            client_id: Unique identifier for the client (e.g., clerk_id)
+            client_id: Unique identifier for the client (e.g., user_id)
             
         Returns:
             True if allowed, False if rate limit exceeded

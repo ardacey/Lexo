@@ -5,8 +5,8 @@ export const API_ENDPOINTS = {
   validateWord: `${API_BASE_URL}/api/validate-word`,
   health: `${API_BASE_URL}/health`,
   createUser: `${API_BASE_URL}/api/users`,
-  getUserStats: (clerkId: string) => `${API_BASE_URL}/api/users/${clerkId}/stats`,
-  getUserGames: (clerkId: string, limit: number = 10) => `${API_BASE_URL}/api/users/${clerkId}/games?limit=${limit}`,
+  getUserStats: (userId: string) => `${API_BASE_URL}/api/users/${userId}/stats`,
+  getUserGames: (userId: string, limit: number = 10) => `${API_BASE_URL}/api/users/${userId}/games?limit=${limit}`,
   getLeaderboard: (limit: number = 100) => `${API_BASE_URL}/api/leaderboard?limit=${limit}`,
   saveGame: `${API_BASE_URL}/api/games/save`,
 };
@@ -62,13 +62,13 @@ export interface LeaderboardEntry {
 
 export interface SaveGameData {
   room_id: string;
-  player1_clerk_id: string;
-  player2_clerk_id: string;
+  player1_user_id: string;
+  player2_user_id: string;
   player1_score: number;
   player2_score: number;
   player1_words: string[];
   player2_words: string[];
-  winner_clerk_id?: string;
+  winner_user_id?: string;
   duration: number;
   letter_pool: string[];
   started_at: string;
@@ -98,14 +98,14 @@ export const validateWord = async (word: string): Promise<ValidateWordResponse> 
   }
 };
 
-export const createUser = async (clerkId: string, username: string, email?: string) => {
+export const createUser = async (userId: string, username: string, email?: string) => {
   try {
     const response = await fetch(API_ENDPOINTS.createUser, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ clerk_id: clerkId, username, email }),
+      body: JSON.stringify({ user_id: userId, username, email }),
     });
 
     if (!response.ok) {
@@ -129,9 +129,9 @@ export const createUser = async (clerkId: string, username: string, email?: stri
   }
 };
 
-export const getUserStats = async (clerkId: string): Promise<UserStats | null> => {
+export const getUserStats = async (userId: string): Promise<UserStats | null> => {
   try {
-    const response = await fetch(API_ENDPOINTS.getUserStats(clerkId), {
+    const response = await fetch(API_ENDPOINTS.getUserStats(userId), {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -150,9 +150,9 @@ export const getUserStats = async (clerkId: string): Promise<UserStats | null> =
   }
 };
 
-export const getUserGames = async (clerkId: string, limit: number = 10): Promise<GameHistory[]> => {
+export const getUserGames = async (userId: string, limit: number = 10): Promise<GameHistory[]> => {
   try {
-    const response = await fetch(API_ENDPOINTS.getUserGames(clerkId, limit), {
+    const response = await fetch(API_ENDPOINTS.getUserGames(userId, limit), {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

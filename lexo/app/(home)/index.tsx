@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter , Link } from 'expo-router';
+import { useRouter , Link, Redirect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Toast from 'react-native-toast-message';
-import { SignedIn, SignedOut, useUser } from '@clerk/clerk-expo';
+import { useAuth } from '../../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SignOutButton } from '@/components/SignOutButton';
 import { useCreateUser } from '@/hooks/useApi';
@@ -49,7 +49,7 @@ const AnimatedCard = ({ children, delay = 0, style }: any) => {
 
 export default function Page() {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, isSignedIn, isLoading } = useAuth();
   const createUserMutation = useCreateUser();
   const [userInitialized, setUserInitialized] = useState(false);
   
@@ -58,14 +58,19 @@ export default function Page() {
     stats: new Animated.Value(1),
   });
 
+  // Redirect to sign-in if not authenticated
+  if (!isLoading && !isSignedIn) {
+    return <Redirect href="/(auth)/sign-in" />;
+  }
+
   useEffect(() => {
     if (user && !userInitialized && !createUserMutation.isPending) {
-      const username = user.username || user.emailAddresses[0].emailAddress?.split('@')[0] || 'Player';
+      const username = user.user_metadata?.username || user.email?.split('@')[0] || 'Player';
       createUserMutation.mutate(
         {
-          clerkId: user.id,
+          userId: user.id,
           username,
-          email: user.primaryEmailAddress?.emailAddress
+          email: user.email
         },
         {
           onSuccess: () => {
@@ -107,7 +112,7 @@ export default function Page() {
   };
 
   const handleMultiplayer = () => {
-    const username = user?.username || user?.emailAddresses[0].emailAddress?.split('@')[0] || 'Player';
+    const username = user?.user_metadata?.username || user?.email?.split('@')[0] || 'Player';
     router.push({
       pathname: '/multiplayer',
       params: { username }
@@ -140,7 +145,7 @@ export default function Page() {
       >
         <SafeAreaView style={styles.safeArea}>
           <StatusBar style="dark" />
-          <SignedIn>
+          {isSignedIn && (
             <ScrollView 
               style={styles.scrollView}
               contentContainerStyle={styles.scrollContent}
@@ -174,7 +179,7 @@ export default function Page() {
                   <View style={styles.welcomeTextContainer}>
                     <Text style={styles.welcomeLabel}>Hoş geldin</Text>
                     <Text style={styles.username} numberOfLines={1}>
-                      {user?.username || user?.emailAddresses[0].emailAddress?.split('@')[0] || 'Player'}
+                      {user?.user_metadata?.username || user?.email?.split('@')[0] || 'Player'}
                     </Text>
                   </View>
                 </View>
@@ -258,9 +263,9 @@ export default function Page() {
                 <SignOutButton />
               </AnimatedCard>
             </ScrollView>
-          </SignedIn>
+          )}
           
-          <SignedOut>
+          {!isSignedIn && (
             <ScrollView 
               style={styles.scrollView}
               contentContainerStyle={styles.scrollContentSignedOut}
@@ -363,7 +368,7 @@ export default function Page() {
                 </View>
               </AnimatedCard>
             </ScrollView>
-          </SignedOut>
+          )}
           <Toast />
         </SafeAreaView>
       </LinearGradient>

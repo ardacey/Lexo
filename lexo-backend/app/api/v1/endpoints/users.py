@@ -21,14 +21,14 @@ def create_user(
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
-        if current_user["clerk_id"] != request.clerk_id:
-            raise HTTPException(status_code=403, detail="Cannot create user for different Clerk ID")
+        if current_user["user_id"] != request.user_id:
+            raise HTTPException(status_code=403, detail="Cannot create user for different user ID")
 
         user_service = UserService(db)
         stats_service = StatsService(db)
         
         user = user_service.create_or_get_user(
-            request.clerk_id,
+            request.user_id,
             request.username,
             request.email
         )
@@ -38,7 +38,7 @@ def create_user(
             "success": True,
             "user": {
                 "id": user.id,
-                "clerk_id": user.clerk_id,
+                "user_id": user.supabase_user_id,
                 "username": user.username,
                 "email": user.email,
                 "created_at": user.created_at.isoformat()
@@ -68,20 +68,20 @@ def create_user(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/users/{clerk_id}/stats", response_model=dict)
+@router.get("/users/{user_id}/stats", response_model=dict)
 def get_user_stats(
-    clerk_id: str,
+    user_id: str,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
-        if current_user["clerk_id"] != clerk_id:
+        if current_user["user_id"] != user_id:
             raise HTTPException(status_code=403, detail="Forbidden")
 
         user_service = UserService(db)
         stats_service = StatsService(db)
         
-        user = user_service.get_user_by_clerk_id(clerk_id)
+        user = user_service.get_user_by_supabase_id(user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -133,5 +133,5 @@ def get_user_stats(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting user stats: {e}")
+        logger.error(f"Error fetching user stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))

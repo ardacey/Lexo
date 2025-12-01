@@ -3,13 +3,14 @@ import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, RefreshCon
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useUser } from '@clerk/clerk-expo';
+import { useAuth } from '../../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useUserStats, useUserGames } from '@/hooks/useApi';
 
 export default function StatsPage() {
   const router = useRouter();
-  const { user, isLoaded: userLoaded } = useUser();
+  const { user, isLoading: userLoading } = useAuth();
+  const userLoaded = !userLoading;
   
   const { data: stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useUserStats(user?.id || null);
   const { data: games = [], isLoading: gamesLoading, error: gamesError, refetch: refetchGames } = useUserGames(user?.id || null, 10);

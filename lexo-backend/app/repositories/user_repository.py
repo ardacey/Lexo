@@ -14,11 +14,11 @@ class UserRepository(BaseRepository[User]):
     def __init__(self, db: Session):
         super().__init__(User, db)
     
-    def get_by_clerk_id(self, clerk_id: str, with_stats: bool = False) -> Optional[User]:
+    def get_by_supabase_user_id(self, supabase_user_id: str, with_stats: bool = False) -> Optional[User]:
         """
-        Get user by Clerk ID with optional eager loading of stats
+        Get user by Supabase user ID with optional eager loading of stats
         """
-        query = self.db.query(User).filter(User.clerk_id == clerk_id)
+        query = self.db.query(User).filter(User.supabase_user_id == supabase_user_id)
         
         if with_stats:
             query = query.options(joinedload(User.stats))
@@ -46,12 +46,12 @@ class UserRepository(BaseRepository[User]):
     
     def create_user(
         self, 
-        clerk_id: str, 
+        supabase_user_id: str, 
         username: str, 
         email: Optional[str] = None
     ) -> User:
         user = User(
-            clerk_id=clerk_id,
+            supabase_user_id=supabase_user_id,
             username=username,
             email=email
         )
@@ -63,17 +63,17 @@ class UserRepository(BaseRepository[User]):
     
     def get_or_create(
         self, 
-        clerk_id: str, 
+        supabase_user_id: str, 
         username: str, 
         email: Optional[str] = None
     ) -> tuple[User, bool]:
-        user = self.get_by_clerk_id(clerk_id)
+        user = self.get_by_supabase_user_id(supabase_user_id)
         
         if user:
             self.update_last_login(user)
             logger.info(f"User logged in: {username}")
             return user, False
         
-        user = self.create_user(clerk_id, username, email)
-        logger.info(f"Created new user: {username} (clerk_id: {clerk_id})")
+        user = self.create_user(supabase_user_id, username, email)
+        logger.info(f"Created new user: {username} (supabase_user_id: {supabase_user_id})")
         return user, True

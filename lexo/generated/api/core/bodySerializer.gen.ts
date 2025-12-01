@@ -4,7 +4,7 @@ import type {
   ArrayStyle,
   ObjectStyle,
   SerializerOptions,
-} from "./pathSerializer.gen";
+} from './pathSerializer.gen';
 
 export type QuerySerializer = (query: Record<string, unknown>) => string;
 
@@ -21,7 +21,7 @@ const serializeFormDataPair = (
   key: string,
   value: unknown,
 ): void => {
-  if (typeof value === "string" || value instanceof Blob) {
+  if (typeof value === 'string' || value instanceof Blob) {
     data.append(key, value);
   } else if (value instanceof Date) {
     data.append(key, value.toISOString());
@@ -35,7 +35,7 @@ const serializeUrlSearchParamsPair = (
   key: string,
   value: unknown,
 ): void => {
-  if (typeof value === "string") {
+  if (typeof value === 'string') {
     data.append(key, value);
   } else {
     data.append(key, JSON.stringify(value));
@@ -43,7 +43,7 @@ const serializeUrlSearchParamsPair = (
 };
 
 export const formDataBodySerializer = {
-  bodySerializer: <T extends Record<string, any> | Record<string, any>[]>(
+  bodySerializer: <T extends Record<string, any> | Array<Record<string, any>>>(
     body: T,
   ): FormData => {
     const data = new FormData();
@@ -66,12 +66,12 @@ export const formDataBodySerializer = {
 export const jsonBodySerializer = {
   bodySerializer: <T>(body: T): string =>
     JSON.stringify(body, (_key, value) =>
-      typeof value === "bigint" ? value.toString() : value,
+      typeof value === 'bigint' ? value.toString() : value,
     ),
 };
 
 export const urlSearchParamsBodySerializer = {
-  bodySerializer: <T extends Record<string, any> | Record<string, any>[]>(
+  bodySerializer: <T extends Record<string, any> | Array<Record<string, any>>>(
     body: T,
   ): string => {
     const data = new URLSearchParams();

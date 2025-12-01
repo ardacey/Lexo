@@ -26,7 +26,7 @@ class TestWebSocketConnection:
             join_message = {
                 "type": "join_queue",
                 "username": "TestPlayer",
-                "clerk_id": "test_clerk_123"
+                "user_id": "test_user_123"
             }
             websocket.send_json(join_message)
             
@@ -72,7 +72,7 @@ class TestWebSocketMatchmaking:
             join_msg = {
                 "type": "join_queue",
                 "username": "Player1",
-                "clerk_id": "clerk_1"
+                "user_id": "user_1"
             }
             ws1.send_json(join_msg)
             
@@ -112,7 +112,7 @@ class TestWebSocketGamePlay:
             join_msg = {
                 "type": "join_queue",
                 "username": "TestPlayer",
-                "clerk_id": "test_123"
+                "user_id": "test_123"
             }
             websocket.send_json(join_msg)
             
@@ -139,7 +139,7 @@ class TestWebSocketGamePlay:
             join_msg = {
                 "type": "join_queue",
                 "username": "TestPlayer",
-                "clerk_id": "test_123"
+                "user_id": "test_123"
             }
             websocket.send_json(join_msg)
         

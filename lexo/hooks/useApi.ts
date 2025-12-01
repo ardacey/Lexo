@@ -18,8 +18,8 @@ export const queryKeys = {
   all: ['lexo'] as const,
   users: {
     all: () => [...queryKeys.all, 'users'] as const,
-    stats: (clerkId: string) => [...queryKeys.users.all(), 'stats', clerkId] as const,
-    games: (clerkId: string, limit: number) => [...queryKeys.users.all(), 'games', clerkId, limit] as const,
+    stats: (userId: string) => [...queryKeys.users.all(), 'stats', userId] as const,
+    games: (userId: string, limit: number) => [...queryKeys.users.all(), 'games', userId, limit] as const,
   },
   leaderboard: {
     all: () => [...queryKeys.all, 'leaderboard'] as const,
@@ -27,8 +27,8 @@ export const queryKeys = {
   },
 } as const;
 
-(queryKeys as any).userStats = (clerkId: string) => ['userStats', clerkId];
-(queryKeys as any).userGames = (clerkId: string, limit: number) => ['userGames', clerkId, limit];
+(queryKeys as any).userStats = (userId: string) => ['userStats', userId];
+(queryKeys as any).userGames = (userId: string, limit: number) => ['userGames', userId, limit];
 
 const __leaderboard = (limit: number) => ['leaderboard', limit] as const;
 (__leaderboard as any).all = () => [...queryKeys.all, 'leaderboard'] as const;
@@ -44,11 +44,11 @@ export const useValidateWord = () => {
 export const useCreateUser = () => {
   const queryClient = useQueryClient();
   
-  return useMutation<any, Error, { clerkId: string; username: string; email?: string }>({
-    mutationFn: ({ clerkId, username, email }) => createUser(clerkId, username, email),
+  return useMutation<any, Error, { userId: string; username: string; email?: string }>({
+    mutationFn: ({ userId, username, email }) => createUser(userId, username, email),
     onSuccess: (data, variables) => {
       // Yeni kullanıcı oluşturulduğunda stats'ı invalidate et
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.clerkId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.userId) });
     },
     onError: (error: any) => {
       // Kullanıcı zaten varsa hata fırlatma (sessizce geç)
@@ -60,21 +60,21 @@ export const useCreateUser = () => {
   });
 };
 
-export const useUserStats = (clerkId: string | null, enabled: boolean = true) => {
+export const useUserStats = (userId: string | null, enabled: boolean = true) => {
   return useQuery<UserStats | null, Error>({
-    queryKey: queryKeys.users.stats(clerkId || ''),
-    queryFn: () => getUserStats(clerkId!),
-    enabled: enabled && !!clerkId,
+    queryKey: queryKeys.users.stats(userId || ''),
+    queryFn: () => getUserStats(userId!),
+    enabled: enabled && !!userId,
     staleTime: 1000 * 60 * 5, // 5 dakika
     retry: false,
   });
 };
 
-export const useUserGames = (clerkId: string | null, limit: number = 10, enabled: boolean = true) => {
+export const useUserGames = (userId: string | null, limit: number = 10, enabled: boolean = true) => {
   return useQuery<GameHistory[], Error>({
-    queryKey: queryKeys.users.games(clerkId || '', limit),
-    queryFn: () => getUserGames(clerkId!, limit),
-    enabled: enabled && !!clerkId,
+    queryKey: queryKeys.users.games(userId || '', limit),
+    queryFn: () => getUserGames(userId!, limit),
+    enabled: enabled && !!userId,
     staleTime: 1000 * 60 * 2, // 2 dakika
   });
 };
@@ -95,8 +95,8 @@ export const useSaveGame = () => {
     mutationFn: (gameData: SaveGameData) => saveGame(gameData),
     onSuccess: (data, variables) => {
       // Her iki oyuncunun da verilerini invalidate et
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.player1_clerk_id) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.player2_clerk_id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.player1_user_id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.player2_user_id) });
       
       // Oyun geçmişlerini invalidate et
       queryClient.invalidateQueries({ 
@@ -104,7 +104,7 @@ export const useSaveGame = () => {
         predicate: (query) => {
           const key = query.queryKey;
           return key.includes('games') && 
-                 (key.includes(variables.player1_clerk_id) || key.includes(variables.player2_clerk_id));
+                 (key.includes(variables.player1_user_id) || key.includes(variables.player2_user_id));
         }
       });
       
@@ -114,16 +114,16 @@ export const useSaveGame = () => {
   });
 };
 
-export const useRefreshUserData = (clerkId: string | null) => {
+export const useRefreshUserData = (userId: string | null) => {
   const queryClient = useQueryClient();
   
   const refreshAll = () => {
-    if (clerkId) {
+    if (userId) {
       // İlgili kullanıcının tüm verilerini yenile
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(clerkId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(userId) });
       queryClient.invalidateQueries({ 
         queryKey: queryKeys.users.all(),
-        predicate: (query) => query.queryKey.includes(clerkId)
+        predicate: (query) => query.queryKey.includes(userId)
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.leaderboard.all() });
     }
@@ -136,10 +136,10 @@ export const useRefreshUserData = (clerkId: string | null) => {
 export const usePrefetchUserData = () => {
   const queryClient = useQueryClient();
   
-  const prefetchUserStats = (clerkId: string) => {
+  const prefetchUserStats = (userId: string) => {
     queryClient.prefetchQuery({
-      queryKey: queryKeys.users.stats(clerkId),
-      queryFn: () => getUserStats(clerkId),
+      queryKey: queryKeys.users.stats(userId),
+      queryFn: () => getUserStats(userId),
       staleTime: 1000 * 60 * 5,
     });
   };
@@ -169,18 +169,18 @@ export const useOptimisticGameSave = () => {
     onMutate: async (gameData) => {
       // Optimistic update için mevcut query'leri iptal et
       await queryClient.cancelQueries({ 
-        queryKey: queryKeys.users.stats(gameData.player1_clerk_id) 
+        queryKey: queryKeys.users.stats(gameData.player1_user_id) 
       });
       await queryClient.cancelQueries({ 
-        queryKey: queryKeys.users.stats(gameData.player2_clerk_id) 
+        queryKey: queryKeys.users.stats(gameData.player2_user_id) 
       });
       
       // Önceki verileri snapshot'la (rollback için)
       const previousPlayer1Stats = queryClient.getQueryData<UserStats | null>(
-        queryKeys.users.stats(gameData.player1_clerk_id)
+        queryKeys.users.stats(gameData.player1_user_id)
       );
       const previousPlayer2Stats = queryClient.getQueryData<UserStats | null>(
-        queryKeys.users.stats(gameData.player2_clerk_id)
+        queryKeys.users.stats(gameData.player2_user_id)
       );
       
       return { previousPlayer1Stats, previousPlayer2Stats };
@@ -189,21 +189,21 @@ export const useOptimisticGameSave = () => {
       // Hata durumunda eski verilere geri dön
       if (context?.previousPlayer1Stats) {
         queryClient.setQueryData(
-          queryKeys.users.stats(gameData.player1_clerk_id),
+          queryKeys.users.stats(gameData.player1_user_id),
           context.previousPlayer1Stats
         );
       }
       if (context?.previousPlayer2Stats) {
         queryClient.setQueryData(
-          queryKeys.users.stats(gameData.player2_clerk_id),
+          queryKeys.users.stats(gameData.player2_user_id),
           context.previousPlayer2Stats
         );
       }
     },
     onSettled: (data, error, variables) => {
       // Her durumda verileri yenile
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.player1_clerk_id) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.player2_clerk_id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.player1_user_id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.player2_user_id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.leaderboard.all() });
     },

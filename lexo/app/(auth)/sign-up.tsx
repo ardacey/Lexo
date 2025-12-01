@@ -1,14 +1,14 @@
 import * as React from 'react'
 import { Text, TextInput, TouchableOpacity, View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Animated } from 'react-native'
-import { useSignUp } from '@clerk/clerk-expo'
 import { Link, useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import { useToast } from '../../context/ToastContext'
 import { getErrorMessage } from '../../utils/errorMessages'
+import { useAuth } from '../../context/AuthContext'
 
 export default function SignUpScreen() {
-  const { isLoaded, signUp, setActive } = useSignUp()
+  const { signUp, isLoading } = useAuth()
   const router = useRouter()
   const { showToast } = useToast()
 
@@ -16,8 +16,7 @@ export default function SignUpScreen() {
   const [password, setPassword] = React.useState('')
   const [username, setUsername] = React.useState('')
   const [showPassword, setShowPassword] = React.useState(false)
-  const [pendingVerification, setPendingVerification] = React.useState(false)
-  const [code, setCode] = React.useState('')
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const fadeAnim = React.useRef(new Animated.Value(0)).current
   const slideAnim = React.useRef(new Animated.Value(50)).current
 
@@ -37,123 +36,33 @@ export default function SignUpScreen() {
   }, [])
 
   const onSignUpPress = async () => {
-    if (!isLoaded) return
+    if (isLoading || isSubmitting) return
 
-    try {
-      await signUp.create({
-        emailAddress,
-        password,
-        username,
-      })
-
-      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
-      setPendingVerification(true)
-      showToast('Doğrulama kodu e-posta adresinize gönderildi.', 'success')
-    } catch (err: any) {
-      showToast(getErrorMessage(err), 'error')
+    if (!emailAddress || !password || !username) {
+      showToast('Lütfen tüm alanları doldurun', 'error')
+      return
     }
-  }
 
-  const onVerifyPress = async () => {
-    if (!isLoaded) return
+    if (password.length < 6) {
+      showToast('Şifre en az 6 karakter olmalıdır', 'error')
+      return
+    }
 
+    setIsSubmitting(true)
     try {
-      const signUpAttempt = await signUp.attemptEmailAddressVerification({
-        code,
-      })
-      if (signUpAttempt.status === 'complete') {
-        await setActive({ session: signUpAttempt.createdSessionId })
-        router.replace('/')
+      const { error } = await signUp(emailAddress, password, username)
+
+      if (error) {
+        showToast(getErrorMessage(error), 'error')
       } else {
-        showToast('Doğrulama tamamlanamadı. Lütfen tekrar deneyin.', 'error')
+        showToast('Kayıt başarılı! Lütfen e-postanızı doğrulayın.', 'success')
+        router.replace('/sign-in')
       }
     } catch (err: any) {
       showToast(getErrorMessage(err), 'error')
+    } finally {
+      setIsSubmitting(false)
     }
-  }
-
-  if (pendingVerification) {
-    return (
-      <LinearGradient
-        colors={['#667eea', '#764ba2', '#f093fb']}
-        style={styles.container}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.keyboardView}
-        >
-          <ScrollView 
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <Animated.View 
-              style={[
-                styles.formContainer,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }]
-                }
-              ]}
-            >
-              {/* Icon */}
-              <View style={styles.logoContainer}>
-                <View style={styles.logoCircle}>
-                  <Ionicons name="mail" size={48} color="#fff" />
-                </View>
-              </View>
-
-              {/* Title */}
-              <View style={styles.headerContainer}>
-                <Text style={styles.title}>E-postanı Doğrula</Text>
-                <Text style={styles.subtitle}>
-                  {emailAddress} adresine gönderilen 6 haneli kodu gir
-                </Text>
-              </View>
-
-              {/* Code Input */}
-              <View style={styles.inputContainer}>
-                <Ionicons name="keypad-outline" size={20} color="#667eea" style={styles.inputIcon} />
-                <TextInput
-                  value={code}
-                  placeholder="Doğrulama kodu"
-                  placeholderTextColor="#999"
-                  onChangeText={(code) => setCode(code)}
-                  style={styles.input}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                />
-              </View>
-
-              {/* Verify Button */}
-              <TouchableOpacity 
-                onPress={onVerifyPress}
-                style={styles.button}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={['#667eea', '#764ba2']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.buttonGradient}
-                >
-                  <Text style={styles.buttonText}>Doğrula</Text>
-                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                </LinearGradient>
-              </TouchableOpacity>
-
-              {/* Resend Code */}
-              <TouchableOpacity style={styles.resendContainer}>
-                <Text style={styles.resendText}>Kod gelmedi mi? </Text>
-                <Text style={styles.resendButton}>Tekrar Gönder</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </LinearGradient>
-    )
   }
 
   return (
@@ -167,104 +76,107 @@ export default function SignUpScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <Animated.View 
+          <Animated.View
             style={[
-              styles.formContainer,
+              styles.content,
               {
                 opacity: fadeAnim,
                 transform: [{ translateY: slideAnim }]
               }
             ]}
           >
-            {/* Logo/Icon */}
-            <View style={styles.logoContainer}>
-              <View style={styles.logoCircle}>
-                <Ionicons name="game-controller" size={48} color="#fff" />
+            {/* Logo and Title */}
+            <View style={styles.header}>
+              <View style={styles.logoContainer}>
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.1)']}
+                  style={styles.logoBackground}
+                >
+                  <Text style={styles.logoText}>L</Text>
+                </LinearGradient>
               </View>
-              <Text style={styles.appName}>LEXO</Text>
-            </View>
-
-            {/* Title */}
-            <View style={styles.headerContainer}>
               <Text style={styles.title}>Hesap Oluştur</Text>
-              <Text style={styles.subtitle}>Yeni bir hesap oluştur ve oyuna katıl</Text>
+              <Text style={styles.subtitle}>Lexo'ya katıl ve oynamaya başla!</Text>
             </View>
 
-            {/* Username Input */}
-            <View style={styles.inputContainer}>
-              <Ionicons name="person-outline" size={20} color="#667eea" style={styles.inputIcon} />
-              <TextInput
-                autoCapitalize="none"
-                value={username}
-                placeholder="Kullanıcı adın"
-                placeholderTextColor="#999"
-                onChangeText={(username) => setUsername(username)}
-                style={styles.input}
-              />
-            </View>
-
-            {/* Email Input */}
-            <View style={styles.inputContainer}>
-              <Ionicons name="mail-outline" size={20} color="#667eea" style={styles.inputIcon} />
-              <TextInput
-                autoCapitalize="none"
-                value={emailAddress}
-                placeholder="E-posta adresin"
-                placeholderTextColor="#999"
-                onChangeText={(email) => setEmailAddress(email)}
-                style={styles.input}
-                keyboardType="email-address"
-              />
-            </View>
-
-            {/* Password Input */}
-            <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color="#667eea" style={styles.inputIcon} />
-              <TextInput
-                value={password}
-                placeholder="Şifren (min. 8 karakter)"
-                placeholderTextColor="#999"
-                secureTextEntry={!showPassword}
-                onChangeText={(password) => setPassword(password)}
-                style={styles.input}
-              />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                <Ionicons 
-                  name={showPassword ? "eye-outline" : "eye-off-outline"} 
-                  size={20} 
-                  color="#999" 
+            {/* Form */}
+            <View style={styles.form}>
+              <View style={styles.inputContainer}>
+                <Ionicons name="person-outline" size={20} color="rgba(255,255,255,0.7)" style={styles.inputIcon} />
+                <TextInput
+                  value={username}
+                  placeholder="Kullanıcı adı"
+                  placeholderTextColor="rgba(255,255,255,0.5)"
+                  onChangeText={setUsername}
+                  style={styles.input}
+                  autoCapitalize="none"
+                  autoComplete="username"
                 />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Ionicons name="mail-outline" size={20} color="rgba(255,255,255,0.7)" style={styles.inputIcon} />
+                <TextInput
+                  value={emailAddress}
+                  placeholder="E-posta adresi"
+                  placeholderTextColor="rgba(255,255,255,0.5)"
+                  onChangeText={setEmailAddress}
+                  style={styles.input}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Ionicons name="lock-closed-outline" size={20} color="rgba(255,255,255,0.7)" style={styles.inputIcon} />
+                <TextInput
+                  value={password}
+                  placeholder="Şifre (en az 6 karakter)"
+                  placeholderTextColor="rgba(255,255,255,0.5)"
+                  secureTextEntry={!showPassword}
+                  onChangeText={setPassword}
+                  style={styles.input}
+                  autoComplete="password-new"
+                />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                  <Ionicons 
+                    name={showPassword ? "eye-outline" : "eye-off-outline"} 
+                    size={20} 
+                    color="rgba(255,255,255,0.7)" 
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                onPress={onSignUpPress}
+                disabled={isSubmitting || isLoading}
+                style={styles.signUpButton}
+              >
+                <LinearGradient
+                  colors={isSubmitting || isLoading ? ['#ccc', '#aaa'] : ['#fff', '#f0f0f0']}
+                  style={styles.signUpButtonGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={[styles.signUpButtonText, (isSubmitting || isLoading) && styles.disabledText]}>
+                    {isSubmitting || isLoading ? 'Kayıt yapılıyor...' : 'Kayıt Ol'}
+                  </Text>
+                </LinearGradient>
               </TouchableOpacity>
             </View>
 
-            {/* Sign Up Button */}
-            <TouchableOpacity 
-              onPress={onSignUpPress}
-              style={styles.button}
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={['#667eea', '#764ba2']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.buttonGradient}
-              >
-                <Text style={styles.buttonText}>Kayıt Ol</Text>
-                <Ionicons name="arrow-forward" size={20} color="#fff" />
-              </LinearGradient>
-            </TouchableOpacity>
-
             {/* Sign In Link */}
-            <View style={styles.linkContainer}>
-              <Text style={styles.linkText}>Zaten hesabın var mı? </Text>
-              <Link href="./sign-in" asChild>
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Zaten hesabın var mı? </Text>
+              <Link href="/sign-in" asChild>
                 <TouchableOpacity>
-                  <Text style={styles.linkButton}>Giriş Yap</Text>
+                  <Text style={styles.linkText}>Giriş Yap</Text>
                 </TouchableOpacity>
               </Link>
             </View>
@@ -287,140 +199,104 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
-  formContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 32,
-    padding: 32,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+  content: {
+    alignItems: 'center',
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 40,
   },
   logoContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
-  logoCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: '#667eea',
+  logoBackground: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
-  appName: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#667eea',
-    letterSpacing: 2,
-  },
-  headerContainer: {
-    marginBottom: 32,
+  logoText: {
+    fontSize: 40,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
-    color: '#2d3436',
+    fontWeight: 'bold',
+    color: '#fff',
     marginBottom: 8,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: '#636e72',
-    lineHeight: 22,
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
   },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffe0e0',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 16,
-    gap: 8,
-  },
-  errorText: {
-    color: '#ff6b6b',
-    fontSize: 14,
-    flex: 1,
+  form: {
+    width: '100%',
+    maxWidth: 400,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
     marginBottom: 16,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   inputIcon: {
     marginRight: 12,
   },
   input: {
     flex: 1,
+    height: 56,
+    color: '#fff',
     fontSize: 16,
-    color: '#2d3436',
-    paddingVertical: 14,
   },
   eyeIcon: {
     padding: 8,
   },
-  button: {
+  signUpButton: {
     borderRadius: 16,
     overflow: 'hidden',
     marginTop: 8,
-    marginBottom: 24,
-    shadowColor: '#667eea',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 4,
   },
-  buttonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  signUpButtonGradient: {
     paddingVertical: 16,
-    gap: 8,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  linkContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
+  },
+  signUpButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#667eea',
+  },
+  disabledText: {
+    color: '#666',
+  },
+  footer: {
+    flexDirection: 'row',
+    marginTop: 32,
+  },
+  footerText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 16,
   },
   linkText: {
-    fontSize: 15,
-    color: '#636e72',
-  },
-  linkButton: {
-    fontSize: 15,
-    color: '#667eea',
-    fontWeight: '700',
-  },
-  resendContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  resendText: {
-    fontSize: 14,
-    color: '#636e72',
-  },
-  resendButton: {
-    fontSize: 14,
-    color: '#667eea',
-    fontWeight: '700',
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textDecorationLine: 'underline',
   },
 })

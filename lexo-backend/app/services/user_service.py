@@ -18,13 +18,13 @@ class UserService:
     
     def create_or_get_user(
         self, 
-        clerk_id: str, 
+        supabase_user_id: str, 
         username: str, 
         email: Optional[str] = None
     ) -> User:
         try:
-            # Check if user exists by clerk_id
-            user = self.user_repo.get_by_clerk_id(clerk_id)
+            # Check if user exists by supabase_user_id
+            user = self.user_repo.get_by_supabase_user_id(supabase_user_id)
             if user:
                 self.user_repo.update_last_login(user)
                 return user
@@ -38,18 +38,18 @@ class UserService:
                 raise ValidationError(f"Email '{email}' is already registered")
 
             # Create new user
-            user = self.user_repo.create_user(clerk_id, username, email)
+            user = self.user_repo.create_user(supabase_user_id, username, email)
             self.stats_repo.create_for_user(user.id)
             
             return user
         except ValidationError:
             raise
         except Exception as e:
-            logger.error(f"Error creating/getting user {clerk_id}: {e}")
+            logger.error(f"Error creating/getting user {supabase_user_id}: {e}")
             raise DatabaseError(f"Failed to create/get user: {str(e)}")
     
-    def get_user_by_clerk_id(self, clerk_id: str) -> Optional[User]:
-        return self.user_repo.get_by_clerk_id(clerk_id)
+    def get_user_by_supabase_id(self, supabase_user_id: str) -> Optional[User]:
+        return self.user_repo.get_by_supabase_user_id(supabase_user_id)
     
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         return self.user_repo.get_by_id(user_id)

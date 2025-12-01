@@ -69,7 +69,7 @@ def client(db_session) -> Generator[TestClient, None, None]:
             pass
     app.dependency_overrides[get_db] = override_get_db
     async def override_get_current_user():
-        return {"clerk_id": "test_clerk_id", "claims": {"sub": "test_clerk_id"}}
+        return {"user_id": "test_user_id", "claims": {"sub": "test_user_id"}}
     app.dependency_overrides[get_current_user] = override_get_current_user
     with TestClient(app) as test_client:
         yield test_client
@@ -107,7 +107,7 @@ def test_user(db_session):
     import uuid
     
     user = User(
-        clerk_id=f"test_clerk_{uuid.uuid4().hex[:8]}",
+        supabase_user_id=f"test_user_{uuid.uuid4().hex[:8]}",
         username=f"testuser_{uuid.uuid4().hex[:8]}",
         email=f"test_{uuid.uuid4().hex[:8]}@example.com"
     )

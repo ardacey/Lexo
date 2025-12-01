@@ -12,7 +12,7 @@ Please read this Privacy Policy carefully. By using the App, you agree to the co
 
 ### Information You Provide to Us
 
-- **Account Information**: When you create an account, we collect your username and email address through our authentication provider (Clerk).
+- **Account Information**: When you create an account, we collect your username and email address through our authentication provider (Supabase).
 - **Game Data**: We collect information about your gameplay, including scores, words played, and game history.
 
 ### Information Collected Automatically
@@ -36,14 +36,14 @@ We use the information we collect to:
 We may share your information in the following situations:
 
 - **With Other Players**: Your username and game scores may be visible to other players through leaderboards and multiplayer games.
-- **Service Providers**: We may share your information with third-party service providers that perform services on our behalf (e.g., Clerk for authentication).
+- **Service Providers**: We may share your information with third-party service providers that perform services on our behalf (e.g., Supabase for authentication and data storage).
 - **Legal Requirements**: We may disclose your information if required by law or in response to valid requests by public authorities.
 
 ## Third-Party Services
 
 The App uses the following third-party services:
 
-- **Clerk**: For user authentication. Please review [Clerk's Privacy Policy](https://clerk.com/privacy).
+- **Supabase**: For user authentication and data storage. Please review [Supabase's Privacy Policy](https://supabase.com/privacy).
 - **Expo**: For app development and updates. Please review [Expo's Privacy Policy](https://expo.dev/privacy).
 
 ## Data Retention

@@ -1,14 +1,12 @@
 import "../global.css";
 import { Stack } from 'expo-router';
 import React, { useState } from 'react';
-import { ClerkProvider } from '@clerk/clerk-expo'
-import { tokenCache } from '@clerk/clerk-expo/token-cache'
+import { AuthProvider } from '../context/AuthContext';
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { Platform } from 'react-native';
 import { ToastProvider, useToast } from '../context/ToastContext';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { getErrorMessage } from '../utils/errorMessages';
-import { CLERK_PUBLISHABLE_KEY } from '../utils/environment';
 
 function AppContent() {
   const { showToast } = useToast();
@@ -48,11 +46,11 @@ function AppContent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-  <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache}>
+      <AuthProvider>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(home)" />
         </Stack>
-      </ClerkProvider>
+      </AuthProvider>
       {/* Development modunda React Query Devtools - sadece web için */}
       {__DEV__ && Platform.OS === 'web' && (
         React.createElement(

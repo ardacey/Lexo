@@ -10,8 +10,8 @@ from app.models.database import User, UserStats
 class TestUserRepository:
     """Test suite for UserRepository"""
     
-    def test_get_by_clerk_id(self, db_session):
-        """Test getting user by clerk_id"""
+    def test_get_by_supabase_id(self, db_session):
+        """Test getting user by supabase_user_id"""
         repo = UserRepository(db_session)
         
         # Clean database
@@ -20,7 +20,7 @@ class TestUserRepository:
         
         # Create a user
         user = User(
-            clerk_id="test_clerk_123",
+            supabase_user_id="test_user_123",
             username="testuser",
             email="test@example.com"
         )
@@ -28,16 +28,16 @@ class TestUserRepository:
         db_session.commit()
         
         
-        # Get by clerk_id
-        found_user = repo.get_by_clerk_id("test_clerk_123")
+        # Get by supabase_user_id
+        found_user = repo.get_by_supabase_id("test_user_123")
         
         assert found_user is not None
-        assert found_user.clerk_id == "test_clerk_123"
+        assert found_user.supabase_user_id == "test_user_123"
         assert found_user.username == "testuser"
         assert found_user.email == "test@example.com"
     
-    def test_get_by_clerk_id_not_found(self, db_session):
-        """Test getting user by clerk_id that doesn't exist"""
+    def test_get_by_supabase_id_not_found(self, db_session):
+        """Test getting user by supabase_user_id that doesn't exist"""
         repo = UserRepository(db_session)
         
         # Clean database
@@ -45,11 +45,11 @@ class TestUserRepository:
         db_session.commit()
         
         
-        found_user = repo.get_by_clerk_id("nonexistent_clerk")
+        found_user = repo.get_by_supabase_id("nonexistent_user")
         
         assert found_user is None
     
-    def test_get_by_clerk_id_with_stats(self, db_session):
+    def test_get_by_supabase_id_with_stats(self, db_session):
         """Test getting user with eager-loaded stats"""
         repo = UserRepository(db_session)
         
@@ -61,7 +61,7 @@ class TestUserRepository:
         
         # Create user with stats
         user = User(
-            clerk_id="test_clerk_456",
+            supabase_user_id="test_user_456",
             username="statuser",
             email="stats@example.com"
         )
@@ -82,7 +82,7 @@ class TestUserRepository:
         db_session.commit()
         
         # Get with stats
-        found_user = repo.get_by_clerk_id("test_clerk_456", with_stats=True)
+        found_user = repo.get_by_supabase_id("test_user_456", with_stats=True)
         
         assert found_user is not None
         assert found_user.username == "statuser"
@@ -101,7 +101,7 @@ class TestUserRepository:
         
         # Create user
         user = User(
-            clerk_id="clerk_789",
+            supabase_user_id="user_789",
             username="uniqueuser",
             email="unique@example.com"
         )
@@ -113,7 +113,7 @@ class TestUserRepository:
         
         assert found_user is not None
         assert found_user.username == "uniqueuser"
-        assert found_user.clerk_id == "clerk_789"
+        assert found_user.supabase_user_id == "user_789"
     
     def test_get_by_username_not_found(self, db_session):
         """Test getting user by username that doesn't exist"""
@@ -137,7 +137,7 @@ class TestUserRepository:
         
         # Create user
         user = User(
-            clerk_id="clerk_email",
+            supabase_user_id="user_email",
             username="emailuser",
             email="email@test.com"
         )
@@ -175,7 +175,7 @@ class TestUserRepository:
         users = []
         for i in range(3):
             user = User(
-                clerk_id=f"clerk_batch_{i}",
+                supabase_user_id=f"user_batch_{i}",
                 username=f"batchuser{i}",
                 email=f"batch{i}@test.com"
             )
@@ -208,7 +208,7 @@ class TestUserRepository:
         users = []
         for i in range(2):
             user = User(
-                clerk_id=f"clerk_stats_{i}",
+                supabase_user_id=f"user_stats_{i}",
                 username=f"statsuser{i}",
                 email=f"stats{i}@test.com"
             )
@@ -250,19 +250,19 @@ class TestUserRepository:
         
         # Create user
         new_user = repo.create_user(
-            clerk_id="new_clerk",
+            supabase_user_id="new_supabase_user",
             username="newuser",
             email="new@test.com"
         )
         
         assert new_user.id is not None
-        assert new_user.clerk_id == "new_clerk"
+        assert new_user.supabase_user_id == "new_supabase_user"
         assert new_user.username == "newuser"
         assert new_user.email == "new@test.com"
         assert new_user.created_at is not None
         
         # Verify it's in the database
-        found_user = repo.get_by_clerk_id("new_clerk")
+        found_user = repo.get_by_supabase_id("new_supabase_user")
         assert found_user is not None
         assert found_user.username == "newuser"
     
@@ -276,12 +276,12 @@ class TestUserRepository:
         
         # Create user without email
         new_user = repo.create_user(
-            clerk_id="no_email_clerk",
+            supabase_user_id="no_email_user",
             username="noemail"
         )
         
         assert new_user.id is not None
-        assert new_user.clerk_id == "no_email_clerk"
+        assert new_user.supabase_user_id == "no_email_user"
         assert new_user.username == "noemail"
         assert new_user.email is None
     
@@ -295,7 +295,7 @@ class TestUserRepository:
         
         # Create user
         user = User(
-            clerk_id="login_clerk",
+            supabase_user_id="login_user",
             username="loginuser",
             email="login@test.com"
         )
@@ -323,7 +323,7 @@ class TestUserRepository:
         
         # Create user first
         existing_user = User(
-            clerk_id="existing_clerk",
+            supabase_user_id="existing_user",
             username="existing",
             email="existing@test.com"
         )
@@ -334,7 +334,7 @@ class TestUserRepository:
         
         # Get or create (should get existing)
         user, created = repo.get_or_create(
-            clerk_id="existing_clerk",
+            supabase_user_id="existing_user",
             username="existing",
             email="existing@test.com"
         )
@@ -356,18 +356,18 @@ class TestUserRepository:
         
         # Get or create (should create new)
         user, created = repo.get_or_create(
-            clerk_id="brand_new_clerk",
+            supabase_user_id="brand_new_supabase_user",
             username="brandnew",
             email="brandnew@test.com"
         )
         
         assert created is True
         assert user.id is not None
-        assert user.clerk_id == "brand_new_clerk"
+        assert user.supabase_user_id == "brand_new_supabase_user"
         assert user.username == "brandnew"
         assert user.email == "brandnew@test.com"
         
         # Verify in database
-        found_user = repo.get_by_clerk_id("brand_new_clerk")
+        found_user = repo.get_by_supabase_id("brand_new_supabase_user")
         assert found_user is not None
         assert found_user.username == "brandnew"

@@ -5,12 +5,33 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
-// Mock Clerk
-jest.mock('@clerk/clerk-expo', () => ({
-  useUser: jest.fn(() => ({ user: null, isLoaded: true })),
-  useAuth: jest.fn(() => ({ isLoaded: true, isSignedIn: false })),
-  SignedIn: ({ children }) => children,
-  SignedOut: ({ children }) => children,
+// Mock Supabase
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: jest.fn(() => ({
+    auth: {
+      getSession: jest.fn(() => Promise.resolve({ data: { session: null } })),
+      onAuthStateChange: jest.fn(() => ({ data: { subscription: { unsubscribe: jest.fn() } } })),
+      signInWithPassword: jest.fn(),
+      signUp: jest.fn(),
+      signOut: jest.fn(),
+      verifyOtp: jest.fn(),
+      resend: jest.fn(),
+    },
+  })),
+}));
+
+// Mock AuthContext
+jest.mock('./context/AuthContext', () => ({
+  useAuth: jest.fn(() => ({
+    user: null,
+    isLoading: false,
+    isSignedIn: false,
+    signIn: jest.fn(),
+    signUp: jest.fn(),
+    signOut: jest.fn(),
+    getToken: jest.fn(() => Promise.resolve(null)),
+  })),
+  AuthProvider: ({ children }) => children,
 }));
 
 // Mock expo-router

@@ -90,7 +90,7 @@ class TestCORSHeaders:
 
 
 class TestAuthProtection:
-    """Ensure REST endpoints enforce Clerk auth"""
+    """Ensure REST endpoints enforce Supabase auth"""
 
     @pytest.mark.integration
     def test_missing_authorization_header_returns_401(self, client: TestClient):

@@ -25,7 +25,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     environment,
     apiUrl: process.env.EXPO_PUBLIC_API_URL ?? base.extra?.apiUrl,
     wsUrl: process.env.EXPO_PUBLIC_WS_URL ?? base.extra?.wsUrl,
-    clerkPublishableKey: process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? base.extra?.clerkPublishableKey,
+    supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? base.extra?.supabaseUrl,
+    supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? base.extra?.supabaseAnonKey,
   } as Record<string, unknown>;
 
   // Only include eas.projectId when it's explicitly set (avoid bundling a placeholder ID)

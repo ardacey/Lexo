@@ -9,22 +9,22 @@ from datetime import datetime, timedelta
 
 from app.websocket.auth import (
     authenticate_websocket,
-    verify_clerk_jwt,
     WebSocketAuthError,
     RateLimiter,
     validate_message,
     send_error_response
 )
+from app.security.supabase import verify_supabase_jwt
 
 
 class TestAuthentication:
     """Test WebSocket authentication"""
     
     @pytest.mark.asyncio
-    @patch("app.websocket.auth.verify_clerk_jwt", new_callable=AsyncMock)
+    @patch("app.websocket.auth.verify_supabase_jwt", new_callable=AsyncMock)
     async def test_authenticate_websocket_success(self, mock_verify):
-        """Test successful authentication with clerk_id"""
-        mock_verify.return_value = {"sub": "user_123", "username": "TestUser"}
+        """Test successful authentication with user_id"""
+        mock_verify.return_value = {"sub": "user_123", "user_metadata": {"username": "TestUser"}}
         mock_ws = AsyncMock(spec=WebSocket)
         mock_ws.query_params = Mock()
         mock_ws.query_params.get = Mock(return_value=None)
@@ -34,15 +34,15 @@ class TestAuthentication:
         
         result = await authenticate_websocket(mock_ws)
         
-        assert result["clerk_id"] == "user_123"
+        assert result["user_id"] == "user_123"
         assert result["username"] == "TestUser"
         assert result["is_reconnect"] is False
     
     @pytest.mark.asyncio
-    @patch("app.websocket.auth.verify_clerk_jwt", new_callable=AsyncMock)
-    async def test_authenticate_websocket_missing_clerk_id(self, mock_verify):
-        """Test authentication fails when clerk_id (sub) is missing"""
-        mock_verify.return_value = {"username": "TestUser"}
+    @patch("app.websocket.auth.verify_supabase_jwt", new_callable=AsyncMock)
+    async def test_authenticate_websocket_missing_user_id(self, mock_verify):
+        """Test authentication fails when user_id (sub) is missing"""
+        mock_verify.return_value = {"user_metadata": {"username": "TestUser"}}
         mock_ws = AsyncMock(spec=WebSocket)
         mock_ws.query_params = Mock()
         mock_ws.query_params.get = Mock(return_value=None)
@@ -52,7 +52,7 @@ class TestAuthentication:
             await authenticate_websocket(mock_ws)
     
     @pytest.mark.asyncio
-    @patch("app.websocket.auth.verify_clerk_jwt", new_callable=AsyncMock)
+    @patch("app.websocket.auth.verify_supabase_jwt", new_callable=AsyncMock)
     async def test_authenticate_websocket_reconnect(self, mock_verify):
         """Test authentication with reconnect flag"""
         mock_verify.return_value = {"sub": "user_123", "username": "TestUser"}
@@ -66,7 +66,7 @@ class TestAuthentication:
         
         result = await authenticate_websocket(mock_ws)
         
-        assert result["clerk_id"] == "user_123"
+        assert result["user_id"] == "user_123"
         assert result["is_reconnect"] is True
 
 
@@ -246,7 +246,7 @@ class TestIntegrationSecurity:
     """Integration tests for security features"""
     
     @pytest.mark.asyncio
-    @patch("app.websocket.auth.verify_clerk_jwt", new_callable=AsyncMock)
+    @patch("app.websocket.auth.verify_supabase_jwt", new_callable=AsyncMock)
     async def test_full_authentication_flow(self, mock_verify):
         """Test complete authentication flow"""
         mock_verify.return_value = {"sub": "user_123", "username": "TestUser"}
@@ -261,7 +261,7 @@ class TestIntegrationSecurity:
         user_data = await authenticate_websocket(mock_ws)
         
         # Verify user is authenticated
-        assert user_data["clerk_id"] == "user_123"
+        assert user_data["user_id"] == "user_123"
         assert user_data["username"] == "TestUser"
         
         # Create rate limiter for user
@@ -269,20 +269,20 @@ class TestIntegrationSecurity:
         
         # Simulate message sending
         for i in range(30):
-            assert limiter.is_allowed(user_data["clerk_id"]) is True
+            assert limiter.is_allowed(user_data["user_id"]) is True
         
         # 31st message should be blocked
-        assert limiter.is_allowed(user_data["clerk_id"]) is False
+        assert limiter.is_allowed(user_data["user_id"]) is False
     
     @pytest.mark.asyncio
-    @patch("app.websocket.auth.verify_clerk_jwt", new_callable=AsyncMock)
+    @patch("app.websocket.auth.verify_supabase_jwt", new_callable=AsyncMock)
     async def test_security_prevents_unauthorized_access(self, mock_verify):
         """Test that security measures prevent unauthorized access"""
         mock_ws = AsyncMock(spec=WebSocket)
         mock_ws.query_params = Mock()
         mock_ws.query_params.get = Mock(return_value=None)
         
-        # Test: Missing clerk_id
+        # Test: Missing user_id (sub claim)
         mock_verify.return_value = {"username": "TestUser"}
         mock_ws.receive_json = AsyncMock(return_value={"token": "fake-token"})
         

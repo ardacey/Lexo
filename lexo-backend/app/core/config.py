@@ -86,10 +86,11 @@ class LogSettings(BaseSettings):
     }
 
 
-class ClerkSettings(BaseSettings):
-    issuer_url: str = Field(default='', alias='CLERK_ISSUER_URL')
-    audience: str | None = Field(default=None, alias='CLERK_AUDIENCE')
-    jwks_cache_ttl_seconds: int = Field(default=300, alias='CLERK_JWKS_CACHE_TTL')
+class SupabaseSettings(BaseSettings):
+    url: str = Field(default='', alias='SUPABASE_URL')
+    anon_key: str = Field(default='', alias='SUPABASE_ANON_KEY')
+    service_role_key: str = Field(default='', alias='SUPABASE_SERVICE_ROLE_KEY')
+    jwt_secret: str = Field(default='', alias='SUPABASE_JWT_SECRET')
 
     model_config = {
         'env_file': str(Path(__file__).parent.parent.parent / '.env'),
@@ -104,7 +105,7 @@ class Settings(BaseSettings):
     database: DatabaseSettings = DatabaseSettings()
     files: FileSettings = FileSettings()
     log: LogSettings = LogSettings()
-    clerk: ClerkSettings = ClerkSettings()
+    supabase: SupabaseSettings = SupabaseSettings()
     
 
 
