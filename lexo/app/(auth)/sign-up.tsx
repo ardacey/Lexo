@@ -56,7 +56,7 @@ export default function SignUpScreen() {
         showToast(getErrorMessage(error), 'error')
       } else if (needsVerification) {
         showToast('Doğrulama kodu e-postanıza gönderildi', 'success')
-        router.replace({ pathname: '/verify-email', params: { email: emailAddress } })
+        router.replace({ pathname: '/(auth)/verify-email', params: { email: emailAddress } })
       } else {
         showToast('Kayıt başarılı!', 'success')
         router.replace('/(home)')

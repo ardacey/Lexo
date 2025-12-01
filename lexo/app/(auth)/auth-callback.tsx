@@ -23,7 +23,7 @@ export default function AuthCallbackScreen() {
       if (params.error) {
         const errorMessage = params.error_description?.replace(/\+/g, ' ') || 'Doğrulama hatası'
         showToast(errorMessage, 'error')
-        router.replace('/sign-in')
+        router.replace('/(auth)/sign-in')
         return
       }
 
@@ -37,14 +37,14 @@ export default function AuthCallbackScreen() {
 
           if (error) {
             showToast(error.message, 'error')
-            router.replace('/sign-in')
+            router.replace('/(auth)/sign-in')
           } else {
             showToast('E-posta doğrulandı!', 'success')
             router.replace('/(home)')
           }
         } catch (err) {
           showToast('Doğrulama sırasında bir hata oluştu', 'error')
-          router.replace('/sign-in')
+          router.replace('/(auth)/sign-in')
         }
         return
       }
@@ -59,20 +59,20 @@ export default function AuthCallbackScreen() {
 
           if (error) {
             showToast(error.message, 'error')
-            router.replace('/sign-in')
+            router.replace('/(auth)/sign-in')
           } else {
             showToast('Giriş başarılı!', 'success')
             router.replace('/(home)')
           }
         } catch (err) {
           showToast('Oturum oluşturulurken bir hata oluştu', 'error')
-          router.replace('/sign-in')
+          router.replace('/(auth)/sign-in')
         }
         return
       }
 
       // No valid params, redirect to sign-in
-      router.replace('/sign-in')
+      router.replace('/(auth)/sign-in')
     }
 
     handleCallback()

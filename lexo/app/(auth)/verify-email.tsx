@@ -54,7 +54,7 @@ export default function VerifyEmailScreen() {
 
     if (!email) {
       showToast('E-posta adresi bulunamadı', 'error')
-      router.replace('/sign-up')
+      router.replace('/(auth)/sign-up')
       return
     }
 
@@ -66,7 +66,7 @@ export default function VerifyEmailScreen() {
         showToast(getErrorMessage(error), 'error')
       } else {
         showToast('E-posta doğrulandı! Giriş yapabilirsiniz.', 'success')
-        router.replace('/sign-in')
+        router.replace('/(auth)/sign-in')
       }
     } catch (err) {
       showToast('Bir hata oluştu', 'error')
@@ -188,7 +188,7 @@ export default function VerifyEmailScreen() {
           {/* Back to Sign Up */}
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.replace('/sign-up')}
+            onPress={() => router.replace('/(auth)/sign-up')}
           >
             <Ionicons name="arrow-back" size={16} color="#667eea" />
             <Text style={styles.backText}>Kayıt sayfasına dön</Text>
