@@ -15,6 +15,13 @@ import * as api from '../../utils/api';
 // Mock the API utilities
 jest.mock('../../utils/api');
 
+// Mock the AuthContext
+jest.mock('../../context/AuthContext', () => ({
+  useAuth: () => ({
+    getToken: jest.fn().mockResolvedValue(undefined),
+  }),
+}));
+
 const mockValidateWord = api.validateWord as jest.MockedFunction<typeof api.validateWord>;
 const mockCreateUser = api.createUser as jest.MockedFunction<typeof api.createUser>;
 const mockGetUserStats = api.getUserStats as jest.MockedFunction<typeof api.getUserStats>;
@@ -101,7 +108,7 @@ describe('useApi hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockCreateUser).toHaveBeenCalledWith('user_123', 'testuser', 'test@example.com');
+      expect(mockCreateUser).toHaveBeenCalledWith('user_123', 'testuser', 'test@example.com', undefined);
       expect(result.current.data).toEqual(mockUser);
     });
 
@@ -154,7 +161,7 @@ describe('useApi hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockGetUserStats).toHaveBeenCalledWith('user_123');
+      expect(mockGetUserStats).toHaveBeenCalledWith('user_123', undefined);
       expect(result.current.data).toEqual(mockStats);
     });
 
@@ -228,7 +235,7 @@ describe('useApi hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockGetUserGames).toHaveBeenCalledWith('user_123', 10);
+      expect(mockGetUserGames).toHaveBeenCalledWith('user_123', 10, undefined);
       expect(result.current.data).toEqual(mockGames);
     });
 
@@ -282,7 +289,7 @@ describe('useApi hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockGetLeaderboard).toHaveBeenCalledWith(10);
+      expect(mockGetLeaderboard).toHaveBeenCalledWith(10, undefined);
       expect(result.current.data).toEqual(mockLeaderboard);
     });
 
@@ -332,7 +339,7 @@ describe('useApi hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockSaveGame).toHaveBeenCalledWith(gameData);
+      expect(mockSaveGame).toHaveBeenCalledWith(gameData, undefined);
       expect(result.current.data).toEqual(mockSavedGame);
     });
 
