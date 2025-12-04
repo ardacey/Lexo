@@ -1,5 +1,5 @@
 import React from 'react'
-import { Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, Platform, ScrollView, Animated } from 'react-native'
+import { Text, TextInput, TouchableOpacity, View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Animated } from 'react-native'
 import { Link, useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
@@ -59,68 +59,70 @@ export default function Page() {
   return (
     <LinearGradient
       colors={['#667eea', '#764ba2', '#f093fb']}
-      className="flex-1"
+      style={styles.container}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1"
+        style={styles.keyboardView}
       >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
           <Animated.View
-            style={{
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }]
-            }}
-            className="items-center"
+            style={[
+              styles.content,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
           >
             {/* Logo and Title */}
-            <View className="items-center mb-10">
-              <View className="mb-6">
+            <View style={styles.header}>
+              <View style={styles.logoContainer}>
                 <LinearGradient
                   colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.1)']}
-                  className="w-20 h-20 rounded-full justify-center items-center border-2 border-white/30"
+                  style={styles.logoBackground}
                 >
-                  <Text className="text-4xl font-bold text-white">L</Text>
+                  <Text style={styles.logoText}>L</Text>
                 </LinearGradient>
               </View>
-              <Text className="text-[28px] font-bold text-white mb-2" style={{ textShadowColor: 'rgba(0,0,0,0.2)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 }}>Tekrar Hoşgeldin!</Text>
-              <Text className="text-base text-white/80">Hesabına giriş yap</Text>
+              <Text style={styles.title}>Tekrar Hoşgeldin!</Text>
+              <Text style={styles.subtitle}>Hesabına giriş yap</Text>
             </View>
 
             {/* Form */}
-            <View className="w-full max-w-[400px]">
-              <View className="flex-row items-center bg-white/15 rounded-2xl mb-4 px-4 border border-white/20">
-                <Ionicons name="mail-outline" size={20} color="rgba(255,255,255,0.7)" style={{ marginRight: 12 }} />
+            <View style={styles.form}>
+              <View style={styles.inputContainer}>
+                <Ionicons name="mail-outline" size={20} color="rgba(255,255,255,0.7)" style={styles.inputIcon} />
                 <TextInput
                   value={emailAddress}
                   placeholder="E-posta adresi"
                   placeholderTextColor="rgba(255,255,255,0.5)"
                   onChangeText={setEmailAddress}
-                  className="flex-1 h-14 text-white text-base"
+                  style={styles.input}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   autoComplete="email"
                 />
               </View>
 
-              <View className="flex-row items-center bg-white/15 rounded-2xl mb-4 px-4 border border-white/20">
-                <Ionicons name="lock-closed-outline" size={20} color="rgba(255,255,255,0.7)" style={{ marginRight: 12 }} />
+              <View style={styles.inputContainer}>
+                <Ionicons name="lock-closed-outline" size={20} color="rgba(255,255,255,0.7)" style={styles.inputIcon} />
                 <TextInput
                   value={password}
                   placeholder="Şifre"
                   placeholderTextColor="rgba(255,255,255,0.5)"
                   secureTextEntry={!showPassword}
                   onChangeText={setPassword}
-                  className="flex-1 h-14 text-white text-base"
+                  style={styles.input}
                   autoComplete="password"
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} className="p-2">
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
                   <Ionicons 
                     name={showPassword ? "eye-outline" : "eye-off-outline"} 
                     size={20} 
@@ -132,15 +134,15 @@ export default function Page() {
               <TouchableOpacity
                 onPress={onSignInPress}
                 disabled={isSubmitting || isLoading}
-                className="rounded-2xl overflow-hidden mt-2 shadow-lg"
+                style={styles.signInButton}
               >
                 <LinearGradient
                   colors={isSubmitting || isLoading ? ['#ccc', '#aaa'] : ['#fff', '#f0f0f0']}
-                  className="py-4 items-center"
+                  style={styles.signInButtonGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
-                  <Text className={`text-lg font-bold ${isSubmitting || isLoading ? 'text-gray-500' : 'text-[#667eea]'}`}>
+                  <Text style={[styles.signInButtonText, (isSubmitting || isLoading) && styles.disabledText]}>
                     {isSubmitting || isLoading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
                   </Text>
                 </LinearGradient>
@@ -148,11 +150,11 @@ export default function Page() {
             </View>
 
             {/* Sign Up Link */}
-            <View className="flex-row mt-8">
-              <Text className="text-white/80 text-base">Hesabın yok mu? </Text>
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Hesabın yok mu? </Text>
               <Link href="/(auth)/sign-up" asChild>
                 <TouchableOpacity>
-                  <Text className="text-white text-base font-bold underline">Kayıt Ol</Text>
+                  <Text style={styles.linkText}>Kayıt Ol</Text>
                 </TouchableOpacity>
               </Link>
             </View>
@@ -162,3 +164,116 @@ export default function Page() {
     </LinearGradient>
   )
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  content: {
+    alignItems: 'center',
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  logoContainer: {
+    marginBottom: 24,
+  },
+  logoBackground: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  logoText: {
+    fontSize: 40,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 8,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  form: {
+    width: '100%',
+    maxWidth: 400,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 16,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    height: 56,
+    color: '#fff',
+    fontSize: 16,
+  },
+  eyeIcon: {
+    padding: 8,
+  },
+  signInButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  signInButtonGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  signInButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#667eea',
+  },
+  disabledText: {
+    color: '#666',
+  },
+  footer: {
+    flexDirection: 'row',
+    marginTop: 32,
+  },
+  footerText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 16,
+  },
+  linkText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textDecorationLine: 'underline',
+  },
+})

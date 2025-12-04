@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Text, Animated, StyleSheet } from 'react-native';
+import { Text, StyleSheet, Animated } from 'react-native';
 
 interface EmojiNotificationProps {
   emoji: string;
@@ -72,14 +72,12 @@ export const EmojiNotification: React.FC<EmojiNotificationProps> = ({
           transform: [{ scale: scaleAnim }],
         },
       ]}
-      className="absolute top-14 bg-white/95 px-2 py-1.5 rounded-[20px] shadow-md z-[100]"
     >
-      <Text className="text-2xl">{emoji}</Text>
+      <Text style={styles.emoji}>{emoji}</Text>
     </Animated.View>
   );
 };
 
-// Keep minimal styles for positioning that need to be dynamic
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
@@ -103,5 +101,8 @@ const styles = StyleSheet.create({
   },
   rightPosition: {
     right: 16,
+  },
+  emoji: {
+    fontSize: 24,
   },
 });

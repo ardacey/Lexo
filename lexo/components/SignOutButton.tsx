@@ -1,7 +1,7 @@
 import { useAuth } from '../context/AuthContext'
 import { useRouter } from 'expo-router'
 import React from 'react'
-import { Text, TouchableOpacity, View } from 'react-native'
+import { Text, TouchableOpacity, View, StyleSheet } from 'react-native'
 
 export const SignOutButton = () => {
   const { signOut } = useAuth()
@@ -19,14 +19,51 @@ export const SignOutButton = () => {
     <TouchableOpacity 
       onPress={handleSignOut}
       activeOpacity={0.8}
-      className="bg-white/90 rounded-2xl p-5 shadow-md border border-red-200"
+      style={styles.button}
     >
-      <View className="flex-row items-center justify-center">
-        <View className="bg-red-100 w-10 h-10 rounded-full items-center justify-center mr-3">
-          <Text className="text-xl">🚪</Text>
+      <View style={styles.content}>
+        <View style={styles.iconContainer}>
+          <Text style={styles.icon}>🚪</Text>
         </View>
-        <Text className="text-red-600 text-lg font-semibold">Çıkış Yap</Text>
+        <Text style={styles.text}>Çıkış Yap</Text>
       </View>
     </TouchableOpacity>
   )
 }
+
+const styles = StyleSheet.create({
+  button: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconContainer: {
+    backgroundColor: '#fee2e2',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  icon: {
+    fontSize: 20,
+  },
+  text: {
+    color: '#dc2626',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+});
