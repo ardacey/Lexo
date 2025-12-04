@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Toast from 'react-native-toast-message';
 import { useAuth } from '../../context/AuthContext';
@@ -33,16 +33,13 @@ interface Score {
 
 export default function Multiplayer() {
   const router = useRouter();
-  // Safe back helper: try to go back, otherwise navigate to home
+  const navigation = useNavigation();
+  // Safe back helper: check if we can go back, otherwise navigate to home
   const safeBack = () => {
-    try {
+    if (navigation.canGoBack()) {
       router.back();
-    } catch {
-      try {
-        router.replace('/(home)');
-      } catch {
-        // Silent navigation error
-      }
+    } else {
+      router.replace('/(home)');
     }
   };
   const params = useLocalSearchParams();

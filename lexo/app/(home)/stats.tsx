@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,8 +9,18 @@ import { useUserStats, useUserGames } from '@/hooks/useApi';
 
 export default function StatsPage() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { user, isLoading: userLoading } = useAuth();
   const userLoaded = !userLoading;
+  
+  // Safe back navigation helper
+  const safeBack = () => {
+    if (navigation.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(home)');
+    }
+  };
   
   const { data: stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useUserStats(user?.id || null);
   const { data: games = [], isLoading: gamesLoading, error: gamesError, refetch: refetchGames } = useUserGames(user?.id || null, 10);
@@ -86,7 +96,7 @@ export default function StatsPage() {
       
       {/* Header */}
       <View className="flex-row items-center px-6 py-4 border-b border-gray-200">
-        <TouchableOpacity onPress={() => router.back()} className="mr-4">
+        <TouchableOpacity onPress={safeBack} className="mr-4">
           <Ionicons name="arrow-back" size={24} color="#1f2937" />
         </TouchableOpacity>
         <Text className="text-2xl font-bold text-text-primary">İstatistiklerim</Text>
@@ -256,7 +266,7 @@ export default function StatsPage() {
                 </Text>
                 <TouchableOpacity 
                   className="bg-primary rounded-xl px-6 py-3 mt-4"
-                  onPress={() => router.back()}
+                  onPress={safeBack}
                 >
                   <Text className="text-white font-bold">İlk Oyununu Oyna!</Text>
                 </TouchableOpacity>
