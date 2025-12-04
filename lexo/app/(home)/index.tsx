@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Animated, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, Link } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -57,6 +57,10 @@ export default function Page() {
     multiplayer: new Animated.Value(1),
     stats: new Animated.Value(1),
   });
+
+  const openPrivacyPolicy = () => {
+    Linking.openURL('https://ardacey.github.io/Lexo/privacy-policy.html');
+  };
 
   const checkForActiveGame = async (username: string) => {
     try {
@@ -141,49 +145,49 @@ export default function Page() {
   };
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1">
       <LinearGradient
         colors={['#f0f9ff', '#e0f2fe', '#fef3c7', '#fce7f3']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.gradient}
+        className="flex-1"
       >
-        <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView className="flex-1">
           <StatusBar style="dark" />
           {isSignedIn && (
             <ScrollView 
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
+              className="flex-1"
+              contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 }}
               showsVerticalScrollIndicator={false}
             >
               {/* Header Section */}
               <AnimatedCard delay={0}>
-                <View style={styles.headerContainer}>
+                <View className="items-center mb-8">
                   <LinearGradient
                     colors={['#667eea', '#764ba2']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
-                    style={styles.logoContainer}
+                    className="rounded-[32px] px-10 py-5 mb-3 shadow-lg"
                   >
-                    <Text style={styles.logoText}>Lexo</Text>
+                    <Text className="text-6xl font-bold text-white text-center tracking-wider">Lexo</Text>
                   </LinearGradient>
                 </View>
               </AnimatedCard>
 
               {/* Welcome Card */}
-              <AnimatedCard delay={100} style={styles.welcomeCard}>
-                <View style={styles.welcomeContent}>
+              <AnimatedCard delay={100} style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: 28, padding: 24, marginBottom: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 6, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.3)' }}>
+                <View className="flex-row items-center">
                   <LinearGradient
                     colors={['#f093fb', '#f5576c']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
-                    style={styles.avatarGradient}
+                    className="w-16 h-16 rounded-full items-center justify-center mr-4 shadow-md"
                   >
-                    <Text style={styles.waveEmoji}>👋</Text>
+                    <Text className="text-3xl">👋</Text>
                   </LinearGradient>
-                  <View style={styles.welcomeTextContainer}>
-                    <Text style={styles.welcomeLabel}>Hoş geldin</Text>
-                    <Text style={styles.username} numberOfLines={1}>
+                  <View className="flex-1">
+                    <Text className="text-xs text-slate-400 mb-1 uppercase tracking-wide">Hoş geldin</Text>
+                    <Text className="text-xl font-bold text-slate-800" numberOfLines={1}>
                       {user?.user_metadata?.username || user?.email?.split('@')[0] || 'Player'}
                     </Text>
                   </View>
@@ -191,7 +195,7 @@ export default function Page() {
               </AnimatedCard>
 
               {/* Action Buttons */}
-              <View style={styles.buttonsContainer}>
+              <View className="mb-6 gap-4">
                 {/* Multiplayer Button */}
                 <AnimatedCard delay={200}>
                   <Animated.View style={{ transform: [{ scale: scaleAnims.multiplayer }] }}>
@@ -201,26 +205,26 @@ export default function Page() {
                         handleMultiplayer();
                       }}
                       activeOpacity={0.9}
-                      style={styles.buttonWrapper}
+                      className="rounded-3xl overflow-hidden shadow-lg mb-4"
                     >
                       <LinearGradient
                         colors={['#11998e', '#38ef7d']}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
-                        style={styles.actionButton}
+                        className="p-7 flex-row items-center justify-between relative overflow-hidden"
                       >
-                        <View style={styles.glowEffect} />
-                        <View style={styles.buttonContent}>
-                          <View style={styles.iconContainer}>
-                            <Text style={styles.buttonIcon}>🎮</Text>
+                        <View className="absolute -top-12 -right-12 w-36 h-36 bg-white/10 rounded-full" />
+                        <View className="flex-row items-center flex-1 z-10">
+                          <View className="bg-white/25 w-14 h-14 rounded-full items-center justify-center mr-4">
+                            <Text className="text-3xl">🎮</Text>
                           </View>
-                          <View style={styles.buttonTextContainer}>
-                            <Text style={styles.buttonTitle}>Oyun Ara</Text>
-                            <Text style={styles.buttonSubtitle}>🔥 Çevrimiçi rakiplerle yarış</Text>
+                          <View className="flex-1">
+                            <Text className="text-white text-xl font-bold mb-1.5 tracking-wide">Oyun Ara</Text>
+                            <Text className="text-white/90 text-sm font-medium">🔥 Çevrimiçi rakiplerle yarış</Text>
                           </View>
                         </View>
-                        <View style={styles.arrowContainer}>
-                          <Text style={styles.arrowText}>→</Text>
+                        <View className="bg-white/25 w-11 h-11 rounded-full items-center justify-center z-10">
+                          <Text className="text-white text-xl font-bold">→</Text>
                         </View>
                       </LinearGradient>
                     </TouchableOpacity>
@@ -236,26 +240,26 @@ export default function Page() {
                         router.push('/stats');
                       }}
                       activeOpacity={0.9}
-                      style={styles.buttonWrapper}
+                      className="rounded-3xl overflow-hidden shadow-lg mb-4"
                     >
                       <LinearGradient
                         colors={['#4facfe', '#00f2fe']}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
-                        style={styles.actionButton}
+                        className="p-7 flex-row items-center justify-between relative overflow-hidden"
                       >
-                        <View style={styles.glowEffect} />
-                        <View style={styles.buttonContent}>
-                          <View style={styles.iconContainer}>
-                            <Text style={styles.buttonIcon}>📊</Text>
+                        <View className="absolute -top-12 -right-12 w-36 h-36 bg-white/10 rounded-full" />
+                        <View className="flex-row items-center flex-1 z-10">
+                          <View className="bg-white/25 w-14 h-14 rounded-full items-center justify-center mr-4">
+                            <Text className="text-3xl">📊</Text>
                           </View>
-                          <View style={styles.buttonTextContainer}>
-                            <Text style={styles.buttonTitle}>İstatistikler</Text>
-                            <Text style={styles.buttonSubtitle}>📈 Performans analizini gör</Text>
+                          <View className="flex-1">
+                            <Text className="text-white text-xl font-bold mb-1.5 tracking-wide">İstatistikler</Text>
+                            <Text className="text-white/90 text-sm font-medium">📈 Performans analizini gör</Text>
                           </View>
                         </View>
-                        <View style={styles.arrowContainer}>
-                          <Text style={styles.arrowText}>→</Text>
+                        <View className="bg-white/25 w-11 h-11 rounded-full items-center justify-center z-10">
+                          <Text className="text-white text-xl font-bold">→</Text>
                         </View>
                       </LinearGradient>
                     </TouchableOpacity>
@@ -267,76 +271,80 @@ export default function Page() {
               <AnimatedCard delay={600}>
                 <SignOutButton />
               </AnimatedCard>
+
+              <TouchableOpacity onPress={openPrivacyPolicy} className="mt-5 items-center p-2.5">
+                <Text className="text-white/70 text-sm underline">Gizlilik Politikası</Text>
+              </TouchableOpacity>
             </ScrollView>
           )}
           
           {!isSignedIn && (
             <ScrollView 
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContentSignedOut}
+              className="flex-1"
+              contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 40, paddingBottom: 40 }}
               showsVerticalScrollIndicator={false}
             >
               {/* Header Section */}
               <AnimatedCard delay={0}>
-                <View style={styles.headerContainerSignedOut}>
+                <View className="items-center mb-6">
                   <LinearGradient
                     colors={['#667eea', '#764ba2']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
-                    style={styles.logoContainer}
+                    className="rounded-[32px] px-10 py-5 mb-3 shadow-lg"
                   >
-                    <Text style={styles.logoText}>Lexo</Text>
+                    <Text className="text-6xl font-bold text-white text-center tracking-wider">Lexo</Text>
                   </LinearGradient>
                 </View>
               </AnimatedCard>
 
               {/* How to Play Card */}
               <AnimatedCard delay={200}>
-                <View style={styles.howToPlayCard}>
+                <View className="rounded-[28px] overflow-hidden mb-6 shadow-md">
                   <LinearGradient
                     colors={['rgba(255, 255, 255, 0.95)', 'rgba(255, 255, 255, 0.85)']}
-                    style={styles.howToPlayContent}
+                    className="p-6 rounded-[28px] border border-white/30"
                   >
-                    <View style={styles.howToPlayHeader}>
-                      <Text style={styles.lightbulbEmoji}>💡</Text>
-                      <Text style={styles.howToPlayTitle}>Nasıl Oynanır?</Text>
+                    <View className="flex-row items-center mb-5">
+                      <Text className="text-3xl mr-3">💡</Text>
+                      <Text className="text-xl font-bold text-slate-800">Nasıl Oynanır?</Text>
                     </View>
-                    <View style={styles.instructionsContainer}>
-                      <View style={styles.instructionRow}>
+                    <View className="gap-4">
+                      <View className="flex-row items-start">
                         <LinearGradient
                           colors={['#667eea', '#764ba2']}
-                          style={styles.numberBadgeGradient}
+                          className="w-8 h-8 rounded-full items-center justify-center mr-3 mt-0.5"
                         >
-                          <Text style={styles.numberTextWhite}>1</Text>
+                          <Text className="font-bold text-sm text-white">1</Text>
                         </LinearGradient>
-                        <Text style={styles.instructionText}>Verilen harflerden kelime oluşturun</Text>
+                        <Text className="flex-1 text-slate-600 leading-6 text-[15px] font-medium">Verilen harflerden kelime oluşturun</Text>
                       </View>
-                      <View style={styles.instructionRow}>
+                      <View className="flex-row items-start">
                         <LinearGradient
                           colors={['#f093fb', '#f5576c']}
-                          style={styles.numberBadgeGradient}
+                          className="w-8 h-8 rounded-full items-center justify-center mr-3 mt-0.5"
                         >
-                          <Text style={styles.numberTextWhite}>2</Text>
+                          <Text className="font-bold text-sm text-white">2</Text>
                         </LinearGradient>
-                        <Text style={styles.instructionText}>Her harf farklı puan değerine sahip</Text>
+                        <Text className="flex-1 text-slate-600 leading-6 text-[15px] font-medium">Her harf farklı puan değerine sahip</Text>
                       </View>
-                      <View style={styles.instructionRow}>
+                      <View className="flex-row items-start">
                         <LinearGradient
                           colors={['#4facfe', '#00f2fe']}
-                          style={styles.numberBadgeGradient}
+                          className="w-8 h-8 rounded-full items-center justify-center mr-3 mt-0.5"
                         >
-                          <Text style={styles.numberTextWhite}>3</Text>
+                          <Text className="font-bold text-sm text-white">3</Text>
                         </LinearGradient>
-                        <Text style={styles.instructionText}>Uzun kelimeler daha fazla puan kazandırır</Text>
+                        <Text className="flex-1 text-slate-600 leading-6 text-[15px] font-medium">Uzun kelimeler daha fazla puan kazandırır</Text>
                       </View>
-                      <View style={styles.instructionRow}>
+                      <View className="flex-row items-start">
                         <LinearGradient
                           colors={['#11998e', '#38ef7d']}
-                          style={styles.numberBadgeGradient}
+                          className="w-8 h-8 rounded-full items-center justify-center mr-3 mt-0.5"
                         >
-                          <Text style={styles.numberTextWhite}>4</Text>
+                          <Text className="font-bold text-sm text-white">4</Text>
                         </LinearGradient>
-                        <Text style={styles.instructionText}>60 saniye içinde en yüksek skoru yapın!</Text>
+                        <Text className="flex-1 text-slate-600 leading-6 text-[15px] font-medium">60 saniye içinde en yüksek skoru yapın!</Text>
                       </View>
                     </View>
                   </LinearGradient>
@@ -345,19 +353,19 @@ export default function Page() {
 
               {/* Auth Buttons */}
               <AnimatedCard delay={300}>
-                <View style={styles.authButtonsContainer}>
+                <View className="gap-4">
                   <Link href="/(auth)/sign-in" asChild>
                     <TouchableOpacity 
                       activeOpacity={0.9}
-                      style={styles.authButtonWrapper}
+                      className="rounded-3xl overflow-hidden shadow-lg"
                     >
                       <LinearGradient
                         colors={['#667eea', '#764ba2']}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
-                        style={styles.authButton}
+                        className="p-6 items-center"
                       >
-                        <Text style={styles.authButtonText}>🚀 Hemen Başla</Text>
+                        <Text className="text-white text-xl font-bold tracking-wide">🚀 Hemen Başla</Text>
                       </LinearGradient>
                     </TouchableOpacity>
                   </Link>
@@ -365,11 +373,15 @@ export default function Page() {
                   <Link href="/(auth)/sign-up" asChild>
                     <TouchableOpacity 
                       activeOpacity={0.9}
-                      style={styles.signUpButton}
+                      className="bg-white/95 rounded-3xl p-6 items-center shadow-md border border-white/30"
                     >
-                      <Text style={styles.signUpButtonText}>Hesap Oluştur</Text>
+                      <Text className="text-slate-800 text-xl font-bold tracking-wide">Hesap Oluştur</Text>
                     </TouchableOpacity>
                   </Link>
+
+                  <TouchableOpacity onPress={openPrivacyPolicy} className="mt-5 items-center p-2.5">
+                    <Text className="text-white/70 text-sm underline">Gizlilik Politikası</Text>
+                  </TouchableOpacity>
                 </View>
               </AnimatedCard>
             </ScrollView>
@@ -380,399 +392,3 @@ export default function Page() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  gradient: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 40,
-  },
-  scrollContentSignedOut: {
-    paddingHorizontal: 20,
-    paddingTop: 40,
-    paddingBottom: 40,
-  },
-  headerContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  headerContainerSignedOut: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  logoContainer: {
-    borderRadius: 32,
-    paddingHorizontal: 40,
-    paddingVertical: 20,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-    position: 'relative',
-  },
-  sparkle: {
-    fontSize: 24,
-  },
-  logoText: {
-    fontSize: 60,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    textAlign: 'center',
-    letterSpacing: 2,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#64748b',
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  welcomeCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 28,
-    padding: 24,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  welcomeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatarGradient: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-    shadowColor: '#f5576c',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  waveEmoji: {
-    fontSize: 32,
-  },
-  welcomeTextContainer: {
-    flex: 1,
-  },
-  welcomeLabel: {
-    fontSize: 13,
-    color: '#94a3b8',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  username: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#1e293b',
-  },
-  buttonsContainer: {
-    marginBottom: 24,
-    gap: 16,
-  },
-  buttonWrapper: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
-    marginBottom: 16,
-  },
-  actionButton: {
-    padding: 28,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  glowEffect: {
-    position: 'absolute',
-    top: -50,
-    right: -50,
-    width: 150,
-    height: 150,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 75,
-  },
-  buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    zIndex: 1,
-  },
-  iconContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-    position: 'relative',
-  },
-  buttonIcon: {
-    fontSize: 32,
-  },
-  buttonTextContainer: {
-    flex: 1,
-  },
-  buttonTitle: {
-    color: '#ffffff',
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 6,
-    letterSpacing: 0.5,
-  },
-  buttonSubtitle: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  arrowContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  arrowText: {
-    color: '#ffffff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  featuresContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  featureCard: {
-    flex: 1,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  featureGradient: {
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 140,
-  },
-  featureEmoji: {
-    fontSize: 40,
-    marginBottom: 12,
-  },
-  featureTitle: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  featureDesc: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  howToPlayCard: {
-    borderRadius: 28,
-    overflow: 'hidden',
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  howToPlayContent: {
-    padding: 24,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  howToPlayHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  lightbulbEmoji: {
-    fontSize: 28,
-    marginRight: 12,
-  },
-  howToPlayTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#1e293b',
-  },
-  instructionsContainer: {
-    gap: 16,
-  },
-  instructionRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  numberBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    marginTop: 2,
-  },
-  numberBadgeGradient: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    marginTop: 2,
-  },
-  purpleBadge: {
-    backgroundColor: '#f3e8ff',
-  },
-  blueBadge: {
-    backgroundColor: '#dbeafe',
-  },
-  pinkBadge: {
-    backgroundColor: '#fce7f3',
-  },
-  greenBadge: {
-    backgroundColor: '#d1fae5',
-  },
-  numberText: {
-    fontWeight: 'bold',
-    fontSize: 12,
-    color: '#9333ea',
-  },
-  numberTextWhite: {
-    fontWeight: 'bold',
-    fontSize: 14,
-    color: '#ffffff',
-  },
-  blueText: {
-    color: '#2563eb',
-  },
-  pinkText: {
-    color: '#ec4899',
-  },
-  greenText: {
-    color: '#059669',
-  },
-  instructionText: {
-    flex: 1,
-    color: '#475569',
-    lineHeight: 24,
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  welcomeDescription: {
-    fontSize: 15,
-    color: '#64748b',
-    textAlign: 'center',
-    marginTop: 8,
-    fontWeight: '500',
-    paddingHorizontal: 20,
-  },
-  featuresPreview: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  featurePreviewCard: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  featurePreviewEmoji: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  featurePreviewTitle: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#1e293b',
-    textAlign: 'center',
-  },
-  authButtonsContainer: {
-    gap: 16,
-  },
-  authButtonWrapper: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  authButton: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  authButtonText: {
-    color: '#ffffff',
-    fontSize: 20,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  signUpButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 24,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  signUpButtonText: {
-    color: '#1e293b',
-    fontSize: 20,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-});

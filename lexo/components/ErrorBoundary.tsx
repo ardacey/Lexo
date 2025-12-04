@@ -1,5 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface Props {
@@ -32,17 +32,17 @@ class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <SafeAreaView style={styles.container}>
-          <View style={styles.content}>
-            <Text style={styles.title}>Bir şeyler yanlış gitti</Text>
-            <Text style={styles.message}>
+        <SafeAreaView className="flex-1 bg-white justify-center items-center">
+          <View className="p-5 items-center w-full">
+            <Text className="text-2xl font-bold mb-2.5 text-gray-800">Bir şeyler yanlış gitti</Text>
+            <Text className="text-base text-center mb-5 text-gray-600">
               Uygulamada beklenmedik bir hata oluştu. Lütfen tekrar deneyin.
             </Text>
             {__DEV__ && this.state.error && (
-              <Text style={styles.errorText}>{this.state.error.toString()}</Text>
+              <Text className="text-xs text-red-500 mb-5 bg-gray-100 p-2.5 rounded w-full">{this.state.error.toString()}</Text>
             )}
-            <TouchableOpacity style={styles.button} onPress={this.resetError}>
-              <Text style={styles.buttonText}>Tekrar Dene</Text>
+            <TouchableOpacity className="bg-blue-500 px-5 py-3 rounded-lg" onPress={this.resetError}>
+              <Text className="text-white text-base font-semibold">Tekrar Dene</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -52,51 +52,5 @@ class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  content: {
-    padding: 20,
-    alignItems: 'center',
-    width: '100%',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
-  },
-  message: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 20,
-    color: '#666',
-  },
-  errorText: {
-    fontSize: 12,
-    color: 'red',
-    marginBottom: 20,
-    backgroundColor: '#f0f0f0',
-    padding: 10,
-    borderRadius: 5,
-    width: '100%',
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});
 
 export default ErrorBoundary;

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Text, TextInput, TouchableOpacity, View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Animated } from 'react-native'
+import { Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, Platform, ScrollView, Animated } from 'react-native'
 import { Link, useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
@@ -71,83 +71,81 @@ export default function SignUpScreen() {
   return (
     <LinearGradient
       colors={['#667eea', '#764ba2', '#f093fb']}
-      style={styles.container}
+      className="flex-1"
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+        className="flex-1"
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
           <Animated.View
-            style={[
-              styles.content,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }]
-              }
-            ]}
+            style={{
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }}
+            className="items-center"
           >
             {/* Logo and Title */}
-            <View style={styles.header}>
-              <View style={styles.logoContainer}>
+            <View className="items-center mb-10">
+              <View className="mb-6">
                 <LinearGradient
                   colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.1)']}
-                  style={styles.logoBackground}
+                  className="w-20 h-20 rounded-full justify-center items-center border-2 border-white/30"
                 >
-                  <Text style={styles.logoText}>L</Text>
+                  <Text className="text-4xl font-bold text-white">L</Text>
                 </LinearGradient>
               </View>
-              <Text style={styles.title}>Hesap Oluştur</Text>
-              <Text style={styles.subtitle}>Lexo&apos;ya katıl ve oynamaya başla!</Text>
+              <Text className="text-[28px] font-bold text-white mb-2" style={{ textShadowColor: 'rgba(0,0,0,0.2)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 }}>Hesap Oluştur</Text>
+              <Text className="text-base text-white/80 text-center">Lexo&apos;ya katıl ve oynamaya başla!</Text>
             </View>
 
             {/* Form */}
-            <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <Ionicons name="person-outline" size={20} color="rgba(255,255,255,0.7)" style={styles.inputIcon} />
+            <View className="w-full max-w-[400px]">
+              <View className="flex-row items-center bg-white/15 rounded-2xl mb-4 px-4 border border-white/20">
+                <Ionicons name="person-outline" size={20} color="rgba(255,255,255,0.7)" style={{ marginRight: 12 }} />
                 <TextInput
                   value={username}
                   placeholder="Kullanıcı adı"
                   placeholderTextColor="rgba(255,255,255,0.5)"
                   onChangeText={setUsername}
-                  style={styles.input}
+                  className="flex-1 h-14 text-white text-base"
                   autoCapitalize="none"
                   autoComplete="username"
                 />
               </View>
 
-              <View style={styles.inputContainer}>
-                <Ionicons name="mail-outline" size={20} color="rgba(255,255,255,0.7)" style={styles.inputIcon} />
+              <View className="flex-row items-center bg-white/15 rounded-2xl mb-4 px-4 border border-white/20">
+                <Ionicons name="mail-outline" size={20} color="rgba(255,255,255,0.7)" style={{ marginRight: 12 }} />
                 <TextInput
                   value={emailAddress}
                   placeholder="E-posta adresi"
                   placeholderTextColor="rgba(255,255,255,0.5)"
                   onChangeText={setEmailAddress}
-                  style={styles.input}
+                  className="flex-1 h-14 text-white text-base"
                   autoCapitalize="none"
                   keyboardType="email-address"
                   autoComplete="email"
                 />
               </View>
 
-              <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color="rgba(255,255,255,0.7)" style={styles.inputIcon} />
+              <View className="flex-row items-center bg-white/15 rounded-2xl mb-4 px-4 border border-white/20">
+                <Ionicons name="lock-closed-outline" size={20} color="rgba(255,255,255,0.7)" style={{ marginRight: 12 }} />
                 <TextInput
                   value={password}
                   placeholder="Şifre (en az 6 karakter)"
                   placeholderTextColor="rgba(255,255,255,0.5)"
                   secureTextEntry={!showPassword}
                   onChangeText={setPassword}
-                  style={styles.input}
+                  className="flex-1 h-14 text-white text-base"
                   autoComplete="password-new"
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} className="p-2">
                   <Ionicons 
                     name={showPassword ? "eye-outline" : "eye-off-outline"} 
                     size={20} 
@@ -159,15 +157,15 @@ export default function SignUpScreen() {
               <TouchableOpacity
                 onPress={onSignUpPress}
                 disabled={isSubmitting || isLoading}
-                style={styles.signUpButton}
+                className="rounded-2xl overflow-hidden mt-2 shadow-lg"
               >
                 <LinearGradient
                   colors={isSubmitting || isLoading ? ['#ccc', '#aaa'] : ['#fff', '#f0f0f0']}
-                  style={styles.signUpButtonGradient}
+                  className="py-4 items-center"
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
-                  <Text style={[styles.signUpButtonText, (isSubmitting || isLoading) && styles.disabledText]}>
+                  <Text className={`text-lg font-bold ${isSubmitting || isLoading ? 'text-gray-500' : 'text-[#667eea]'}`}>
                     {isSubmitting || isLoading ? 'Kayıt yapılıyor...' : 'Kayıt Ol'}
                   </Text>
                 </LinearGradient>
@@ -175,11 +173,11 @@ export default function SignUpScreen() {
             </View>
 
             {/* Sign In Link */}
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Zaten hesabın var mı? </Text>
+            <View className="flex-row mt-8">
+              <Text className="text-white/80 text-base">Zaten hesabın var mı? </Text>
               <Link href="/(auth)/sign-in" asChild>
                 <TouchableOpacity>
-                  <Text style={styles.linkText}>Giriş Yap</Text>
+                  <Text className="text-white text-base font-bold underline">Giriş Yap</Text>
                 </TouchableOpacity>
               </Link>
             </View>
@@ -189,117 +187,3 @@ export default function SignUpScreen() {
     </LinearGradient>
   )
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 24,
-  },
-  content: {
-    alignItems: 'center',
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  logoContainer: {
-    marginBottom: 24,
-  },
-  logoBackground: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  logoText: {
-    fontSize: 40,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-    textShadowColor: 'rgba(0,0,0,0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.8)',
-    textAlign: 'center',
-  },
-  form: {
-    width: '100%',
-    maxWidth: 400,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 16,
-    marginBottom: 16,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  inputIcon: {
-    marginRight: 12,
-  },
-  input: {
-    flex: 1,
-    height: 56,
-    color: '#fff',
-    fontSize: 16,
-  },
-  eyeIcon: {
-    padding: 8,
-  },
-  signUpButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginTop: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  signUpButtonGradient: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  signUpButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#667eea',
-  },
-  disabledText: {
-    color: '#666',
-  },
-  footer: {
-    flexDirection: 'row',
-    marginTop: 32,
-  },
-  footerText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 16,
-  },
-  linkText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textDecorationLine: 'underline',
-  },
-})
