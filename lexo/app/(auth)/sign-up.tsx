@@ -6,17 +6,20 @@ import { Ionicons } from '@expo/vector-icons'
 import { useToast } from '../../context/ToastContext'
 import { getErrorMessage } from '../../utils/errorMessages'
 import { useAuth } from '../../context/AuthContext'
+import { useCheckUsername } from '../../hooks/useApi'
 
 export default function SignUpScreen() {
   const { signUp, isLoading } = useAuth()
   const router = useRouter()
   const { showToast } = useToast()
+  const checkUsernameMutation = useCheckUsername()
 
   const [emailAddress, setEmailAddress] = React.useState('')
   const [password, setPassword] = React.useState('')
   const [username, setUsername] = React.useState('')
   const [showPassword, setShowPassword] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [usernameError, setUsernameError] = React.useState('')
   const fadeAnim = React.useRef(new Animated.Value(0)).current
   const slideAnim = React.useRef(new Animated.Value(50)).current
 
@@ -35,11 +38,36 @@ export default function SignUpScreen() {
     ]).start()
   }, [])
 
+  const checkUsernameAvailability = React.useCallback(async (usernameToCheck: string) => {
+    if (!usernameToCheck.trim()) {
+      setUsernameError('')
+      return
+    }
+
+    try {
+      const result = await checkUsernameMutation.mutateAsync(usernameToCheck.trim())
+      if (!result.available) {
+        setUsernameError('Bu kullanıcı adı zaten alınmış')
+      } else {
+        setUsernameError('')
+      }
+    } catch (error) {
+      console.error('Username check error:', error)
+      // Hata durumunda sessizce geç, validation'ı engelleme
+      setUsernameError('')
+    }
+  }, [checkUsernameMutation])
+
   const onSignUpPress = async () => {
     if (isLoading || isSubmitting) return
 
     if (!emailAddress || !password || !username) {
       showToast('Lütfen tüm alanları doldurun', 'error')
+      return
+    }
+
+    if (usernameError) {
+      showToast(usernameError, 'error')
       return
     }
 
@@ -115,12 +143,20 @@ export default function SignUpScreen() {
                   value={username}
                   placeholder="Kullanıcı adı"
                   placeholderTextColor="rgba(255,255,255,0.5)"
-                  onChangeText={setUsername}
+                  onChangeText={(text) => {
+                    setUsername(text)
+                    // Clear error when user starts typing
+                    if (usernameError) setUsernameError('')
+                  }}
+                  onBlur={() => checkUsernameAvailability(username)}
                   style={styles.input}
                   autoCapitalize="none"
                   autoComplete="username"
                 />
               </View>
+              {usernameError ? (
+                <Text style={styles.errorText}>{usernameError}</Text>
+              ) : null}
 
               <View style={styles.inputContainer}>
                 <Ionicons name="mail-outline" size={20} color="rgba(255,255,255,0.7)" style={styles.inputIcon} />
@@ -287,6 +323,13 @@ const styles = StyleSheet.create({
   },
   disabledText: {
     color: '#666',
+  },
+  errorText: {
+    color: '#ff6b6b',
+    fontSize: 14,
+    marginTop: 4,
+    marginLeft: 4,
+    fontWeight: '500',
   },
   footer: {
     flexDirection: 'row',

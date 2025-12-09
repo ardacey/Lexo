@@ -135,3 +135,22 @@ def get_user_stats(
     except Exception as e:
         logger.error(f"Error fetching user stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/users/check-username/{username}")
+def check_username_availability(username: str, db: Session = Depends(get_db)):
+    """
+    Check if a username is available for registration.
+    Returns {"available": true/false}
+    """
+    try:
+        user_service = UserService(db)
+        # Check if username exists
+        user = user_service.get_user_by_username(username)
+        return {
+            "available": user is None,
+            "username": username
+        }
+    except Exception as e:
+        logger.error(f"Error checking username availability: {e}")
+        raise HTTPException(status_code=500, detail="Failed to check username availability")

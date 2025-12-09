@@ -5,6 +5,7 @@ export const API_ENDPOINTS = {
   validateWord: `${API_BASE_URL}/api/validate-word`,
   health: `${API_BASE_URL}/health`,
   createUser: `${API_BASE_URL}/api/users`,
+  checkUsername: (username: string) => `${API_BASE_URL}/api/users/check-username/${encodeURIComponent(username)}`,
   getUserStats: (userId: string) => `${API_BASE_URL}/api/users/${userId}/stats`,
   getUserGames: (userId: string, limit: number = 10) => `${API_BASE_URL}/api/users/${userId}/games?limit=${limit}`,
   getLeaderboard: (limit: number = 100) => `${API_BASE_URL}/api/leaderboard?limit=${limit}`,
@@ -126,6 +127,25 @@ export const createUser = async (userId: string, username: string, email?: strin
         // Ignore JSON parse error
       }
       throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const checkUsername = async (username: string) => {
+  try {
+    const response = await fetch(API_ENDPOINTS.checkUsername(username), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     return await response.json();

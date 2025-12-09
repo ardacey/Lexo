@@ -11,6 +11,7 @@ import {
   GameHistory,
   LeaderboardEntry,
   SaveGameData,
+  checkUsername,
 } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -60,6 +61,13 @@ export const useCreateUser = () => {
     meta: {
       skipGlobalErrorHandler: true,
     },
+  });
+};
+
+export const useCheckUsername = () => {
+  return useMutation<{ available: boolean; username: string }, Error, string>({
+    mutationFn: (username: string) => checkUsername(username),
+    retry: false,
   });
 };
 

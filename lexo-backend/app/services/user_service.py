@@ -51,5 +51,8 @@ class UserService:
     def get_user_by_supabase_id(self, supabase_user_id: str) -> Optional[User]:
         return self.user_repo.get_by_supabase_user_id(supabase_user_id)
     
+    def get_user_by_username(self, username: str) -> Optional[User]:
+        return self.user_repo.get_by_username(username)
+    
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         return self.user_repo.get_by_id(user_id)
