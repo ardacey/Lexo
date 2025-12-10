@@ -6,6 +6,8 @@ from app.repositories.user_repository import UserRepository
 from app.repositories.stats_repository import StatsRepository
 from app.core.logging import get_logger
 from app.core.exceptions import DatabaseError, ValidationError
+from app.core.config import settings
+from supabase import create_client, Client
 
 logger = get_logger(__name__)
 
@@ -16,6 +18,10 @@ class UserService:
         self.db = db
         self.user_repo = UserRepository(db)
         self.stats_repo = StatsRepository(db)
+        self.supabase: Client = create_client(
+            settings.supabase.url,
+            settings.supabase.service_role_key
+        )
     
     def create_or_get_user(
         self, 
@@ -77,7 +83,18 @@ class UserService:
             self.stats_repo.delete_by_user_id(user.id)
             
             # Delete user
-            return self.user_repo.delete_by_supabase_user_id(supabase_user_id)
+            success = self.user_repo.delete_by_supabase_user_id(supabase_user_id)
+            
+            if success:
+                # Delete from Supabase Auth
+                try:
+                    self.supabase.auth.admin.delete_user(supabase_user_id)
+                    logger.info(f"Deleted Supabase auth user: {supabase_user_id}")
+                except Exception as auth_error:
+                    logger.error(f"Failed to delete Supabase auth user {supabase_user_id}: {auth_error}")
+                    # Don't fail the whole operation if auth delete fails
+            
+            return success
         except Exception as e:
             logger.error(f"Error deleting user {supabase_user_id}: {e}")
             raise DatabaseError(f"Failed to delete user: {str(e)}")

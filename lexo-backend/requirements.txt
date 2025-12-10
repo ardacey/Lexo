@@ -15,3 +15,4 @@ pytest-mock
 pyjwt[crypto]
 httpx
 psutil
+supabase

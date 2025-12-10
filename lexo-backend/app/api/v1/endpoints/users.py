@@ -182,3 +182,31 @@ def delete_user_account(
     except Exception as e:
         logger.error(f"Error deleting user {current_user['user_id']}: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete account")
+
+
+@router.delete("/users/me")
+def delete_user_account(
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user)
+):
+    """
+    Delete the current user's account and all associated data.
+    This action is irreversible.
+    """
+    try:
+        user_service = UserService(db)
+        success = user_service.delete_user(current_user["user_id"])
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return {
+            "success": True,
+            "message": "Account and all associated data have been deleted successfully"
+        }
+    except DatabaseError as e:
+        logger.error(f"Database error deleting user {current_user['user_id']}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete account")
+    except Exception as e:
+        logger.error(f"Error deleting user {current_user['user_id']}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete account")
