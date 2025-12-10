@@ -13,6 +13,7 @@ logger = get_logger(__name__)
 class UserService:
     
     def __init__(self, db: Session):
+        self.db = db
         self.user_repo = UserRepository(db)
         self.stats_repo = StatsRepository(db)
     
