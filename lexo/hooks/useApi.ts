@@ -6,6 +6,7 @@ import {
   getUserGames,
   getLeaderboard,
   saveGame,
+  deleteUserAccount,
   ValidateWordResponse,
   UserStats,
   GameHistory,
@@ -236,6 +237,17 @@ export const useOptimisticGameSave = () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.stats(variables.player2_user_id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.leaderboard.all() });
+    },
+  });
+};
+
+export const useDeleteUserAccount = () => {
+  const { getToken } = useAuth();
+  
+  return useMutation<any, Error, void>({
+    mutationFn: async () => {
+      const token = await getToken();
+      return deleteUserAccount(token || undefined);
     },
   });
 };

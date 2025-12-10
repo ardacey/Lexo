@@ -127,3 +127,15 @@ class StatsRepository(BaseRepository[UserStats]):
         ).scalar()
         
         return rank + 1
+    
+    def delete_by_user_id(self, user_id: int) -> bool:
+        """
+        Delete user stats by user ID
+        """
+        stats = self.get_by_user_id(user_id)
+        if stats:
+            self.db.delete(stats)
+            self.db.commit()
+            logger.info(f"Deleted stats for user: {user_id}")
+            return True
+        return False

@@ -77,3 +77,15 @@ class UserRepository(BaseRepository[User]):
         user = self.create_user(supabase_user_id, username, email)
         logger.info(f"Created new user: {username} (supabase_user_id: {supabase_user_id})")
         return user, True
+    
+    def delete_by_supabase_user_id(self, supabase_user_id: str) -> bool:
+        """
+        Delete user by Supabase user ID
+        """
+        user = self.get_by_supabase_user_id(supabase_user_id)
+        if user:
+            self.db.delete(user)
+            self.db.commit()
+            logger.info(f"Deleted user: {supabase_user_id}")
+            return True
+        return False

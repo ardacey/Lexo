@@ -34,6 +34,7 @@ module.exports = defineConfig([
       'prefer-const': 'error',
       'no-var': 'error',
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'react/no-unescaped-entities': 'off',
     },
   },
 ]);

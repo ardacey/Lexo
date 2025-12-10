@@ -10,6 +10,7 @@ export const API_ENDPOINTS = {
   getUserGames: (userId: string, limit: number = 10) => `${API_BASE_URL}/api/users/${userId}/games?limit=${limit}`,
   getLeaderboard: (limit: number = 100) => `${API_BASE_URL}/api/leaderboard?limit=${limit}`,
   saveGame: `${API_BASE_URL}/api/games/save`,
+  deleteUserAccount: `${API_BASE_URL}/api/users/me`,
 };
 
 export interface ValidateWordResponse {
@@ -247,6 +248,33 @@ export const saveGame = async (gameData: SaveGameData, token?: string) => {
       if (errorText.includes('duplicate key') && errorText.includes('ix_game_history_room_id')) {
         return { success: true, message: 'Game already saved by opponent' };
       }
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const deleteUserAccount = async (token?: string) => {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(API_ENDPOINTS.deleteUserAccount, {
+      method: 'DELETE',
+      headers,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
       throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
 

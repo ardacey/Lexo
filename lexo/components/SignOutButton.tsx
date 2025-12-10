@@ -1,7 +1,7 @@
 import { useAuth } from '../context/AuthContext'
 import { useRouter } from 'expo-router'
 import React from 'react'
-import { Text, TouchableOpacity, View, StyleSheet } from 'react-native'
+import { Text, TouchableOpacity, View, StyleSheet, Alert } from 'react-native'
 
 export const SignOutButton = () => {
   const { signOut } = useAuth()
@@ -15,23 +15,59 @@ export const SignOutButton = () => {
       // Silent sign out error
     }
   }
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Hesabı Sil',
+      'Bu işlem geri alınamaz. Devam etmek istiyor musunuz?',
+      [
+        { text: 'İptal', style: 'cancel' },
+        {
+          text: 'Hesabı Sil',
+          style: 'destructive',
+          onPress: () => router.push({ pathname: '/delete-account' })
+        },
+      ]
+    )
+  }
+
   return (
-    <TouchableOpacity 
-      onPress={handleSignOut}
-      activeOpacity={0.8}
-      style={styles.button}
-    >
-      <View style={styles.content}>
-        <View style={styles.iconContainer}>
-          <Text style={styles.icon}>🚪</Text>
+    <View style={styles.container}>
+      <TouchableOpacity 
+        onPress={handleSignOut}
+        activeOpacity={0.8}
+        style={[styles.button, styles.signOutButton]}
+      >
+        <View style={styles.content}>
+          <View style={styles.iconContainer}>
+            <Text style={styles.icon}>🚪</Text>
+          </View>
+          <Text style={styles.text}>Çıkış Yap</Text>
         </View>
-        <Text style={styles.text}>Çıkış Yap</Text>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        onPress={handleDeleteAccount}
+        activeOpacity={0.8}
+        style={[styles.button, styles.deleteButton]}
+      >
+        <View style={styles.content}>
+          <View style={styles.iconContainer}>
+            <Text style={styles.icon}>🗑️</Text>
+          </View>
+          <Text style={styles.text}>Hesabı Sil</Text>
+        </View>
+      </TouchableOpacity>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
   button: {
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderRadius: 16,
@@ -42,7 +78,14 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
     borderWidth: 1,
+    flex: 1,
+  },
+  signOutButton: {
     borderColor: '#fecaca',
+  },
+  deleteButton: {
+    borderColor: '#fca5a5',
+    backgroundColor: 'rgba(254, 202, 202, 0.1)',
   },
   content: {
     flexDirection: 'row',

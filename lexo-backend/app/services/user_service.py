@@ -1,7 +1,7 @@
 from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 
-from app.models.database import User
+from app.models.database import User, GameHistory
 from app.repositories.user_repository import UserRepository
 from app.repositories.stats_repository import StatsRepository
 from app.core.logging import get_logger
@@ -56,3 +56,27 @@ class UserService:
     
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         return self.user_repo.get_by_id(user_id)
+    
+    def delete_user(self, supabase_user_id: str) -> bool:
+        """
+        Delete user and associated data
+        """
+        try:
+            # Get user to find user_id for stats
+            user = self.user_repo.get_by_supabase_user_id(supabase_user_id)
+            if not user:
+                return False
+            
+            # Delete game history first (foreign key constraints)
+            self.db.query(GameHistory).filter(
+                (GameHistory.player1_id == user.id) | (GameHistory.player2_id == user.id)
+            ).delete()
+            
+            # Delete stats
+            self.stats_repo.delete_by_user_id(user.id)
+            
+            # Delete user
+            return self.user_repo.delete_by_supabase_user_id(supabase_user_id)
+        except Exception as e:
+            logger.error(f"Error deleting user {supabase_user_id}: {e}")
+            raise DatabaseError(f"Failed to delete user: {str(e)}")
