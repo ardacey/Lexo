@@ -46,3 +46,5 @@ app-example
 
 # credentials and secrets
 credentials/
+
+.expo/
