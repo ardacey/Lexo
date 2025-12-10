@@ -9,7 +9,9 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ardacey.lexo",
+      "buildNumber": "1.0.0"
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +23,13 @@
       "package": "com.ardacey.lexo",
       "versionCode": 1,
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "INTERNET",
+        "VIBRATE",
+        "WAKE_LOCK"
+      ],
+      "allowBackup": false
     },
     "web": {
       "bundler": "metro",
@@ -56,6 +64,13 @@
         "projectId": "04e02cd6-3815-4543-889c-0dd47b7bb2b5"
       }
     },
-    "owner": "ardacey"
+    "owner": "ardacey",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/04e02cd6-3815-4543-889c-0dd47b7bb2b5",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }
