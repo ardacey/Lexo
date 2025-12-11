@@ -577,8 +577,12 @@ export default function Multiplayer() {
     }, 1000) as any;
   };
 
+  const gameEndAlertShown = useRef(false);
+
   const showGameEndAlert = useCallback((winnerName: string | null, tie: boolean) => {
-    if (gameState === 'ended') return;
+    if (gameState === 'ended' || gameEndAlertShown.current) return;
+
+    gameEndAlertShown.current = true;
 
     if (timerRef.current !== null) {
       clearInterval(timerRef.current);
