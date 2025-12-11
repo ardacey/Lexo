@@ -39,9 +39,7 @@ export const SignOutButton = () => {
         style={[styles.button, styles.signOutButton]}
       >
         <View style={styles.content}>
-          <View style={styles.iconContainer}>
-            <Text style={styles.icon}>🚪</Text>
-          </View>
+          <Text style={styles.icon}>🚪</Text>
           <Text style={styles.text}>Çıkış Yap</Text>
         </View>
       </TouchableOpacity>
@@ -52,9 +50,7 @@ export const SignOutButton = () => {
         style={[styles.button, styles.deleteButton]}
       >
         <View style={styles.content}>
-          <View style={styles.iconContainer}>
-            <Text style={styles.icon}>🗑️</Text>
-          </View>
+          <Text style={styles.icon}>🗑️</Text>
           <Text style={styles.text}>Hesabı Sil</Text>
         </View>
       </TouchableOpacity>
@@ -69,7 +65,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   button: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 20,
     shadowColor: '#000',
@@ -85,9 +81,14 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     borderColor: '#fca5a5',
-    backgroundColor: 'rgba(254, 202, 202, 0.1)',
+    backgroundColor: '#fef2f2',
   },
   content: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  signOutContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
