@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Toast from 'react-native-toast-message';
 import { useAuth } from '../../context/AuthContext';
@@ -266,111 +266,6 @@ export default function Page() {
               {/* Sign Out Button */}
               <AnimatedCard delay={600}>
                 <SignOutButton />
-              </AnimatedCard>
-            </ScrollView>
-          )}
-          
-          {!isSignedIn && (
-            <ScrollView 
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContentSignedOut}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Header Section */}
-              <AnimatedCard delay={0}>
-                <View style={styles.headerContainerSignedOut}>
-                  <LinearGradient
-                    colors={['#667eea', '#764ba2']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.logoContainer}
-                  >
-                    <Text style={styles.logoText}>Lexo</Text>
-                  </LinearGradient>
-                </View>
-              </AnimatedCard>
-
-              {/* How to Play Card */}
-              <AnimatedCard delay={200}>
-                <View style={styles.howToPlayCard}>
-                  <LinearGradient
-                    colors={['rgba(255, 255, 255, 0.95)', 'rgba(255, 255, 255, 0.85)']}
-                    style={styles.howToPlayContent}
-                  >
-                    <View style={styles.howToPlayHeader}>
-                      <Text style={styles.lightbulbEmoji}>💡</Text>
-                      <Text style={styles.howToPlayTitle}>Nasıl Oynanır?</Text>
-                    </View>
-                    <View style={styles.instructionsContainer}>
-                      <View style={styles.instructionRow}>
-                        <LinearGradient
-                          colors={['#667eea', '#764ba2']}
-                          style={styles.numberBadgeGradient}
-                        >
-                          <Text style={styles.numberTextWhite}>1</Text>
-                        </LinearGradient>
-                        <Text style={styles.instructionText}>Verilen harflerden kelime oluşturun</Text>
-                      </View>
-                      <View style={styles.instructionRow}>
-                        <LinearGradient
-                          colors={['#f093fb', '#f5576c']}
-                          style={styles.numberBadgeGradient}
-                        >
-                          <Text style={styles.numberTextWhite}>2</Text>
-                        </LinearGradient>
-                        <Text style={styles.instructionText}>Her harf farklı puan değerine sahip</Text>
-                      </View>
-                      <View style={styles.instructionRow}>
-                        <LinearGradient
-                          colors={['#4facfe', '#00f2fe']}
-                          style={styles.numberBadgeGradient}
-                        >
-                          <Text style={styles.numberTextWhite}>3</Text>
-                        </LinearGradient>
-                        <Text style={styles.instructionText}>Uzun kelimeler daha fazla puan kazandırır</Text>
-                      </View>
-                      <View style={styles.instructionRow}>
-                        <LinearGradient
-                          colors={['#11998e', '#38ef7d']}
-                          style={styles.numberBadgeGradient}
-                        >
-                          <Text style={styles.numberTextWhite}>4</Text>
-                        </LinearGradient>
-                        <Text style={styles.instructionText}>60 saniye içinde en yüksek skoru yapın!</Text>
-                      </View>
-                    </View>
-                  </LinearGradient>
-                </View>
-              </AnimatedCard>
-
-              {/* Auth Buttons */}
-              <AnimatedCard delay={300}>
-                <View style={styles.authButtonsContainer}>
-                  <Link href="/(auth)/sign-in" asChild>
-                    <TouchableOpacity 
-                      activeOpacity={0.9}
-                      style={styles.authButtonWrapper}
-                    >
-                      <LinearGradient
-                        colors={['#667eea', '#764ba2']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.authButton}
-                      >
-                        <Text style={styles.authButtonText}>🚀 Hemen Başla</Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </Link>
-
-                  <Link href="/(auth)/sign-up" asChild>
-                    <TouchableOpacity 
-                      activeOpacity={0.9}
-                      style={styles.signUpButton}
-                    >
-                      <Text style={styles.signUpButtonText}>Hesap Oluştur</Text>
-                    </TouchableOpacity>
-                  </Link>
-                </View>
               </AnimatedCard>
             </ScrollView>
           )}

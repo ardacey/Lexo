@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Session, User, AuthChangeEvent } from '@supabase/supabase-js';
 import { supabase } from '../utils/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface AuthContextType {
   session: Session | null;
@@ -91,6 +92,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
+    // Manuel olarak session ve user'ı null yap (Android'de onAuthStateChange tetiklenmeyebilir)
+    setSession(null);
+    setUser(null);
+    // AsyncStorage'dan auth verilerini temizle
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const authKeys = keys.filter(key => key.includes('supabase') || key.includes('auth'));
+      await AsyncStorage.multiRemove(authKeys);
+    } catch (error) {
+      console.error('Error clearing auth storage:', error);
+    }
   }, []);
 
   const getToken = useCallback(async () => {

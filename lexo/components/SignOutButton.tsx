@@ -11,8 +11,8 @@ export const SignOutButton = () => {
     try {
       await signOut()
       router.replace('/(auth)/sign-in')
-    } catch {
-      // Silent sign out error
+    } catch (error) {
+      Alert.alert('Hata', 'Çıkış yapılırken bir hata oluştu: ' + (error as Error).message)
     }
   }
 
