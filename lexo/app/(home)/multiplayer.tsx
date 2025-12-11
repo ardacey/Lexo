@@ -578,6 +578,8 @@ export default function Multiplayer() {
   };
 
   const showGameEndAlert = useCallback((winnerName: string | null, tie: boolean) => {
+    if (gameState === 'ended') return;
+
     if (timerRef.current !== null) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -621,7 +623,7 @@ export default function Multiplayer() {
         { cancelable: false }
       );
     }, 500);
-  }, [username]);
+  }, [username, gameState]);
 
   const handleLetterClick = useCallback((index: number) => {
     if (gameState !== 'playing') return;
