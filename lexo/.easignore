@@ -1,35 +1,46 @@
-node_modules
+# OS files
 .DS_Store
+
+# IDE
 .vscode
 .idea
+
+# Expo
 .expo
 .expo-shared
 
+# Env
 .env
 .env.*
 
+# Build outputs
 dist
 build
 tmp
 cache
 
+# Logs
 **/*.log
 npm-debug.log
 yarn-error.log
-**/*.local
 
-**/__tests__
+# Tests
+__tests__
 **/*.spec.*
 
+# Media (opsiyonel)
 **/*.mp4
 **/*.mov
 
+# Archives
 **/*.zip
 **/*.tar.gz
 
+# Secrets
 **/*.p8
 **/*.pem
 **/*.keystore
 
+# Ignore native folders (EAS builds its own)
 android/
 ios/
