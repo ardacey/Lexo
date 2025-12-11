@@ -47,7 +47,7 @@ export default function Page() {
       if (error) {
         showToast(getErrorMessage(error), 'error')
       } else {
-        router.replace('/')
+        // Yönlendirme otomatik olarak (auth)/_layout.tsx'deki Redirect ile yapılır
       }
     } catch (err: any) {
       showToast(getErrorMessage(err), 'error')

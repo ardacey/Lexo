@@ -84,10 +84,7 @@ export default function SignUpScreen() {
         showToast(getErrorMessage(error), 'error')
       } else {
         showToast('Kayıt başarılı!', 'success')
-        // Küçük bir delay ile navigate et
-        setTimeout(() => {
-          router.replace('/(home)')
-        }, 500)
+        // Yönlendirme otomatik olarak (auth)/_layout.tsx'deki Redirect ile yapılır
       }
     } catch (err: unknown) {
       showToast(getErrorMessage(err as Error), 'error')
