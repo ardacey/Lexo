@@ -2,7 +2,7 @@ import { API_BASE_URL } from './constants';
 
 // API configuration
 export const API_ENDPOINTS = {
-  validateWord: `${API_BASE_URL}/api/validate-word`,
+  validateWord: `${API_BASE_URL}/api/v1/words/validate-word`,
   health: `${API_BASE_URL}/health`,
   createUser: `${API_BASE_URL}/api/users`,
   checkUsername: (username: string) => `${API_BASE_URL}/api/users/check-username/${encodeURIComponent(username)}`,
