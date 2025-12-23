@@ -17,6 +17,7 @@ class MatchmakingService:
         self.player_rooms: Dict[str, str] = {}
     
     def add_to_queue(self, player: Player) -> int:
+        self.waiting_queue = [p for p in self.waiting_queue if p.id != player.id]
         self.waiting_queue.append(player)
         logger.info(f"Player {player.username} ({player.id}) joined queue")
         return len(self.waiting_queue)
@@ -29,9 +30,18 @@ class MatchmakingService:
     def try_match_players(self) -> Optional[GameRoom]:
         if len(self.waiting_queue) < 2:
             return None
-        
+
         player1 = self.waiting_queue.pop(0)
-        player2 = self.waiting_queue.pop(0)
+        player2 = None
+        for i, candidate in enumerate(self.waiting_queue):
+            if candidate.id != player1.id:
+                player2 = candidate
+                del self.waiting_queue[i]
+                break
+
+        if not player2:
+            self.waiting_queue.insert(0, player1)
+            return None
         
         room_id = str(uuid.uuid4())
         room = self.game_service.create_game_room(room_id, player1, player2)
