@@ -1,18 +1,24 @@
 import { API_BASE_URL } from './constants';
 
+const normalizeBaseUrl = (value: string) => value.replace(/\/$/, '');
+const apiRoot = normalizeBaseUrl(API_BASE_URL).replace(/\/api\/v1$/, '').replace(/\/api$/, '');
+const apiPrefix = `${apiRoot}/api`;
+const apiV1Prefix = `${apiRoot}/api/v1`;
+
 // API configuration
 export const API_ENDPOINTS = {
-  validateWord: `${API_BASE_URL}/api/v1/words/validate-word`,
-  health: `${API_BASE_URL}/health`,
-  createUser: `${API_BASE_URL}/api/users`,
-  checkUsername: (username: string) => `${API_BASE_URL}/api/users/check-username/${encodeURIComponent(username)}`,
-  getUserStats: (userId: string) => `${API_BASE_URL}/api/users/${userId}/stats`,
-  getUserGames: (userId: string, limit: number = 10) => `${API_BASE_URL}/api/users/${userId}/games?limit=${limit}`,
-  getLeaderboard: (limit: number = 100) => `${API_BASE_URL}/api/leaderboard?limit=${limit}`,
-  saveGame: `${API_BASE_URL}/api/games/save`,
-  deleteUserAccount: `${API_BASE_URL}/api/users/me`,
-  getOnlineStats: `${API_BASE_URL}/stats`,
-  getAppVersion: `${API_BASE_URL}/app/version`,
+  validateWord: `${apiV1Prefix}/words/validate-word`,
+  health: `${apiRoot}/health`,
+  createUser: `${apiPrefix}/users`,
+  checkUsername: (username: string) => `${apiPrefix}/users/check-username/${encodeURIComponent(username)}`,
+  updateUsername: `${apiPrefix}/users/me/username`,
+  getUserStats: (userId: string) => `${apiPrefix}/users/${userId}/stats`,
+  getUserGames: (userId: string, limit: number = 10) => `${apiPrefix}/users/${userId}/games?limit=${limit}`,
+  getLeaderboard: (limit: number = 100) => `${apiPrefix}/leaderboard?limit=${limit}`,
+  saveGame: `${apiPrefix}/games/save`,
+  deleteUserAccount: `${apiPrefix}/users/me`,
+  getOnlineStats: `${apiRoot}/stats`,
+  getAppVersion: `${apiRoot}/app/version`,
 };
 
 export interface ValidateWordResponse {
@@ -92,13 +98,18 @@ export interface AppVersionInfo {
   force_update: boolean;
 }
 
-export const validateWord = async (word: string): Promise<ValidateWordResponse> => {
+export const validateWord = async (word: string, token?: string): Promise<ValidateWordResponse> => {
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(API_ENDPOINTS.validateWord, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({ word }),
     });
 
@@ -162,6 +173,42 @@ export const checkUsername = async (username: string) => {
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const updateUsername = async (username: string, token?: string) => {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(API_ENDPOINTS.updateUsername, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ username }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // Ignore JSON parse error
+      }
+      throw new Error(errorMessage);
     }
 
     return await response.json();

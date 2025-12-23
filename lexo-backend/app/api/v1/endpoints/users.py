@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.schemas import CreateUserRequest, UserResponse, UserStatsResponse
+from app.models.schemas import CreateUserRequest, UpdateUsernameRequest, UserResponse, UserStatsResponse
 from app.services.user_service import UserService
 from app.services.stats_service import StatsService
 from app.database.session import get_db
 from app.core.logging import get_logger
 from app.core.cache import cache_get, cache_set
-from app.core.exceptions import DatabaseError
+from app.core.exceptions import DatabaseError, ValidationError
 from app.api.dependencies.auth import AuthenticatedUser, get_current_user
 
 logger = get_logger(__name__)
@@ -164,6 +164,29 @@ def check_username_availability(username: str, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error checking username availability: {e}")
         raise HTTPException(status_code=500, detail="Failed to check username availability")
+
+
+@router.patch("/users/me/username", response_model=dict)
+def update_username(
+    request: UpdateUsernameRequest,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user)
+):
+    try:
+        user_service = UserService(db)
+        user = user_service.update_username(current_user["user_id"], request.username)
+        return {
+            "success": True,
+            "username": user.username
+        }
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except DatabaseError as e:
+        logger.error(f"Database error updating username for {current_user['user_id']}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error updating username for {current_user['user_id']}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/users/me")

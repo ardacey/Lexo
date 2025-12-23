@@ -1,64 +1,41 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, ActivityIndicator } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  TextInput,
+  Alert,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import Toast from 'react-native-toast-message';
-import { useAuth } from '../../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SignOutButton } from '@/components/SignOutButton';
-import { useCreateUser } from '@/hooks/useApi';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '../../context/AuthContext';
+import { useCheckUsername, useCreateUser, useUpdateUsername } from '@/hooks/useApi';
+import { useToast } from '../../context/ToastContext';
 import { getOnlineStats } from '@/utils/api';
-
-const AnimatedCard = ({ children, delay = 0, style }: any) => {
-  const fadeAnim = useState(new Animated.Value(0))[0];
-  const slideAnim = useState(new Animated.Value(30))[0];
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        delay,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 7,
-        delay,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  return (
-    <Animated.View
-      style={[
-        style,
-        {
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }],
-        },
-      ]}
-    >
-      {children}
-    </Animated.View>
-  );
-};
 
 export default function Page() {
   const router = useRouter();
-  const { user, isSignedIn, isLoading } = useAuth();
+  const { user, isSignedIn, isLoading, signOut, updateUsername } = useAuth();
+  const { showToast } = useToast();
   const createUserMutation = useCreateUser();
+  const checkUsernameMutation = useCheckUsername();
+  const updateUsernameMutation = useUpdateUsername();
   const [userInitialized, setUserInitialized] = useState(false);
   const [onlinePlayers, setOnlinePlayers] = useState<number | null>(null);
-  
-  const [scaleAnims] = useState({
-    multiplayer: new Animated.Value(1),
-    stats: new Animated.Value(1),
-  });
+  const [isEditingUsername, setIsEditingUsername] = useState(false);
+  const [usernameDraft, setUsernameDraft] = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  const [isSavingUsername, setIsSavingUsername] = useState(false);
+
+  const displayUsername = useMemo(
+    () => user?.user_metadata?.username || user?.email?.split('@')[0] || 'Player',
+    [user]
+  );
 
   const checkForActiveGame = async (username: string) => {
     try {
@@ -73,7 +50,7 @@ export default function Page() {
         if (remaining > 0) {
           router.push({
             pathname: '/multiplayer',
-            params: { username, reconnect: 'true' }
+            params: { username, reconnect: 'true' },
           });
         } else {
           await AsyncStorage.removeItem('activeGame');
@@ -84,30 +61,28 @@ export default function Page() {
     }
   };
 
-  // Initialize user on mount
   useEffect(() => {
     if (user && !userInitialized && !createUserMutation.isPending) {
-      const username = user.user_metadata?.username || user.email?.split('@')[0] || 'Player';
+      const username = displayUsername;
       createUserMutation.mutate(
         {
           userId: user.id,
           username,
-          email: user.email
+          email: user.email,
         },
         {
           onSuccess: () => {
             setUserInitialized(true);
           },
           onError: () => {
-            // Kullanıcı zaten varsa da initialized olarak işaretle
             setUserInitialized(true);
-          }
+          },
         }
       );
 
       checkForActiveGame(username);
     }
-  }, [user, userInitialized, createUserMutation.isPending]);
+  }, [user, userInitialized, createUserMutation, createUserMutation.isPending, displayUsername]);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -128,174 +103,242 @@ export default function Page() {
     };
   }, [isSignedIn]);
 
-  // Show loading while initializing
+  useEffect(() => {
+    if (isEditingUsername) {
+      setUsernameDraft(displayUsername);
+      setUsernameError('');
+    }
+  }, [isEditingUsername, displayUsername]);
+
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' }}>
-        <ActivityIndicator size="large" color="#667eea" />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0f172a" />
       </View>
     );
   }
 
   const handleMultiplayer = () => {
-    const username = user?.user_metadata?.username || user?.email?.split('@')[0] || 'Player';
+    const username = displayUsername;
     router.push({
       pathname: '/multiplayer',
-      params: { username }
+      params: { username },
     });
   };
 
-  const animateButton = (buttonName: 'multiplayer' | 'stats') => {
-    Animated.sequence([
-      Animated.timing(scaleAnims[buttonName], {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnims[buttonName], {
-        toValue: 1,
-        tension: 100,
-        friction: 3,
-        useNativeDriver: true,
-      }),
-    ]).start();
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router.replace('/(auth)/sign-in');
+    } catch (error) {
+      showToast('Çıkış yapılırken bir hata oluştu', 'error');
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Hesabı Sil',
+      'Bu işlem geri alınamaz. Devam etmek istiyor musunuz?',
+      [
+        { text: 'İptal', style: 'cancel' },
+        {
+          text: 'Hesabı Sil',
+          style: 'destructive',
+          onPress: () => router.push({ pathname: '/delete-account' }),
+        },
+      ]
+    );
+  };
+
+  const handleSaveUsername = async () => {
+    if (isSavingUsername) return;
+
+    const trimmed = usernameDraft.trim();
+
+    if (!trimmed) {
+      setUsernameError('Kullanıcı adı boş olamaz');
+      return;
+    }
+
+    if (trimmed === displayUsername) {
+      setUsernameError('Bu zaten mevcut kullanıcı adın');
+      return;
+    }
+
+    setIsSavingUsername(true);
+    setUsernameError('');
+
+    const previousUsername = displayUsername;
+
+    try {
+      const result = await checkUsernameMutation.mutateAsync(trimmed);
+      if (!result.available) {
+        setUsernameError('Bu kullanıcı adı zaten alınmış');
+        setIsSavingUsername(false);
+        return;
+      }
+
+      const { error } = await updateUsername(trimmed);
+      if (error) {
+        showToast('Kullanıcı adı güncellenemedi', 'error');
+        setIsSavingUsername(false);
+        return;
+      }
+
+      await updateUsernameMutation.mutateAsync(trimmed);
+
+      showToast('Kullanıcı adı güncellendi', 'success');
+      setIsEditingUsername(false);
+      setIsSavingUsername(false);
+    } catch (error) {
+      await updateUsername(previousUsername);
+      showToast('Kullanıcı adı güncellenemedi', 'error');
+      setUsernameError('Kullanıcı adı güncellenemedi');
+      setIsSavingUsername(false);
+    }
   };
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#f0f9ff', '#e0f2fe', '#fef3c7', '#fce7f3']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradient}
-      >
-        <SafeAreaView style={styles.safeArea}>
-          <StatusBar style="dark" />
-          {isSignedIn && (
-            <ScrollView 
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Header Section */}
-              <AnimatedCard delay={0}>
-                <View style={styles.headerContainer}>
-                  <LinearGradient
-                    colors={['#667eea', '#764ba2']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.logoContainer}
-                  >
-                    <Text style={styles.logoText}>Lexo</Text>
-                  </LinearGradient>
-                </View>
-              </AnimatedCard>
+      <View pointerEvents="none" style={styles.backdrop} />
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="dark" />
+        {isSignedIn && (
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.header}>
+              <Text style={styles.appName}>Lexo</Text>
+            </View>
 
-              {/* Welcome Card */}
-              <AnimatedCard delay={100} style={styles.welcomeCard}>
-                <View style={styles.welcomeContent}>
-                  <LinearGradient
-                    colors={['#f093fb', '#f5576c']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.avatarGradient}
-                  >
-                    <Text style={styles.waveEmoji}>👋</Text>
-                  </LinearGradient>
-                  <View style={styles.welcomeTextContainer}>
-                    <Text style={styles.welcomeLabel}>Hoş geldin</Text>
-                    <Text style={styles.username} numberOfLines={1}>
-                      {user?.user_metadata?.username || user?.email?.split('@')[0] || 'Player'}
-                    </Text>
+            <View style={styles.profileCard}>
+              <View style={styles.accentBar} />
+              <Text style={styles.greeting}>Merhaba</Text>
+              <Text style={styles.username} numberOfLines={1}>
+                {displayUsername}
+              </Text>
+              {onlinePlayers !== null && (
+                <View style={styles.onlinePill}>
+                  <View style={styles.onlineDot} />
+                  <Text style={styles.onlineText}>{onlinePlayers} oyuncu çevrimiçi</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Hızlı Başla</Text>
+              <View style={styles.card}>
+                <TouchableOpacity onPress={handleMultiplayer} style={styles.actionRow}>
+                  <View>
+                    <Text style={styles.actionTitle}>Oyun Ara</Text>
+                    <Text style={styles.actionSubtitle}>Anında rakip bul</Text>
                   </View>
-                </View>
-              </AnimatedCard>
-
-              {/* Action Buttons */}
-              <View style={styles.buttonsContainer}>
-                {/* Multiplayer Button */}
-                <AnimatedCard delay={200}>
-                  <Animated.View style={{ transform: [{ scale: scaleAnims.multiplayer }] }}>
-                    <TouchableOpacity 
-                      onPress={() => {
-                        animateButton('multiplayer');
-                        handleMultiplayer();
-                      }}
-                      activeOpacity={0.9}
-                      style={styles.buttonWrapper}
-                    >
-                      <LinearGradient
-                        colors={['#11998e', '#38ef7d']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.actionButton}
-                      >
-                        <View style={styles.glowEffect} />
-                        <View style={styles.buttonContent}>
-                          <View style={styles.iconContainer}>
-                            <Text style={styles.buttonIcon}>🎮</Text>
-                          </View>
-                          <View style={styles.buttonTextContainer}>
-                            <Text style={styles.buttonTitle}>Oyun Ara</Text>
-                            <Text style={styles.buttonSubtitle}>🔥 Çevrimiçi rakiplerle yarış</Text>
-                            {onlinePlayers !== null && (
-                              <Text style={styles.buttonMeta}>Şu an {onlinePlayers} oyuncu çevrimiçi</Text>
-                            )}
-                          </View>
-                        </View>
-                        <View style={styles.arrowContainer}>
-                          <Text style={styles.arrowText}>→</Text>
-                        </View>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </Animated.View>
-                </AnimatedCard>
-
-                {/* Stats Button */}
-                <AnimatedCard delay={300}>
-                  <Animated.View style={{ transform: [{ scale: scaleAnims.stats }] }}>
-                    <TouchableOpacity 
-                      onPress={() => {
-                        animateButton('stats');
-                        router.push('/stats');
-                      }}
-                      activeOpacity={0.9}
-                      style={styles.buttonWrapper}
-                    >
-                      <LinearGradient
-                        colors={['#4facfe', '#00f2fe']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.actionButton}
-                      >
-                        <View style={styles.glowEffect} />
-                        <View style={styles.buttonContent}>
-                          <View style={styles.iconContainer}>
-                            <Text style={styles.buttonIcon}>📊</Text>
-                          </View>
-                          <View style={styles.buttonTextContainer}>
-                            <Text style={styles.buttonTitle}>İstatistikler</Text>
-                            <Text style={styles.buttonSubtitle}>📈 Performans analizini gör</Text>
-                          </View>
-                        </View>
-                        <View style={styles.arrowContainer}>
-                          <Text style={styles.arrowText}>→</Text>
-                        </View>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </Animated.View>
-                </AnimatedCard>
+                  <View style={styles.actionPill}>
+                    <Text style={styles.actionArrow}>→</Text>
+                  </View>
+                </TouchableOpacity>
+                <View style={styles.divider} />
+                <TouchableOpacity onPress={() => router.push('/stats')} style={styles.actionRow}>
+                  <View>
+                    <Text style={styles.actionTitle}>İstatistikler</Text>
+                    <Text style={styles.actionSubtitle}>Performansına göz at</Text>
+                  </View>
+                  <View style={styles.actionPillAlt}>
+                    <Text style={styles.actionArrow}>→</Text>
+                  </View>
+                </TouchableOpacity>
+                <View style={styles.divider} />
+                <TouchableOpacity onPress={() => router.push('/practice')} style={styles.actionRow}>
+                  <View>
+                    <Text style={styles.actionTitle}>Hızlı Pratik</Text>
+                    <Text style={styles.actionSubtitle}>Hızlı solo kelime turu</Text>
+                  </View>
+                  <View style={styles.actionPillWarm}>
+                    <Text style={styles.actionArrow}>→</Text>
+                  </View>
+                </TouchableOpacity>
               </View>
+            </View>
 
-              {/* Sign Out Button */}
-              <AnimatedCard delay={600}>
-                <SignOutButton />
-              </AnimatedCard>
-            </ScrollView>
-          )}
-          <Toast />
-        </SafeAreaView>
-      </LinearGradient>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Ayarlar</Text>
+              <View style={styles.card}>
+                <TouchableOpacity
+                  onPress={() => setIsEditingUsername((prev) => !prev)}
+                  style={styles.settingsRow}
+                >
+                  <View>
+                    <Text style={styles.settingsTitle}>Kullanıcı adı</Text>
+                    <Text style={styles.settingsValue}>{displayUsername}</Text>
+                  </View>
+                  <Text style={styles.settingsAction}>{isEditingUsername ? 'Kapat' : 'Değiştir'}</Text>
+                </TouchableOpacity>
+
+                {isEditingUsername && (
+                  <View style={styles.usernameEditor}>
+                    <TextInput
+                      value={usernameDraft}
+                      onChangeText={(text) => {
+                        setUsernameDraft(text);
+                        if (usernameError) setUsernameError('');
+                      }}
+                      placeholder="Yeni kullanıcı adı"
+                      placeholderTextColor="#94a3b8"
+                      autoCapitalize="none"
+                      style={styles.input}
+                    />
+                    {usernameError ? <Text style={styles.errorText}>{usernameError}</Text> : null}
+                    <View style={styles.editorActions}>
+                      <TouchableOpacity
+                        style={styles.secondaryButton}
+                        onPress={() => setIsEditingUsername(false)}
+                        disabled={isSavingUsername}
+                      >
+                        <Text style={styles.secondaryButtonText}>Vazgeç</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.primaryButton}
+                        onPress={handleSaveUsername}
+                        disabled={isSavingUsername}
+                      >
+                        <Text style={styles.primaryButtonText}>
+                          {isSavingUsername ? 'Kaydediliyor...' : 'Kaydet'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.divider} />
+
+                <TouchableOpacity onPress={handleSignOut} style={styles.settingsRow}>
+                  <View>
+                    <Text style={[styles.settingsTitle, styles.dangerText]}>Çıkış Yap</Text>
+                    <Text style={styles.settingsHint}>Oturumu sonlandır</Text>
+                  </View>
+                  <View style={styles.dangerPill}>
+                    <Text style={[styles.settingsAction, styles.dangerText]}>→</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <View style={styles.divider} />
+
+                <TouchableOpacity onPress={handleDeleteAccount} style={styles.settingsRow}>
+                  <View>
+                    <Text style={[styles.settingsTitle, styles.dangerText]}>Hesabı Sil</Text>
+                    <Text style={styles.settingsHint}>Geri alınamaz</Text>
+                  </View>
+                  <View style={styles.dangerPill}>
+                    <Text style={[styles.settingsAction, styles.dangerText]}>→</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        )}
+      </SafeAreaView>
     </View>
   );
 }
@@ -303,401 +346,252 @@ export default function Page() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f8fafc',
   },
-  gradient: {
-    flex: 1,
+  backdrop: {
+    position: 'absolute',
+    top: -120,
+    right: -80,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: '#7dd3fc',
+    opacity: 0.6,
   },
   safeArea: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8fafc',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 16,
     paddingBottom: 40,
   },
-  scrollContentSignedOut: {
-    paddingHorizontal: 20,
-    paddingTop: 40,
-    paddingBottom: 40,
-  },
-  headerContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  headerContainerSignedOut: {
-    alignItems: 'center',
+  header: {
     marginBottom: 24,
   },
-  logoContainer: {
-    borderRadius: 32,
-    paddingHorizontal: 40,
-    paddingVertical: 20,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-    position: 'relative',
-  },
-  sparkle: {
-    fontSize: 24,
-  },
-  logoText: {
-    fontSize: 60,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    textAlign: 'center',
-    letterSpacing: 2,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#64748b',
-    fontWeight: '600',
+  appName: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#0f172a',
     letterSpacing: 0.5,
   },
-  welcomeCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 28,
-    padding: 24,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  welcomeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatarGradient: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-    shadowColor: '#f5576c',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  waveEmoji: {
-    fontSize: 32,
-  },
-  welcomeTextContainer: {
-    flex: 1,
-  },
-  welcomeLabel: {
+  tagline: {
+    marginTop: 6,
     fontSize: 13,
+    color: '#64748b',
+  },
+  profileCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 24,
+  },
+  accentBar: {
+    height: 4,
+    width: 48,
+    backgroundColor: '#06b6d4',
+    borderRadius: 999,
+    marginBottom: 12,
+  },
+  greeting: {
+    fontSize: 12,
     color: '#94a3b8',
-    marginBottom: 4,
     textTransform: 'uppercase',
     letterSpacing: 1,
+    marginBottom: 6,
   },
   username: {
     fontSize: 22,
-    fontWeight: 'bold',
-    color: '#1e293b',
+    fontWeight: '700',
+    color: '#0f172a',
   },
-  buttonsContainer: {
+  onlinePill: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#cffafe',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  onlineDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#22c55e',
+  },
+  onlineText: {
+    fontSize: 12,
+    color: '#0f172a',
+    fontWeight: '600',
+  },
+  section: {
     marginBottom: 24,
-    gap: 16,
   },
-  buttonWrapper: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
-    marginBottom: 16,
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+    marginBottom: 12,
   },
-  actionButton: {
-    padding: 28,
+  card: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingVertical: 6,
+  },
+  actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    position: 'relative',
-    overflow: 'hidden',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
   },
-  glowEffect: {
-    position: 'absolute',
-    top: -50,
-    right: -50,
-    width: 150,
-    height: 150,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 75,
-  },
-  buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    zIndex: 1,
-  },
-  iconContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-    position: 'relative',
-  },
-  buttonIcon: {
-    fontSize: 32,
-  },
-  buttonTextContainer: {
-    flex: 1,
-  },
-  buttonTitle: {
-    color: '#ffffff',
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 6,
-    letterSpacing: 0.5,
-  },
-  buttonSubtitle: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  buttonMeta: {
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 6,
-  },
-  arrowContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  arrowText: {
-    color: '#ffffff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  featuresContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  featureCard: {
-    flex: 1,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  featureGradient: {
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 140,
-  },
-  featureEmoji: {
-    fontSize: 40,
-    marginBottom: 12,
-  },
-  featureTitle: {
-    color: '#ffffff',
+  actionTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 6,
-    textAlign: 'center',
+    fontWeight: '600',
+    color: '#0f172a',
   },
-  featureDesc: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 13,
-    textAlign: 'center',
+  actionSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#64748b',
   },
-  howToPlayCard: {
-    borderRadius: 28,
-    overflow: 'hidden',
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+  actionArrow: {
+    fontSize: 18,
+    color: '#0f172a',
+    fontWeight: '700',
   },
-  howToPlayContent: {
-    padding: 24,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+  actionPill: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#5eead4',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  howToPlayHeader: {
+  actionPillAlt: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#f9a8d4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionPillWarm: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#fdba74',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
   },
-  lightbulbEmoji: {
-    fontSize: 28,
-    marginRight: 12,
+  settingsTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0f172a',
   },
-  howToPlayTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#1e293b',
+  settingsValue: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#64748b',
   },
-  instructionsContainer: {
-    gap: 16,
+  settingsHint: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#94a3b8',
   },
-  instructionRow: {
+  settingsAction: {
+    fontSize: 12,
+    color: '#94a3b8',
+    fontWeight: '600',
+  },
+  dangerPill: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#fecaca',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dangerText: {
+    color: '#ef4444',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#e2e8f0',
+    marginHorizontal: 18,
+  },
+  usernameEditor: {
+    paddingHorizontal: 18,
+    paddingBottom: 16,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#0f172a',
+    backgroundColor: '#f8fafc',
+  },
+  errorText: {
+    marginTop: 8,
+    color: '#ef4444',
+    fontSize: 12,
+  },
+  editorActions: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    gap: 10,
   },
-  numberBadge: {
-    width: 24,
-    height: 24,
+  secondaryButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    marginTop: 2,
+    backgroundColor: '#ffffff',
   },
-  numberBadgeGradient: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    marginTop: 2,
-  },
-  purpleBadge: {
-    backgroundColor: '#f3e8ff',
-  },
-  blueBadge: {
-    backgroundColor: '#dbeafe',
-  },
-  pinkBadge: {
-    backgroundColor: '#fce7f3',
-  },
-  greenBadge: {
-    backgroundColor: '#d1fae5',
-  },
-  numberText: {
-    fontWeight: 'bold',
-    fontSize: 12,
-    color: '#9333ea',
-  },
-  numberTextWhite: {
-    fontWeight: 'bold',
-    fontSize: 14,
-    color: '#ffffff',
-  },
-  blueText: {
-    color: '#2563eb',
-  },
-  pinkText: {
-    color: '#ec4899',
-  },
-  greenText: {
-    color: '#059669',
-  },
-  instructionText: {
-    flex: 1,
+  secondaryButtonText: {
     color: '#475569',
-    lineHeight: 24,
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  welcomeDescription: {
-    fontSize: 15,
-    color: '#64748b',
-    textAlign: 'center',
-    marginTop: 8,
-    fontWeight: '500',
-    paddingHorizontal: 20,
-  },
-  featuresPreview: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  featurePreviewCard: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  featurePreviewEmoji: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  featurePreviewTitle: {
+    fontWeight: '600',
     fontSize: 13,
-    fontWeight: 'bold',
-    color: '#1e293b',
-    textAlign: 'center',
   },
-  authButtonsContainer: {
-    gap: 16,
-  },
-  authButtonWrapper: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  authButton: {
-    padding: 24,
+  primaryButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
     alignItems: 'center',
+    backgroundColor: '#0f172a',
   },
-  authButtonText: {
+  primaryButtonText: {
     color: '#ffffff',
-    fontSize: 20,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  signUpButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 24,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  signUpButtonText: {
-    color: '#1e293b',
-    fontSize: 20,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
+    fontWeight: '600',
+    fontSize: 13,
   },
 });

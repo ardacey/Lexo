@@ -11,6 +11,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  updateUsername: (username: string) => Promise<{ error: Error | null }>;
   getToken: () => Promise<string | null>;
 }
 
@@ -105,6 +106,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const updateUsername = useCallback(async (username: string) => {
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        data: { username },
+      });
+
+      if (error) {
+        return { error: new Error(error.message) };
+      }
+
+      if (data.user) {
+        setUser(data.user);
+      }
+
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  }, []);
+
   const getToken = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     return session?.access_token ?? null;
@@ -118,6 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signUp,
     signOut,
+    updateUsername,
     getToken,
   };
 

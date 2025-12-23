@@ -25,6 +25,10 @@ class CreateUserRequest(BaseModel):
     email: Optional[str] = Field(None, max_length=100)
 
 
+class UpdateUsernameRequest(BaseModel):
+    username: str = Field(..., min_length=1, max_length=30)
+
+
 class UserResponse(BaseModel):
     id: int
     user_id: str

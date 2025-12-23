@@ -13,6 +13,7 @@ import {
   LeaderboardEntry,
   SaveGameData,
   checkUsername,
+  updateUsername,
 } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -39,8 +40,13 @@ const __leaderboard = (limit: number) => ['leaderboard', limit] as const;
 (queryKeys as any).leaderboard = __leaderboard as any;
 
 export const useValidateWord = () => {
+  const { getToken } = useAuth();
+
   return useMutation<ValidateWordResponse, Error, string>({
-    mutationFn: (word: string) => validateWord(word),
+    mutationFn: async (word: string) => {
+      const token = await getToken();
+      return validateWord(word, token ?? undefined);
+    },
   });
 };
 
@@ -69,6 +75,21 @@ export const useCheckUsername = () => {
   return useMutation<{ available: boolean; username: string }, Error, string>({
     mutationFn: (username: string) => checkUsername(username),
     retry: false,
+  });
+};
+
+export const useUpdateUsername = () => {
+  const queryClient = useQueryClient();
+  const { getToken } = useAuth();
+
+  return useMutation<any, Error, string>({
+    mutationFn: async (username: string) => {
+      const token = await getToken();
+      return updateUsername(username, token ?? undefined);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.leaderboard.all() });
+    },
   });
 };
 

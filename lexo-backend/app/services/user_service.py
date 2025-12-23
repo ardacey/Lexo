@@ -68,6 +68,26 @@ class UserService:
     
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         return self.user_repo.get_by_id(user_id)
+
+    def update_username(self, supabase_user_id: str, username: str) -> User:
+        try:
+            user = self.user_repo.get_by_supabase_user_id(supabase_user_id)
+            if not user:
+                raise ValidationError("User not found")
+
+            if user.username == username:
+                return user
+
+            if self.user_repo.get_by_username(username):
+                raise ValidationError(f"Username '{username}' is already taken")
+
+            user.username = username
+            return self.user_repo.update(user)
+        except ValidationError:
+            raise
+        except Exception as e:
+            logger.error(f"Error updating username for {supabase_user_id}: {e}")
+            raise DatabaseError(f"Failed to update username: {str(e)}")
     
     def delete_user(self, supabase_user_id: str) -> bool:
         """
