@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SignOutButton } from '@/components/SignOutButton';
 import { useCreateUser } from '@/hooks/useApi';
 import { LinearGradient } from 'expo-linear-gradient';
+import { getOnlineStats } from '@/utils/api';
 
 const AnimatedCard = ({ children, delay = 0, style }: any) => {
   const fadeAnim = useState(new Animated.Value(0))[0];
@@ -52,6 +53,7 @@ export default function Page() {
   const { user, isSignedIn, isLoading } = useAuth();
   const createUserMutation = useCreateUser();
   const [userInitialized, setUserInitialized] = useState(false);
+  const [onlinePlayers, setOnlinePlayers] = useState<number | null>(null);
   
   const [scaleAnims] = useState({
     multiplayer: new Animated.Value(1),
@@ -106,6 +108,25 @@ export default function Page() {
       checkForActiveGame(username);
     }
   }, [user, userInitialized, createUserMutation.isPending]);
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+    let cancelled = false;
+
+    const fetchOnlineStats = async () => {
+      const stats = await getOnlineStats();
+      if (cancelled || !stats) return;
+      const count = stats.waiting_players + stats.active_rooms * 2;
+      setOnlinePlayers(count);
+    };
+
+    fetchOnlineStats();
+    const intervalId = setInterval(fetchOnlineStats, 10000);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [isSignedIn]);
 
   // Show loading while initializing
   if (isLoading) {
@@ -217,6 +238,9 @@ export default function Page() {
                           <View style={styles.buttonTextContainer}>
                             <Text style={styles.buttonTitle}>Oyun Ara</Text>
                             <Text style={styles.buttonSubtitle}>🔥 Çevrimiçi rakiplerle yarış</Text>
+                            {onlinePlayers !== null && (
+                              <Text style={styles.buttonMeta}>Şu an {onlinePlayers} oyuncu çevrimiçi</Text>
+                            )}
                           </View>
                         </View>
                         <View style={styles.arrowContainer}>
@@ -447,6 +471,12 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
     fontSize: 14,
     fontWeight: '500',
+  },
+  buttonMeta: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 6,
   },
   arrowContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.25)',

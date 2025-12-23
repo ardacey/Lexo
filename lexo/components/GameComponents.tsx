@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Animated, TextInput, ScrollView } from 'react-native';
+import { LETTER_SCORES } from '@/utils/constants';
 
 interface GameHeaderProps {
   timeLeft: number;
@@ -51,8 +52,14 @@ const LetterPoolComponent: React.FC<LetterPoolProps> = ({ letterPool }) => (
     <Text className="text-base font-bold text-text-primary mb-3">Harfler</Text>
     <View className="flex-row flex-wrap justify-center gap-2">
       {letterPool.map((letter, index) => (
-        <View key={`${letter}-${index}`} className="w-12 h-12 bg-white rounded-lg justify-center items-center">
+        <View
+          key={`${letter}-${index}`}
+          className="w-12 h-12 bg-white rounded-lg justify-center items-center relative"
+        >
           <Text className="text-2xl font-bold text-text-primary">{letter.toUpperCase()}</Text>
+          <Text className="absolute top-1 right-1 text-xs font-semibold text-text-secondary">
+            {LETTER_SCORES[letter] || 0}
+          </Text>
         </View>
       ))}
     </View>
@@ -81,7 +88,7 @@ const InteractiveLetterPoolComponent: React.FC<InteractiveLetterPoolProps> = ({
         key={`${letter}-${index}`}
         onPress={() => onLetterClick(index)}
         disabled={disabled}
-        className={`w-16 h-16 rounded-xl justify-center items-center shadow-sm ${
+        className={`w-16 h-16 rounded-xl justify-center items-center shadow-sm relative ${
           selectedIndices.includes(index) 
             ? 'bg-primary' 
             : 'bg-slate-100'
@@ -92,6 +99,13 @@ const InteractiveLetterPoolComponent: React.FC<InteractiveLetterPoolProps> = ({
             ? 'text-white' 
             : 'text-text-primary'
         }`}>{letter.toLocaleUpperCase('tr-TR')}</Text>
+        <Text
+          className={`absolute top-1 right-1 text-xs font-semibold ${
+            selectedIndices.includes(index) ? 'text-white' : 'text-text-secondary'
+          }`}
+        >
+          {LETTER_SCORES[letter] || 0}
+        </Text>
       </TouchableOpacity>
     ))}
   </View>

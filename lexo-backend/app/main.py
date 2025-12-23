@@ -127,6 +127,16 @@ def get_stats():
     }
 
 
+@app.get("/app/version")
+def get_app_version():
+    return {
+        "min_version": settings.app.min_version,
+        "latest_version": settings.app.latest_version,
+        "update_url": settings.app.update_url,
+        "force_update": settings.app.force_update
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

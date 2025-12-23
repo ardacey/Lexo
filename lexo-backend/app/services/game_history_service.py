@@ -6,6 +6,7 @@ from app.models.database import GameHistory
 from app.repositories.game_repository import GameRepository
 from app.core.logging import get_logger
 from app.core.exceptions import DatabaseError
+from app.core.cache import cache_invalidate_prefix
 
 logger = get_logger(__name__)
 
@@ -48,6 +49,9 @@ class GameHistoryService:
         except Exception as e:
             logger.error(f"Error creating game history for room {room_id}: {e}")
             raise DatabaseError(f"Failed to create game history: {str(e)}")
+        finally:
+            cache_invalidate_prefix(f"user_games:{player1_id}:")
+            cache_invalidate_prefix(f"user_games:{player2_id}:")
     
     def get_user_games(self, user_id: int, limit: int = 10) -> List[GameHistory]:
         return self.game_repo.get_user_games(user_id, limit)

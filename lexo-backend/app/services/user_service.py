@@ -18,10 +18,15 @@ class UserService:
         self.db = db
         self.user_repo = UserRepository(db)
         self.stats_repo = StatsRepository(db)
-        self.supabase: Client = create_client(
-            settings.supabase.url,
-            settings.supabase.service_role_key
-        )
+        self._supabase: Optional[Client] = None
+
+    def _get_supabase_client(self) -> Client:
+        if self._supabase is None:
+            self._supabase = create_client(
+                settings.supabase.url,
+                settings.supabase.service_role_key
+            )
+        return self._supabase
     
     def create_or_get_user(
         self, 
@@ -88,7 +93,8 @@ class UserService:
             if success:
                 # Delete from Supabase Auth
                 try:
-                    self.supabase.auth.admin.delete_user(supabase_user_id)
+                    supabase = self._get_supabase_client()
+                    supabase.auth.admin.delete_user(supabase_user_id)
                     logger.info(f"Deleted Supabase auth user: {supabase_user_id}")
                 except Exception as auth_error:
                     logger.error(f"Failed to delete Supabase auth user {supabase_user_id}: {auth_error}")

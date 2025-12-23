@@ -17,8 +17,8 @@ class GameSettings(BaseSettings):
     min_consonant_ratio: float = 0.5
     length_bonus_threshold_1: int = 5
     length_bonus_threshold_2: int = 7
-    length_bonus_multiplier_1: int = 2
-    length_bonus_multiplier_2: int = 3
+    length_bonus_multiplier_1: int = 3
+    length_bonus_multiplier_2: int = 4
     
     model_config = {
         'env_file': str(Path(__file__).parent.parent.parent / '.env'),
@@ -99,6 +99,19 @@ class SupabaseSettings(BaseSettings):
     }
 
 
+class AppSettings(BaseSettings):
+    min_version: str = Field(default='1.0.0', alias='APP_MIN_VERSION')
+    latest_version: str = Field(default='1.0.0', alias='APP_LATEST_VERSION')
+    update_url: str = Field(default='', alias='APP_UPDATE_URL')
+    force_update: bool = Field(default=True, alias='APP_FORCE_UPDATE')
+
+    model_config = {
+        'env_file': str(Path(__file__).parent.parent.parent / '.env'),
+        'env_file_encoding': 'utf-8',
+        'extra': 'ignore'
+    }
+
+
 class Settings(BaseSettings):
     game: GameSettings = GameSettings()
     api: APISettings = APISettings()
@@ -106,6 +119,7 @@ class Settings(BaseSettings):
     files: FileSettings = FileSettings()
     log: LogSettings = LogSettings()
     supabase: SupabaseSettings = SupabaseSettings()
+    app: AppSettings = AppSettings()
     
 
 

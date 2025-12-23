@@ -2,6 +2,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from typing import Optional, Dict
 import asyncio
 from datetime import datetime
+import time
 
 from app.models.domain import Player, GameRoom
 from app.services.matchmaking_service import MatchmakingService
@@ -85,6 +86,9 @@ class GameWebSocketHandler:
                             "letter_pool": existing_room.letter_pool,
                             "scores": existing_room.get_scores(),
                             "time_remaining": time_remaining,
+                            "server_start_time": int(existing_room.start_time.timestamp() * 1000) if existing_room.start_time else None,
+                            "duration": existing_room.duration,
+                            "server_time": int(time.time() * 1000),
                             "my_words": existing_player.words,
                             "used_words": list(existing_room.used_words)
                         })
@@ -170,7 +174,11 @@ class GameWebSocketHandler:
                             websocket, user_id, data, username
                         )
                     elif message_type == "ping":
-                        await websocket.send_json({"type": "pong"})
+                        await websocket.send_json({
+                            "type": "pong",
+                            "client_time": data.get("client_time"),
+                            "server_time": int(time.time() * 1000)
+                        })
                 
                 except asyncio.TimeoutError:
                     try:
@@ -221,7 +229,9 @@ class GameWebSocketHandler:
             "type": "game_start",
             "letter_pool": room.letter_pool,
             "duration": room.duration,
-            "scores": room.get_scores()
+            "scores": room.get_scores(),
+            "server_start_time": int(room.start_time.timestamp() * 1000) if room.start_time else None,
+            "server_time": int(time.time() * 1000)
         }
         
         try:

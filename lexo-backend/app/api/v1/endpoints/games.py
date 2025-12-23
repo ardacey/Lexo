@@ -8,6 +8,7 @@ from app.services.stats_service import StatsService
 from app.services.game_history_service import GameHistoryService
 from app.database.session import get_db
 from app.core.logging import get_logger
+from app.core.cache import cache_get, cache_set
 from app.api.dependencies.auth import AuthenticatedUser, get_current_user
 
 logger = get_logger(__name__)
@@ -32,6 +33,11 @@ def get_user_games(
         user = user_service.get_user_by_supabase_id(user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
+
+        cache_key = f"user_games:{user.id}:{limit}"
+        cached = cache_get(cache_key)
+        if cached is not None:
+            return cached
         
         games = game_history_service.get_user_games(user.id, limit)
         
@@ -70,10 +76,12 @@ def get_user_games(
                 "played_at": game.ended_at.isoformat()
             })
         
-        return {
+        response = {
             "success": True,
             "games": games_list
         }
+        cache_set(cache_key, response, ttl_seconds=10)
+        return response
     except HTTPException:
         raise
     except Exception as e:

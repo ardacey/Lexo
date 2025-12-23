@@ -6,6 +6,7 @@ from app.services.user_service import UserService
 from app.services.stats_service import StatsService
 from app.database.session import get_db
 from app.core.logging import get_logger
+from app.core.cache import cache_get, cache_set
 from app.core.exceptions import DatabaseError
 from app.api.dependencies.auth import AuthenticatedUser, get_current_user
 
@@ -84,12 +85,17 @@ def get_user_stats(
         user = user_service.get_user_by_supabase_id(user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        
+
+        cache_key = f"user_stats:{user.id}"
+        cached = cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         stats = stats_service.get_user_stats(user.id)
         rank = stats_service.get_user_rank(user.id)
         
         if not stats:
-            return {
+            response = {
                 "success": True,
                 "stats": {
                     "total_games": 0,
@@ -109,8 +115,10 @@ def get_user_stats(
                     "rank": None
                 }
             }
+            cache_set(cache_key, response, ttl_seconds=15)
+            return response
         
-        return {
+        response = {
             "success": True,
             "stats": {
                 "total_games": stats.total_games,
@@ -130,6 +138,8 @@ def get_user_stats(
                 "rank": rank
             }
         }
+        cache_set(cache_key, response, ttl_seconds=15)
+        return response
     except HTTPException:
         raise
     except Exception as e:

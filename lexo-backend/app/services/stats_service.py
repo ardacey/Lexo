@@ -5,6 +5,12 @@ from app.models.database import UserStats
 from app.repositories.stats_repository import StatsRepository
 from app.core.logging import get_logger
 from app.core.exceptions import DatabaseError
+from app.core.cache import (
+    cache_get,
+    cache_set,
+    cache_invalidate,
+    cache_invalidate_prefix
+)
 
 logger = get_logger(__name__)
 
@@ -38,9 +44,19 @@ class StatsService:
         except Exception as e:
             logger.error(f"Error updating stats for user {user_id}: {e}")
             raise DatabaseError(f"Failed to update stats: {str(e)}")
+        finally:
+            cache_invalidate(f"user_stats:{user_id}")
+            cache_invalidate(f"user_rank:{user_id}")
+            cache_invalidate_prefix("leaderboard:")
     
     def get_leaderboard(self, limit: int = 100) -> List[Dict]:
         return self.stats_repo.get_leaderboard(limit)
     
     def get_user_rank(self, user_id: int) -> Optional[int]:
-        return self.stats_repo.get_user_rank(user_id)
+        cache_key = f"user_rank:{user_id}"
+        cached = cache_get(cache_key)
+        if cached is not None:
+            return cached
+        rank = self.stats_repo.get_user_rank(user_id)
+        cache_set(cache_key, rank, ttl_seconds=15)
+        return rank

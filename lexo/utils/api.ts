@@ -11,6 +11,8 @@ export const API_ENDPOINTS = {
   getLeaderboard: (limit: number = 100) => `${API_BASE_URL}/api/leaderboard?limit=${limit}`,
   saveGame: `${API_BASE_URL}/api/games/save`,
   deleteUserAccount: `${API_BASE_URL}/api/users/me`,
+  getOnlineStats: `${API_BASE_URL}/stats`,
+  getAppVersion: `${API_BASE_URL}/app/version`,
 };
 
 export interface ValidateWordResponse {
@@ -75,6 +77,19 @@ export interface SaveGameData {
   letter_pool: string[];
   started_at: string;
   ended_at: string;
+}
+
+export interface OnlineStats {
+  active_rooms: number;
+  waiting_players: number;
+  total_words: number;
+}
+
+export interface AppVersionInfo {
+  min_version: string;
+  latest_version: string;
+  update_url: string;
+  force_update: boolean;
 }
 
 export const validateWord = async (word: string): Promise<ValidateWordResponse> => {
@@ -282,5 +297,29 @@ export const deleteUserAccount = async (token?: string) => {
     return result;
   } catch (error) {
     throw error;
+  }
+};
+
+export const getOnlineStats = async (): Promise<OnlineStats | null> => {
+  try {
+    const response = await fetch(API_ENDPOINTS.getOnlineStats, { method: 'GET' });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch {
+    return null;
+  }
+};
+
+export const getAppVersionInfo = async (): Promise<AppVersionInfo | null> => {
+  try {
+    const response = await fetch(API_ENDPOINTS.getAppVersion, { method: 'GET' });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch {
+    return null;
   }
 };

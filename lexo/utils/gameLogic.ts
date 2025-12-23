@@ -53,10 +53,10 @@ export const calculateScore = (word: string): number => {
   
   let lengthBonus = 0;
   if (wordLength >= 5) {
-    lengthBonus = (wordLength - 4) * 2;
+    lengthBonus = (wordLength - 4) * 3;
   }
   if (wordLength >= 7) {
-    lengthBonus += (wordLength - 6) * 3;
+    lengthBonus += (wordLength - 6) * 4;
   }
   
   const totalScore = Math.floor(baseScore + lengthBonus);

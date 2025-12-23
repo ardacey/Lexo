@@ -72,6 +72,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             compileSdkVersion: 34,
             targetSdkVersion: 34,
             minSdkVersion: 24,
+            enableProguardInReleaseBuilds: true,
+            enableShrinkResourcesInReleaseBuilds: true,
           },
           ios: {
             deploymentTarget: '15.1',
