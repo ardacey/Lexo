@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Session, User, AuthChangeEvent } from '@supabase/supabase-js';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { supabase } from '../utils/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+WebBrowser.maybeCompleteAuthSession();
 
 interface AuthContextType {
   session: Session | null;
@@ -10,6 +14,7 @@ interface AuthContextType {
   isSignedIn: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
+  signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateUsername: (username: string) => Promise<{ error: Error | null }>;
   getToken: () => Promise<string | null>;
@@ -91,6 +96,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const signInWithGoogle = useCallback(async () => {
+    try {
+      const redirectTo = Linking.createURL('auth/callback');
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          skipBrowserRedirect: true,
+        },
+      });
+
+      if (error || !data?.url) {
+        return { error: new Error(error?.message || 'Google girişi başlatılamadı') };
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      if (result.type !== 'success' || !result.url) {
+        return { error: new Error('Google girişi iptal edildi') };
+      }
+
+      const parsed = Linking.parse(result.url);
+      const code = typeof parsed.queryParams?.code === 'string' ? parsed.queryParams.code : null;
+      if (!code) {
+        return { error: new Error('Google girişi tamamlanamadı') };
+      }
+
+      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+      if (exchangeError) {
+        return { error: new Error(exchangeError.message) };
+      }
+
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  }, []);
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     // Manuel olarak session ve user'ı null yap (Android'de onAuthStateChange tetiklenmeyebilir)
@@ -138,6 +180,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isSignedIn: !!session,
     signIn,
     signUp,
+    signInWithGoogle,
     signOut,
     updateUsername,
     getToken,

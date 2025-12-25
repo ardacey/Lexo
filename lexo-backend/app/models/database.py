@@ -127,3 +127,43 @@ class UserStats(Base):
     
     def __repr__(self):
         return f"<UserStats(user_id={self.user_id}, total_games={self.total_games}, wins={self.wins})>"
+
+
+class FriendRequest(Base):
+    __tablename__ = "friend_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    requester_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    addressee_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    status = Column(String(20), default="pending", nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    responded_at = Column(DateTime, nullable=True)
+
+    requester = relationship("User", foreign_keys=[requester_id])
+    addressee = relationship("User", foreign_keys=[addressee_id])
+
+    __table_args__ = (
+        Index('ix_friend_request_pair', 'requester_id', 'addressee_id', unique=True),
+    )
+
+    def __repr__(self):
+        return f"<FriendRequest(id={self.id}, requester_id={self.requester_id}, addressee_id={self.addressee_id})>"
+
+
+class Friend(Base):
+    __tablename__ = "friends"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    friend_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    user = relationship("User", foreign_keys=[user_id])
+    friend = relationship("User", foreign_keys=[friend_id])
+
+    __table_args__ = (
+        Index('ix_friend_pair', 'user_id', 'friend_id', unique=True),
+    )
+
+    def __repr__(self):
+        return f"<Friend(user_id={self.user_id}, friend_id={self.friend_id})>"

@@ -8,7 +8,7 @@ import { getErrorMessage } from '../../utils/errorMessages'
 import { useAuth } from '../../context/AuthContext'
 
 export default function Page() {
-  const { signIn, isLoading } = useAuth()
+  const { signIn, signInWithGoogle, isLoading } = useAuth()
   const router = useRouter()
   const { showToast } = useToast()
 
@@ -16,6 +16,7 @@ export default function Page() {
   const [password, setPassword] = React.useState('')
   const [showPassword, setShowPassword] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = React.useState(false)
   const fadeAnim = React.useRef(new Animated.Value(0)).current
   const slideAnim = React.useRef(new Animated.Value(50)).current
 
@@ -55,6 +56,20 @@ export default function Page() {
       setIsSubmitting(false)
     }
   }, [emailAddress, password, signIn, router, showToast])
+
+  const onGooglePress = React.useCallback(async () => {
+    setIsGoogleSubmitting(true)
+    try {
+      const { error } = await signInWithGoogle()
+      if (error) {
+        showToast(getErrorMessage(error), 'error')
+      }
+    } catch (err: any) {
+      showToast(getErrorMessage(err), 'error')
+    } finally {
+      setIsGoogleSubmitting(false)
+    }
+  }, [signInWithGoogle, showToast])
 
   return (
     <LinearGradient
@@ -146,6 +161,25 @@ export default function Page() {
                     {isSubmitting || isLoading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
                   </Text>
                 </LinearGradient>
+              </TouchableOpacity>
+
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>veya</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <TouchableOpacity
+                onPress={onGooglePress}
+                disabled={isGoogleSubmitting || isLoading}
+                style={styles.oauthButton}
+              >
+                <View style={styles.oauthButtonContent}>
+                  <Ionicons name="logo-google" size={18} color="#0f172a" />
+                  <Text style={styles.oauthButtonText}>
+                    {isGoogleSubmitting ? 'Bağlanıyor...' : 'Google ile devam et'}
+                  </Text>
+                </View>
               </TouchableOpacity>
             </View>
 
@@ -261,6 +295,41 @@ const styles = StyleSheet.create({
   },
   disabledText: {
     color: '#666',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 20,
+    marginBottom: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  dividerText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  oauthButton: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingVertical: 14,
+  },
+  oauthButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  oauthButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',

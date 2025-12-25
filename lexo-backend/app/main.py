@@ -9,13 +9,15 @@ from app.core.logging import setup_logging, get_logger
 from app.core.exceptions import LexoException
 from app.database.session import init_db
 from app.dependencies import (
-    init_services, 
+    init_services,
     get_word_service,
-    get_matchmaking_service
+    get_matchmaking_service,
+    get_presence_service,
 )
 from app.api.v1.router import api_router
 from app.api.v1.endpoints.health import router as health_router
 from app.websocket.game_handler import GameWebSocketHandler
+from app.websocket.notification_handler import NotificationWebSocketHandler
 from app.middleware.error_handler import (
     lexo_exception_handler,
     http_exception_handler,
@@ -100,6 +102,13 @@ async def websocket_queue_endpoint(websocket: WebSocket):
     await handler.handle_connection(websocket)
 
 
+@app.websocket("/ws/notify")
+async def websocket_notify_endpoint(websocket: WebSocket):
+    matchmaking_service = get_matchmaking_service()
+    handler = NotificationWebSocketHandler(matchmaking_service)
+    await handler.handle_connection(websocket)
+
+
 @app.get("/")
 def read_root():
     matchmaking_service = get_matchmaking_service()
@@ -118,12 +127,14 @@ def read_root():
 def get_stats():
     matchmaking_service = get_matchmaking_service()
     word_service = get_word_service()
+    presence_service = get_presence_service()
     stats = matchmaking_service.get_stats()
     
     return {
         "active_rooms": stats['active_rooms'],
         "waiting_players": stats['waiting_players'],
-        "total_words": word_service.get_word_count()
+        "total_words": word_service.get_word_count(),
+        "online_players": presence_service.get_online_count(),
     }
 
 

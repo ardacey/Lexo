@@ -19,6 +19,19 @@ export const API_ENDPOINTS = {
   deleteUserAccount: `${apiPrefix}/users/me`,
   getOnlineStats: `${apiRoot}/stats`,
   getAppVersion: `${apiRoot}/app/version`,
+  pingPresence: `${apiPrefix}/presence/ping`,
+  getPresenceStatus: `${apiPrefix}/presence/status`,
+  searchUsers: (query: string) => `${apiPrefix}/friends/search?q=${encodeURIComponent(query)}`,
+  getFriends: `${apiPrefix}/friends`,
+  getFriendRequests: `${apiPrefix}/friends/requests`,
+  sendFriendRequest: `${apiPrefix}/friends/requests`,
+  respondFriendRequest: (requestId: number) => `${apiPrefix}/friends/requests/${requestId}/respond`,
+  removeFriend: (friendUserId: string) => `${apiPrefix}/friends/${friendUserId}`,
+  sendFriendInvite: `${apiPrefix}/friends/invites/send`,
+  respondFriendInvite: `${apiPrefix}/friends/invites/respond`,
+  cancelFriendInvite: `${apiPrefix}/friends/invites/cancel`,
+  getActiveInvite: `${apiPrefix}/friends/invites/active`,
+  getInviteStatus: (inviteId: string) => `${apiPrefix}/friends/invites/status/${inviteId}`,
 };
 
 export interface ValidateWordResponse {
@@ -89,6 +102,7 @@ export interface OnlineStats {
   active_rooms: number;
   waiting_players: number;
   total_words: number;
+  online_players?: number;
 }
 
 export interface AppVersionInfo {
@@ -96,6 +110,18 @@ export interface AppVersionInfo {
   latest_version: string;
   update_url: string;
   force_update: boolean;
+}
+
+export interface FriendUser {
+  user_id: string;
+  username: string;
+}
+
+export interface FriendRequest {
+  id: number;
+  status: string;
+  created_at: string;
+  requester: FriendUser;
 }
 
 export const validateWord = async (word: string, token?: string): Promise<ValidateWordResponse> => {
@@ -123,6 +149,60 @@ export const validateWord = async (word: string, token?: string): Promise<Valida
       valid: false,
       message: 'Sunucuya bağlanılamadı',
     };
+  }
+};
+
+export const pingPresence = async (token?: string) => {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    await fetch(API_ENDPOINTS.pingPresence, {
+      method: 'POST',
+      headers,
+    });
+  } catch {
+    // Presence ping failures are non-critical
+  }
+};
+
+export const getPresenceStatus = async (userIds: string[], token?: string) => {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const query = userIds.map((id) => `user_ids=${encodeURIComponent(id)}`).join('&');
+    const response = await fetch(`${API_ENDPOINTS.getPresenceStatus}?${query}`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // Ignore JSON parse error
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
   }
 };
 
@@ -194,6 +274,396 @@ export const updateUsername = async (username: string, token?: string) => {
       method: 'PATCH',
       headers,
       body: JSON.stringify({ username }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // Ignore JSON parse error
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const searchUsers = async (query: string, token?: string) => {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(API_ENDPOINTS.searchUsers(query), {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // Ignore JSON parse error
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getFriends = async (token?: string) => {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(API_ENDPOINTS.getFriends, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // Ignore JSON parse error
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getFriendRequests = async (token?: string) => {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(API_ENDPOINTS.getFriendRequests, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // Ignore JSON parse error
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const sendFriendRequest = async (targetUserId: string, token?: string) => {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(API_ENDPOINTS.sendFriendRequest, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ target_user_id: targetUserId }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // Ignore JSON parse error
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const respondFriendRequest = async (requestId: number, action: string, token?: string) => {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(API_ENDPOINTS.respondFriendRequest(requestId), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ action }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // Ignore JSON parse error
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const removeFriend = async (friendUserId: string, token?: string) => {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(API_ENDPOINTS.removeFriend(friendUserId), {
+      method: 'DELETE',
+      headers,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // Ignore JSON parse error
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const sendFriendInvite = async (targetUserId: string, token?: string) => {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(API_ENDPOINTS.sendFriendInvite, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ target_user_id: targetUserId }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // Ignore JSON parse error
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const respondFriendInvite = async (inviteId: string, action: string, token?: string) => {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(API_ENDPOINTS.respondFriendInvite, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ invite_id: inviteId, action }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // Ignore JSON parse error
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const cancelFriendInvite = async (inviteId: string, token?: string) => {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(API_ENDPOINTS.cancelFriendInvite, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ invite_id: inviteId }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // Ignore JSON parse error
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getActiveInvite = async (token?: string) => {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(API_ENDPOINTS.getActiveInvite, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // Ignore JSON parse error
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getInviteStatus = async (inviteId: string, token?: string) => {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(API_ENDPOINTS.getInviteStatus(inviteId), {
+      method: 'GET',
+      headers,
     });
 
     if (!response.ok) {

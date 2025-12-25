@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.models.database import User, GameHistory
 from app.repositories.user_repository import UserRepository
+from app.repositories.friend_repository import FriendRepository
 from app.repositories.stats_repository import StatsRepository
 from app.core.logging import get_logger
 from app.core.exceptions import DatabaseError, ValidationError
@@ -18,6 +19,7 @@ class UserService:
         self.db = db
         self.user_repo = UserRepository(db)
         self.stats_repo = StatsRepository(db)
+        self.friend_repo = FriendRepository(db)
         self._supabase: Optional[Client] = None
 
     def _get_supabase_client(self) -> Client:
@@ -106,6 +108,10 @@ class UserService:
             
             # Delete stats
             self.stats_repo.delete_by_user_id(user.id)
+
+            # Delete friends and requests
+            self.friend_repo.delete_requests_for_user(user.id)
+            self.friend_repo.delete_all_for_user(user.id)
             
             # Delete user
             success = self.user_repo.delete_by_supabase_user_id(supabase_user_id)

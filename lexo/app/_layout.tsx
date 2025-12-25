@@ -3,12 +3,13 @@ import { Stack } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { AuthProvider } from '../context/AuthContext';
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
-import { Alert, Linking, Platform, Text, View } from 'react-native';
+import { Alert, AppState, Linking, Platform, Text, View } from 'react-native';
 import Constants from 'expo-constants';
 import { ToastProvider, useToast } from '../context/ToastContext';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { getErrorMessage } from '../utils/errorMessages';
-import { getAppVersionInfo } from '../utils/api';
+import { getAppVersionInfo, pingPresence } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 const getCurrentVersion = () => {
   return (
@@ -177,6 +178,7 @@ function AppContent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <PresenceTracker />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="(auth)" />
@@ -192,6 +194,56 @@ function AppContent() {
       )}
     </QueryClientProvider>
   );
+}
+
+function PresenceTracker() {
+  const { isSignedIn, getToken } = useAuth();
+  const intervalRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const start = () => {
+      if (intervalRef.current !== null) return;
+      const ping = async () => {
+        const token = await getToken();
+        if (token) {
+          await pingPresence(token ?? undefined);
+        }
+      };
+      ping();
+      intervalRef.current = setInterval(ping, 8000) as unknown as number;
+    };
+
+    const stop = () => {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+
+    const handleAppStateChange = (state: string) => {
+      if (!isSignedIn) {
+        stop();
+        return;
+      }
+      if (state === 'active') {
+        start();
+      } else {
+        stop();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    if (isSignedIn && AppState.currentState === 'active') {
+      start();
+    }
+
+    return () => {
+      stop();
+      subscription.remove();
+    };
+  }, [isSignedIn, getToken]);
+
+  return null;
 }
 
 export default function RootLayout() {

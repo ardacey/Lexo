@@ -45,15 +45,22 @@ export default function Multiplayer() {
     }
   };
   const params = useLocalSearchParams();
-  const username = params.username as string || 'Player';
+  const baseUsername = (params.username as string) || 'Player';
   const isReconnecting = params.reconnect === 'true';
+  const inviteId = params.inviteId as string | undefined;
   const { user, getToken } = useAuth();
 
   const createUserMutation = useCreateUser();
   const _saveGameMutation = useSaveGame();
+
+  const currentUsername = React.useMemo(() => {
+    return user?.user_metadata?.username || user?.email?.split('@')[0] || baseUsername || 'Player';
+  }, [user, baseUsername]);
   
   const [ws, setWs] = useState<WebSocket | null>(null);
-  const [gameState, setGameState] = useState<'queue' | 'matched' | 'playing' | 'ended'>('queue');
+  const [gameState, setGameState] = useState<'queue' | 'matched' | 'playing' | 'ended'>(
+    inviteId ? 'matched' : 'queue'
+  );
   const [letterPool, setLetterPool] = useState<string[]>([]);
   const [_initialLetterPool, setInitialLetterPool] = useState<string[]>([]);
   const [currentWord, setCurrentWord] = useState('');
@@ -160,7 +167,7 @@ export default function Multiplayer() {
     if (user && !createUserMutation.isPending && !createUserMutation.isSuccess) {
       createUserMutation.mutate({
         userId: user.id,
-        username,
+        username: currentUsername,
         email: user.email
       });
     }
@@ -221,7 +228,9 @@ export default function Multiplayer() {
     const fetchOnlineStats = async () => {
       const stats = await getOnlineStats();
       if (cancelled || !stats) return;
-      const count = stats.waiting_players + stats.active_rooms * 2;
+      const count = typeof stats.online_players === 'number'
+        ? stats.online_players
+        : stats.waiting_players + stats.active_rooms * 2;
       setOnlinePlayers(count);
     };
 
@@ -263,7 +272,7 @@ export default function Multiplayer() {
       
       websocket.onopen = () => {
         websocket.send(JSON.stringify({ 
-          username,
+          username: currentUsername,
           token,
           is_reconnect: true
         }));
@@ -316,9 +325,11 @@ export default function Multiplayer() {
       
       websocket.onopen = () => {
         const payload = { 
-          username,
+          username: currentUsername,
           token,
-          is_reconnect: false
+          is_reconnect: false,
+          mode: inviteId ? 'friend' : 'queue',
+          invite_id: inviteId,
         };
         websocket.send(JSON.stringify(payload));
         startPingLoop();
@@ -356,7 +367,71 @@ export default function Multiplayer() {
     switch (data.type) {
       case 'queue_joined':
         setPlayerId(data.player_id);
-        setGameState('queue');
+        if (!inviteId) {
+          setGameState('queue');
+        } else {
+          setGameState('matched');
+        }
+        break;
+
+      case 'friend_invite':
+        Alert.alert(
+          'Arkadaş Daveti',
+          `${data.from_username || 'Bir arkadaş'} seni maça çağırıyor`,
+          [
+            {
+              text: 'Reddet',
+              style: 'destructive',
+              onPress: () => {
+                wsRef.current?.send(JSON.stringify({
+                  type: 'friend_invite_response',
+                  invite_id: data.invite_id,
+                  action: 'decline'
+                }));
+              }
+            },
+            {
+              text: 'Kabul Et',
+              onPress: () => {
+                wsRef.current?.send(JSON.stringify({
+                  type: 'friend_invite_response',
+                  invite_id: data.invite_id,
+                  action: 'accept'
+                }));
+              }
+            },
+          ]
+        );
+        break;
+
+      case 'friend_invite_sent':
+        Toast.show({
+          type: 'info',
+          text1: 'Davet Gönderildi',
+          text2: 'Arkadaşının onayı bekleniyor',
+          position: 'top',
+          visibilityTime: 2000,
+        });
+        break;
+
+      case 'friend_invite_declined':
+        Toast.show({
+          type: 'error',
+          text1: 'Davet Reddedildi',
+          text2: data.message || 'Arkadaş daveti reddetti',
+          position: 'top',
+          visibilityTime: 2500,
+        });
+        break;
+
+      case 'friend_invite_error':
+        Toast.show({
+          type: 'error',
+          text1: 'Davet Hatası',
+          text2: data.message || 'Davet gönderilemedi',
+          position: 'top',
+          visibilityTime: 2500,
+        });
         break;
 
       case 'match_found':
@@ -500,7 +575,7 @@ export default function Multiplayer() {
           }
         }
         clearActiveGameFromStorage();
-        setWinner(username);
+        setWinner(currentUsername);
         setIsTie(false);
         setEndReason('Rakip oyundan ayrıldı. Siz kazandınız!');
         setGameState('ended');
@@ -722,12 +797,12 @@ export default function Multiplayer() {
   };
 
   const getMyScore = () => {
-    const myScore = scores.find(s => s.username === username);
+    const myScore = scores.find(s => s.username === currentUsername);
     return myScore?.score || 0;
   };
 
   const getOpponentScore = () => {
-    const oppScore = scores.find(s => s.username !== username);
+    const oppScore = scores.find(s => s.username !== currentUsername);
     return oppScore?.score || 0;
   };
 
@@ -738,14 +813,14 @@ export default function Multiplayer() {
   const getWinnerText = () => {
     if (endReason) return endReason;
     if (_isTie) return 'Oyun berabere bitti!';
-    if (_winner === username) return 'Tebrikler, kazandınız!';
+    if (_winner === currentUsername) return 'Tebrikler, kazandınız!';
     if (_winner) return `${_winner} kazandı!`;
     return 'Oyun bitti.';
   };
 
   const getTopWord = () => {
     const allWords = [
-      ...myWords.map(word => ({ ...word, owner: username })),
+      ...myWords.map(word => ({ ...word, owner: currentUsername })),
       ...opponentWords.map(word => ({ ...word, owner: opponent || 'Rakip' })),
     ];
     if (allWords.length === 0) return null;
@@ -858,7 +933,7 @@ export default function Multiplayer() {
                 <Text className="text-sm text-text-secondary mb-3">Skor Özeti</Text>
                 <View className="flex-row justify-between items-center">
                   <View className="items-start">
-                    <Text className="text-xs text-text-secondary">{username}</Text>
+                    <Text className="text-xs text-text-secondary">{currentUsername}</Text>
                     <Text className="text-2xl font-bold text-text-primary">{getMyScore()}</Text>
                     <Text className="text-xs text-text-secondary mt-1">{myWords.length} kelime</Text>
                   </View>
@@ -992,7 +1067,7 @@ export default function Multiplayer() {
       <View className="bg-white p-4 border-b border-slate-200">
         <View className="flex-row justify-between items-center mb-3">
           <View className="items-center flex-1 relative">
-            <Text className="text-sm text-text-secondary font-semibold">{username}</Text>
+            <Text className="text-sm text-text-secondary font-semibold">{currentUsername}</Text>
             <Text className="text-3xl font-bold text-text-primary mt-1">{getMyScore()}</Text>
             <EmojiNotification
               emoji={myEmoji.emoji}

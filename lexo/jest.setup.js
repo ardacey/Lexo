@@ -12,6 +12,8 @@ jest.mock('@supabase/supabase-js', () => ({
       getSession: jest.fn(() => Promise.resolve({ data: { session: null } })),
       onAuthStateChange: jest.fn(() => ({ data: { subscription: { unsubscribe: jest.fn() } } })),
       signInWithPassword: jest.fn(),
+      signInWithOAuth: jest.fn(() => Promise.resolve({ data: { url: null }, error: null })),
+      exchangeCodeForSession: jest.fn(),
       signUp: jest.fn(),
       signOut: jest.fn(),
       verifyOtp: jest.fn(),
@@ -28,10 +30,16 @@ jest.mock('./context/AuthContext', () => ({
     isSignedIn: false,
     signIn: jest.fn(),
     signUp: jest.fn(),
+    signInWithGoogle: jest.fn(),
     signOut: jest.fn(),
     getToken: jest.fn(() => Promise.resolve(null)),
   })),
   AuthProvider: ({ children }) => children,
+}));
+
+jest.mock('expo-web-browser', () => ({
+  openAuthSessionAsync: jest.fn(() => Promise.resolve({ type: 'dismiss' })),
+  maybeCompleteAuthSession: jest.fn(),
 }));
 
 // Mock expo-router

@@ -4,6 +4,7 @@ from functools import lru_cache
 from app.services.word_service import WordService
 from app.services.game_service import GameService
 from app.services.matchmaking_service import MatchmakingService
+from app.services.presence_service import PresenceService
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -11,14 +12,16 @@ logger = get_logger(__name__)
 _word_service: WordService = None
 _game_service: GameService = None
 _matchmaking_service: MatchmakingService = None
+_presence_service: PresenceService = None
 
 
 def init_services():
-    global _word_service, _game_service, _matchmaking_service
+    global _word_service, _game_service, _matchmaking_service, _presence_service
     
     _word_service = WordService()
     _game_service = GameService(_word_service)
     _matchmaking_service = MatchmakingService(_game_service)
+    _presence_service = PresenceService()
     
     logger.info("Services initialized successfully")
 
@@ -39,3 +42,9 @@ def get_matchmaking_service() -> MatchmakingService:
     if _matchmaking_service is None:
         raise RuntimeError("Services not initialized. Call init_services() first.")
     return _matchmaking_service
+
+
+def get_presence_service() -> PresenceService:
+    if _presence_service is None:
+        raise RuntimeError("Services not initialized. Call init_services() first.")
+    return _presence_service

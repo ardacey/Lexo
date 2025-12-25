@@ -154,7 +154,7 @@ def validate_message(message: Dict) -> bool:
         "leave_game",
         "send_emoji",
         "ping",
-        "pong"
+        "pong",
     ]
     
     if message_type not in valid_types:
@@ -190,6 +190,8 @@ def validate_message(message: Dict) -> bool:
         if len(emoji) > 10:  # Emojis should be short
             logger.warning(f"Emoji too long: {len(emoji)} characters")
             return False
+
+    return True
     
     return True
 

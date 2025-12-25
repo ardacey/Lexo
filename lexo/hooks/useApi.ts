@@ -14,6 +14,14 @@ import {
   SaveGameData,
   checkUsername,
   updateUsername,
+  searchUsers,
+  getFriends,
+  getFriendRequests,
+  sendFriendRequest,
+  respondFriendRequest,
+  removeFriend,
+  FriendUser,
+  FriendRequest,
 } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -24,6 +32,11 @@ export const queryKeys = {
     all: () => [...queryKeys.all, 'users'] as const,
     stats: (userId: string) => [...queryKeys.users.all(), 'stats', userId] as const,
     games: (userId: string, limit: number) => [...queryKeys.users.all(), 'games', userId, limit] as const,
+  },
+  friends: {
+    all: () => [...queryKeys.all, 'friends'] as const,
+    list: () => [...queryKeys.friends.all(), 'list'] as const,
+    requests: () => [...queryKeys.friends.all(), 'requests'] as const,
   },
   leaderboard: {
     all: () => [...queryKeys.all, 'leaderboard'] as const,
@@ -89,6 +102,90 @@ export const useUpdateUsername = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.leaderboard.all() });
+    },
+  });
+};
+
+export const useSearchUsers = () => {
+  const { getToken } = useAuth();
+
+  return useMutation<{ success: boolean; users: FriendUser[] }, Error, string>({
+    mutationFn: async (query: string) => {
+      const token = await getToken();
+      return searchUsers(query, token ?? undefined);
+    },
+  });
+};
+
+export const useFriends = () => {
+  const { getToken } = useAuth();
+
+  return useQuery<{ success: boolean; friends: FriendUser[] }, Error>({
+    queryKey: queryKeys.friends.list(),
+    queryFn: async () => {
+      const token = await getToken();
+      return getFriends(token ?? undefined);
+    },
+    staleTime: 1000 * 30,
+  });
+};
+
+export const useFriendRequests = () => {
+  const { getToken } = useAuth();
+
+  return useQuery<{ success: boolean; requests: FriendRequest[] }, Error>({
+    queryKey: queryKeys.friends.requests(),
+    queryFn: async () => {
+      const token = await getToken();
+      return getFriendRequests(token ?? undefined);
+    },
+    staleTime: 1000 * 15,
+  });
+};
+
+export const useSendFriendRequest = () => {
+  const { getToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation<any, Error, string>({
+    mutationFn: async (targetUserId: string) => {
+      const token = await getToken();
+      return sendFriendRequest(targetUserId, token ?? undefined);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.friends.requests() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.friends.list() });
+    },
+  });
+};
+
+export const useRespondFriendRequest = () => {
+  const { getToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation<any, Error, { requestId: number; action: string }>({
+    mutationFn: async ({ requestId, action }) => {
+      const token = await getToken();
+      return respondFriendRequest(requestId, action, token ?? undefined);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.friends.requests() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.friends.list() });
+    },
+  });
+};
+
+export const useRemoveFriend = () => {
+  const { getToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation<any, Error, string>({
+    mutationFn: async (friendUserId: string) => {
+      const token = await getToken();
+      return removeFriend(friendUserId, token ?? undefined);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.friends.list() });
     },
   });
 };

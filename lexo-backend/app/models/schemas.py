@@ -113,3 +113,36 @@ class ErrorResponse(BaseModel):
 class SuccessResponse(BaseModel):
     success: bool = True
     message: str
+
+
+class FriendUser(BaseModel):
+    user_id: str
+    username: str
+
+
+class FriendRequestCreate(BaseModel):
+    target_user_id: str = Field(..., min_length=1)
+
+
+class FriendRequestRespond(BaseModel):
+    action: str = Field(..., min_length=1)
+
+
+class FriendRequestResponse(BaseModel):
+    id: int
+    requester: FriendUser
+    status: str
+    created_at: datetime
+
+
+class FriendInviteSend(BaseModel):
+    target_user_id: str = Field(..., min_length=1)
+
+
+class FriendInviteRespond(BaseModel):
+    invite_id: str = Field(..., min_length=1)
+    action: str = Field(..., min_length=1)
+
+
+class FriendInviteCancel(BaseModel):
+    invite_id: str = Field(..., min_length=1)

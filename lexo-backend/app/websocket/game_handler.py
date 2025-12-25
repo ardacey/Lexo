@@ -3,6 +3,7 @@ from typing import Optional, Dict
 import asyncio
 from datetime import datetime
 import time
+import uuid
 
 from app.models.domain import Player, GameRoom
 from app.services.matchmaking_service import MatchmakingService
@@ -47,6 +48,7 @@ class GameWebSocketHandler:
                 user_id = user_data["user_id"]
                 username = user_data.get("username", "Player")
                 is_reconnect = user_data.get("is_reconnect", False)
+                initial_data = user_data.get("initial_data") or {}
             except WebSocketAuthError as e:
                 logger.warning(f"Authentication failed: {e}")
                 await send_error_response(
@@ -104,6 +106,7 @@ class GameWebSocketHandler:
                         
                         logger.info(f"Player {user_id} successfully reconnected to game {existing_room.id}")
                         player = existing_player
+                        self.matchmaking_service.register_player(existing_player)
                     else:
                         logger.error(f"Could not find player {user_id} in room {existing_room.id}")
                 else:
@@ -119,18 +122,32 @@ class GameWebSocketHandler:
                     return
             else:
                 player = Player(user_id, username, websocket)
-                queue_position = self.matchmaking_service.add_to_queue(player)
-                
-                await websocket.send_json({
-                    "type": "queue_joined",
-                    "message": "Oyun aranıyor...",
-                    "player_id": user_id,
-                    "queue_position": queue_position
-                })
-                
-                room = self.matchmaking_service.try_match_players()
-                if room:
-                    await self._handle_match_found(room)
+                self.matchmaking_service.register_player(player)
+                if initial_data.get("mode") == "friend":
+                    invite_id = initial_data.get("invite_id")
+                    await websocket.send_json({
+                        "type": "queue_joined",
+                        "message": "Arkadaş maçına bağlanılıyor...",
+                        "player_id": user_id,
+                        "queue_position": None
+                    })
+                    if invite_id:
+                        room = self.matchmaking_service.mark_invite_join(invite_id, player)
+                        if room:
+                            await self._handle_match_found(room)
+                else:
+                    queue_position = self.matchmaking_service.add_to_queue(player)
+                    
+                    await websocket.send_json({
+                        "type": "queue_joined",
+                        "message": "Oyun aranıyor...",
+                        "player_id": user_id,
+                        "queue_position": queue_position
+                    })
+                    
+                    room = self.matchmaking_service.try_match_players()
+                    if room:
+                        await self._handle_match_found(room)
             
             while True:
                 try:
@@ -173,6 +190,10 @@ class GameWebSocketHandler:
                         await self._handle_emoji_message(
                             websocket, user_id, data, username
                         )
+                    elif message_type == "friend_invite":
+                        await self._handle_friend_invite(user_id, username, data)
+                    elif message_type == "friend_invite_response":
+                        await self._handle_friend_invite_response(user_id, data)
                     elif message_type == "ping":
                         await websocket.send_json({
                             "type": "pong",
@@ -278,6 +299,180 @@ class GameWebSocketHandler:
             
             logger.info(f"Game ended in room {room.id}, winner: {winner}")
             await self._save_game_to_database(room, winner)
+
+    async def _handle_friend_invite(self, user_id: str, username: str, data: Dict):
+        target_user_id = data.get("target_user_id")
+        if not target_user_id or target_user_id == user_id:
+            inviter_player = self.matchmaking_service.get_connected_player(user_id)
+            if inviter_player:
+                await send_error_response(inviter_player.websocket, "Geçersiz arkadaş daveti")
+            return
+
+        if self.matchmaking_service.get_invite_for_user(user_id):
+            inviter_player = self.matchmaking_service.get_connected_player(user_id)
+            if inviter_player:
+                await inviter_player.websocket.send_json({
+                    "type": "friend_invite_error",
+                    "message": "Zaten bekleyen bir davetin var"
+                })
+            return
+
+        if self.matchmaking_service.get_invite_for_user(target_user_id):
+            inviter_player = self.matchmaking_service.get_connected_player(user_id)
+            if inviter_player:
+                await inviter_player.websocket.send_json({
+                    "type": "friend_invite_error",
+                    "message": "Arkadaşın başka bir davette"
+                })
+            return
+
+        target_player = self.matchmaking_service.get_connected_player(target_user_id)
+        target_notify = self.matchmaking_service.get_notification(target_user_id)
+        if not target_player and not target_notify:
+            inviter_player = self.matchmaking_service.get_connected_player(user_id)
+            if inviter_player:
+                await inviter_player.websocket.send_json({
+                    "type": "friend_invite_error",
+                    "message": "Arkadaşın çevrimiçi değil"
+                })
+            return
+
+        if self.matchmaking_service.is_player_busy(user_id) or self.matchmaking_service.is_player_busy(target_user_id):
+            inviter_player = self.matchmaking_service.get_connected_player(user_id)
+            if inviter_player:
+                await inviter_player.websocket.send_json({
+                    "type": "friend_invite_error",
+                    "message": "Şu anda maç başlatılamıyor"
+                })
+            return
+
+        invite_id = str(uuid.uuid4())
+        inviter_in_queue = self.matchmaking_service.is_in_queue(user_id)
+        target_in_queue = self.matchmaking_service.is_in_queue(target_user_id)
+        target_name = target_player.username if target_player else "Player"
+        self.matchmaking_service.store_invite(
+            invite_id,
+            user_id,
+            target_user_id,
+            username,
+            target_name,
+            inviter_in_queue,
+            target_in_queue
+        )
+        self.matchmaking_service.remove_from_queue_by_id(user_id)
+        self.matchmaking_service.remove_from_queue_by_id(target_user_id)
+
+        if target_player:
+            await target_player.websocket.send_json({
+                "type": "friend_invite",
+                "invite_id": invite_id,
+                "from_user_id": user_id,
+                "from_username": username
+            })
+
+        if target_notify:
+            await target_notify.send_json({
+                "type": "friend_invite",
+                "invite_id": invite_id,
+                "from_user_id": user_id,
+                "from_username": username
+            })
+
+        inviter_player = self.matchmaking_service.get_connected_player(user_id)
+        if inviter_player:
+            await inviter_player.websocket.send_json({
+                "type": "friend_invite_sent",
+                "invite_id": invite_id,
+                "to_user_id": target_user_id
+            })
+
+        inviter_notify = self.matchmaking_service.get_notification(user_id)
+        if inviter_notify:
+            await inviter_notify.send_json({
+                "type": "friend_invite_sent",
+                "invite_id": invite_id,
+                "to_user_id": target_user_id
+            })
+
+    async def _handle_friend_invite_response(self, user_id: str, data: Dict):
+        invite_id = data.get("invite_id")
+        action = (data.get("action") or "").strip().lower()
+        invite = self.matchmaking_service.pop_invite(invite_id)
+        if not invite:
+            return
+
+        if action == "cancel":
+            if invite["inviter_id"] != user_id:
+                return
+
+            target_player = self.matchmaking_service.get_connected_player(invite["target_id"])
+            if target_player:
+                await target_player.websocket.send_json({
+                    "type": "friend_invite_cancelled",
+                    "invite_id": invite_id,
+                    "message": "Davet iptal edildi"
+                })
+
+            target_notify = self.matchmaking_service.get_notification(invite["target_id"])
+            if target_notify:
+                await target_notify.send_json({
+                    "type": "friend_invite_cancelled",
+                    "invite_id": invite_id,
+                    "message": "Davet iptal edildi"
+                })
+
+            inviter_player = self.matchmaking_service.get_connected_player(invite["inviter_id"])
+            if inviter_player and invite.get("inviter_in_queue"):
+                self.matchmaking_service.add_to_queue(inviter_player)
+            if target_player and invite.get("target_in_queue"):
+                self.matchmaking_service.add_to_queue(target_player)
+            return
+
+        if invite["target_id"] != user_id:
+            return
+
+        inviter_player = self.matchmaking_service.get_connected_player(invite["inviter_id"])
+        target_player = self.matchmaking_service.get_connected_player(invite["target_id"])
+
+        if action == "accept":
+            if not inviter_player or not target_player:
+                if inviter_player:
+                    await inviter_player.websocket.send_json({
+                        "type": "friend_invite_error",
+                        "message": "Arkadaş çevrimdışı"
+                    })
+                return
+
+            if self.matchmaking_service.is_player_busy(invite["inviter_id"]) or self.matchmaking_service.is_player_busy(invite["target_id"]):
+                await inviter_player.websocket.send_json({
+                    "type": "friend_invite_error",
+                    "message": "Şu anda maç başlatılamıyor"
+                })
+                return
+
+            self.matchmaking_service.remove_from_queue_by_id(invite["inviter_id"])
+            self.matchmaking_service.remove_from_queue_by_id(invite["target_id"])
+
+            room = self.matchmaking_service.create_room_with_players(inviter_player, target_player)
+            await self._handle_match_found(room)
+        else:
+            if inviter_player:
+                await inviter_player.websocket.send_json({
+                    "type": "friend_invite_declined",
+                    "message": "Arkadaş daveti reddetti"
+                })
+
+            inviter_notify = self.matchmaking_service.get_notification(invite["inviter_id"])
+            if inviter_notify:
+                await inviter_notify.send_json({
+                    "type": "friend_invite_declined",
+                    "message": "Arkadaş daveti reddetti"
+                })
+
+            if inviter_player and invite.get("inviter_in_queue"):
+                self.matchmaking_service.add_to_queue(inviter_player)
+            if target_player and invite.get("target_in_queue"):
+                self.matchmaking_service.add_to_queue(target_player)
     
     async def _handle_word_submission(
         self,
@@ -492,8 +687,27 @@ class GameWebSocketHandler:
         if player_id in self.rate_limiters:
             del self.rate_limiters[player_id]
             logger.info(f"Cleaned up rate limiter for player {player_id}")
-        
+
         logger.info(f"Handling disconnect for player {player_id}")
+        invite_id = self.matchmaking_service.get_invite_for_user(player_id)
+        self.matchmaking_service.unregister_player(player_id)
+        if invite_id:
+            invite = self.matchmaking_service.pop_invite(invite_id)
+            if invite and invite.get("inviter_id") == player_id:
+                target_player = self.matchmaking_service.get_connected_player(invite["target_id"])
+                if target_player:
+                    await target_player.websocket.send_json({
+                        "type": "friend_invite_cancelled",
+                        "invite_id": invite_id,
+                        "message": "Davet iptal edildi"
+                    })
+                target_notify = self.matchmaking_service.get_notification(invite["target_id"])
+                if target_notify:
+                    await target_notify.send_json({
+                        "type": "friend_invite_cancelled",
+                        "invite_id": invite_id,
+                        "message": "Davet iptal edildi"
+                    })
 
         if player:
             self.matchmaking_service.remove_from_queue(player)
