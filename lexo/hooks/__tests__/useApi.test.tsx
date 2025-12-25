@@ -67,7 +67,7 @@ describe('useApi hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockValidateWord).toHaveBeenCalledWith('test');
+      expect(mockValidateWord).toHaveBeenCalledWith('test', undefined);
       expect(result.current.data).toEqual(mockResponse);
     });
 
