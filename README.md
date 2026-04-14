@@ -1,73 +1,109 @@
+<div align="center">
+
 # Lexo
 
-A Turkish word game for mobile — players race to form words from a shared pool of letters. Supports solo practice and real-time multiplayer with matchmaking, friend invites, and emoji reactions.
+**A real-time Turkish word game for mobile**
 
-## What it is
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Expo](https://img.shields.io/badge/Expo-SDK%2054-000020?logo=expo)](https://expo.dev)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://python.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org)
 
-Lexo gives you a pool of 16 random letters and a 60-second timer. You tap letters to spell valid Turkish words; longer words score more. In multiplayer both players see the same pool and race simultaneously — the higher score wins.
+Race to form Turkish words from a shared letter pool — solo or against a friend in real time.
 
-**Key features:**
-- Solo practice mode with local scoring
-- Real-time 1v1 multiplayer via WebSocket matchmaking
-- Friend invites — challenge specific friends directly
-- Emoji reactions during live games
-- Presence system showing which friends are online
-- Leaderboard and personal game history
-- In-app version check with forced-update support
+</div>
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [API Reference](#api-reference)
+- [Development](#development)
+- [Building for Production](#building-for-production)
+- [License](#license)
+
+---
+
+## Overview
+
+Lexo gives you a pool of 16 random Turkish letters and a 60-second timer. Tap letters to spell valid words — longer words score more. In multiplayer, both players share the same pool and race simultaneously.
+
+## Features
+
+| | |
+|---|---|
+| 🎯 **Solo Practice** | Local scoring with no account required |
+| ⚡ **Real-time Multiplayer** | WebSocket matchmaking — find an opponent in seconds |
+| 📩 **Friend Invites** | Challenge specific friends directly |
+| 😄 **Emoji Reactions** | Send reactions during live games |
+| 🟢 **Presence System** | See which friends are currently online |
+| 🏆 **Leaderboard** | Global rankings and personal game history |
+| 🔄 **Force Update** | In-app version checks with server-controlled update gating |
 
 ## Architecture
 
 ```
 Lexo/
-├── lexo/            # React Native / Expo app (TypeScript)
-└── lexo-backend/    # FastAPI backend (Python)
+├── lexo/            # React Native / Expo (TypeScript)
+└── lexo-backend/    # FastAPI (Python)
 ```
 
-**Frontend** — Expo (React Native) with NativeWind (Tailwind), TanStack Query for data fetching, and a type-safe API client generated from the OpenAPI spec.
+**Frontend** — [Expo](https://expo.dev) with [NativeWind](https://www.nativewind.dev/) (Tailwind for React Native), [TanStack Query](https://tanstack.com/query) for data fetching, and a type-safe HTTP client auto-generated from the backend's OpenAPI spec.
 
-**Backend** — FastAPI with SQLAlchemy + PostgreSQL, Supabase for auth, and native WebSocket support for real-time game and notification channels.
+**Backend** — [FastAPI](https://fastapi.tiangolo.com) with SQLAlchemy + PostgreSQL, [Supabase](https://supabase.com) for auth, and native WebSocket support for real-time game and notification channels.
 
-## Getting started
+## Getting Started
 
 ### Prerequisites
 
 - Node.js 18+
 - Python 3.11+
-- PostgreSQL (or Docker)
-- An Expo-compatible device / simulator
-- A [Supabase](https://supabase.com) project for auth
+- PostgreSQL 16+ (or Docker)
+- Expo Go app or a simulator
+- A [Supabase](https://supabase.com) project for authentication
 
-### Backend setup
+### 1. Clone the repo
+
+```bash
+git clone https://github.com/your-username/Lexo.git
+cd Lexo
+```
+
+### 2. Backend
 
 ```bash
 cd lexo-backend
 
 # Create and activate a virtual environment
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
-# Fill in DATABASE_URL, SUPABASE_URL, SUPABASE_KEY, etc.
+# Edit .env — fill in DATABASE_URL, SUPABASE_URL, SUPABASE_KEY, etc.
 
-# Run migrations
+# Run database migrations
 alembic upgrade head
 
-# Start the server
+# Start the dev server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Or with Docker:
+> **Docker alternative:**
+> ```bash
+> cd lexo-backend && docker-compose up --build
+> ```
 
-```bash
-cd lexo-backend
-docker-compose up --build
-```
-
-### Frontend setup
+### 3. Frontend
 
 ```bash
 cd lexo
@@ -76,77 +112,78 @@ npm install
 
 # Configure environment
 cp .env.example .env
-# Set EXPO_PUBLIC_API_URL, EXPO_PUBLIC_WS_URL, EXPO_PUBLIC_SUPABASE_URL, etc.
+# Edit .env — fill in API URL, WebSocket URL, Supabase credentials
 
-# Start Expo
 npm start
 ```
 
-### Run both together
+### 4. Run both together
 
-From the project root:
+From the `lexo/` directory:
 
 ```bash
-cd lexo
-npm run dev       # starts backend + Expo Metro together
-npm run dev:ios   # starts backend + iOS simulator
+npm run dev        # Expo Metro + backend (side by side)
+npm run dev:ios    # Expo iOS simulator + backend
 ```
 
-## Environment variables
+## Environment Variables
 
-### Backend (`.env` in `lexo-backend/`)
+### Backend — `lexo-backend/.env`
 
 | Variable | Default | Description |
 |---|---|---|
 | `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/lexo_db` | PostgreSQL connection string |
 | `SUPABASE_URL` | — | Your Supabase project URL |
 | `SUPABASE_KEY` | — | Supabase service role key |
-| `CORS_ORIGINS` | `http://localhost:8081,http://localhost:19006` | Allowed origins (never use `*` in production) |
+| `CORS_ORIGINS` | `http://localhost:8081,http://localhost:19006` | Comma-separated allowed origins |
 | `GAME_DURATION` | `60` | Round length in seconds |
 | `LETTER_POOL_SIZE` | `16` | Letters dealt per round |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 
-### Frontend (`.env` in `lexo/`)
+> ⚠️ Never set `CORS_ORIGINS=*` in production — the server will refuse to start.
+
+### Frontend — `lexo/.env`
 
 | Variable | Description |
 |---|---|
 | `EXPO_PUBLIC_API_URL` | Backend HTTP base URL |
 | `EXPO_PUBLIC_WS_URL` | Backend WebSocket base URL |
 | `EXPO_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
 
-## API overview
+## API Reference
 
-The backend exposes a versioned REST API under `/api/v1` and two WebSocket endpoints:
+REST endpoints are versioned under `/api/v1`. Two persistent WebSocket channels handle real-time gameplay.
 
-| Endpoint | Description |
-|---|---|
-| `GET /` | API status and live match counts |
-| `GET /stats` | Active rooms, waiting players, online users |
-| `GET /app/version` | Mobile app version info |
-| `/api/v1/users` | User management |
-| `/api/v1/games` | Game history and saving results |
-| `/api/v1/words` | Word validation |
-| `/api/v1/leaderboard` | Global leaderboard |
-| `/api/v1/friends` | Friend requests and friend list |
-| `/api/v1/presence` | Online presence status |
-| `WS /ws/queue` | Matchmaking and live game channel |
-| `WS /ws/notify` | Invite and notification channel |
+| Endpoint | Method | Description |
+|---|---|---|
+| `/` | GET | API status and live match counts |
+| `/stats` | GET | Active rooms, waiting players, online users |
+| `/app/version` | GET | Mobile app version gating info |
+| `/api/v1/users` | REST | User profiles and username management |
+| `/api/v1/games` | REST | Save results and fetch game history |
+| `/api/v1/words` | REST | Word validation |
+| `/api/v1/leaderboard` | REST | Global leaderboard |
+| `/api/v1/friends` | REST | Friend requests and friend list |
+| `/api/v1/presence` | REST | Online presence status |
+| `/ws/queue` | WebSocket | Matchmaking queue and live game channel |
+| `/ws/notify` | WebSocket | Friend invites and notifications |
 
-Full OpenAPI spec: `lexo-backend/openapi.json`
+Full OpenAPI spec: [`lexo-backend/openapi.json`](lexo-backend/openapi.json)  
+Interactive docs (when running locally): `http://localhost:8000/docs`
 
 ## Development
 
 ### Regenerate the API client
 
-After changing backend routes, regenerate the typed frontend client:
+After changing backend routes, regenerate the typed frontend client from the OpenAPI spec:
 
 ```bash
 cd lexo
 npx @hey-api/openapi-ts
 ```
 
-### Run tests
+### Tests
 
 ```bash
 # Frontend
@@ -163,14 +200,13 @@ pytest --cov=app
 ### Lint
 
 ```bash
-cd lexo
-npm run lint
+cd lexo && npm run lint
 ```
 
-## Building for production
+## Building for Production
 
 ```bash
-# Android release build via EAS
+# Build Android release via EAS
 cd lexo
 npm run build:android:release
 
@@ -180,4 +216,4 @@ npm run submit:android
 
 ## License
 
-See [LICENSE](LICENSE).
+[MIT](LICENSE) © 2025 Arda Ceylan
