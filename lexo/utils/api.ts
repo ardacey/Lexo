@@ -5,7 +5,6 @@ const apiRoot = normalizeBaseUrl(API_BASE_URL).replace(/\/api\/v1$/, '').replace
 const apiPrefix = `${apiRoot}/api`;
 const apiV1Prefix = `${apiRoot}/api/v1`;
 
-// API configuration
 export const API_ENDPOINTS = {
   validateWord: `${apiV1Prefix}/words/validate-word`,
   health: `${apiRoot}/health`,
@@ -13,8 +12,8 @@ export const API_ENDPOINTS = {
   checkUsername: (username: string) => `${apiPrefix}/users/check-username/${encodeURIComponent(username)}`,
   updateUsername: `${apiPrefix}/users/me/username`,
   getUserStats: (userId: string) => `${apiPrefix}/users/${userId}/stats`,
-  getUserGames: (userId: string, limit: number = 10) => `${apiPrefix}/users/${userId}/games?limit=${limit}`,
-  getLeaderboard: (limit: number = 100) => `${apiPrefix}/leaderboard?limit=${limit}`,
+  getUserGames: (userId: string, limit = 10) => `${apiPrefix}/users/${userId}/games?limit=${limit}`,
+  getLeaderboard: (limit = 100) => `${apiPrefix}/leaderboard?limit=${limit}`,
   saveGame: `${apiPrefix}/games/save`,
   deleteUserAccount: `${apiPrefix}/users/me`,
   getOnlineStats: `${apiRoot}/stats`,
@@ -33,6 +32,10 @@ export const API_ENDPOINTS = {
   getActiveInvite: `${apiPrefix}/friends/invites/active`,
   getInviteStatus: (inviteId: string) => `${apiPrefix}/friends/invites/status/${inviteId}`,
 };
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 export interface ValidateWordResponse {
   valid: boolean;
@@ -124,635 +127,191 @@ export interface FriendRequest {
   requester: FriendUser;
 }
 
-export const validateWord = async (word: string, token?: string): Promise<ValidateWordResponse> => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+// ---------------------------------------------------------------------------
+// Base fetch helper
+// ---------------------------------------------------------------------------
 
-    const response = await fetch(API_ENDPOINTS.validateWord, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ word }),
-    });
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly retryAfter?: number,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+interface ApiFetchOptions extends Omit<RequestInit, 'headers'> {
+  token?: string;
+  timeoutMs?: number;
+}
+
+async function apiFetch<T = any>(url: string, options: ApiFetchOptions = {}): Promise<T> {
+  const { token, timeoutMs = 10_000, ...fetchOptions } = options;
+
+  const headers: Record<string, string> = {};
+  if (fetchOptions.body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, { ...fetchOptions, headers, signal: controller.signal });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      if (response.status === 429) {
+        const retryAfter = parseInt(response.headers.get('Retry-After') ?? '60', 10);
+        throw new ApiError('İstek limiti aşıldı. Lütfen bekleyin.', 429, retryAfter);
+      }
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const body = await response.json();
+        errorMessage = body.error ?? body.detail ?? errorMessage;
+      } catch {
+        // non-JSON error body — use status text
+      }
+      throw new ApiError(errorMessage, response.status);
     }
 
-    return await response.json();
+    return response.json() as Promise<T>;
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    if ((err as any)?.name === 'AbortError') {
+      throw new ApiError('İstek zaman aşımına uğradı.', 408);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// API functions
+// ---------------------------------------------------------------------------
+
+export const validateWord = async (word: string, token?: string): Promise<ValidateWordResponse> => {
+  try {
+    return await apiFetch<ValidateWordResponse>(API_ENDPOINTS.validateWord, {
+      method: 'POST',
+      body: JSON.stringify({ word }),
+      token,
+    });
   } catch {
-    return {
-      valid: false,
-      message: 'Sunucuya bağlanılamadı',
-    };
+    return { valid: false, message: 'Sunucuya bağlanılamadı' };
   }
 };
 
-export const pingPresence = async (token?: string) => {
+export const pingPresence = async (token?: string): Promise<void> => {
   try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    await fetch(API_ENDPOINTS.pingPresence, {
-      method: 'POST',
-      headers,
-    });
+    await apiFetch(API_ENDPOINTS.pingPresence, { method: 'POST', token });
   } catch {
     // Presence ping failures are non-critical
   }
 };
 
-export const getPresenceStatus = async (userIds: string[], token?: string) => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const query = userIds.map((id) => `user_ids=${encodeURIComponent(id)}`).join('&');
-    const response = await fetch(`${API_ENDPOINTS.getPresenceStatus}?${query}`, {
-      method: 'GET',
-      headers,
-    });
-
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        }
-      } catch (e) {
-        // Ignore JSON parse error
-      }
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
+export const getPresenceStatus = (userIds: string[], token?: string) => {
+  const query = userIds.map((id) => `user_ids=${encodeURIComponent(id)}`).join('&');
+  return apiFetch(`${API_ENDPOINTS.getPresenceStatus}?${query}`, { token });
 };
 
-export const createUser = async (userId: string, username: string, email?: string, token?: string) => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+export const createUser = (userId: string, username: string, email?: string, token?: string) =>
+  apiFetch(API_ENDPOINTS.createUser, {
+    method: 'POST',
+    body: JSON.stringify({ user_id: userId, username, email }),
+    token,
+  });
 
-    const response = await fetch(API_ENDPOINTS.createUser, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ user_id: userId, username, email }),
-    });
+export const checkUsername = (username: string) =>
+  apiFetch(API_ENDPOINTS.checkUsername(username));
 
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        }
-      } catch (e) {
-        // Ignore JSON parse error
-      }
-      throw new Error(errorMessage);
-    }
+export const updateUsername = (username: string, token?: string) =>
+  apiFetch(API_ENDPOINTS.updateUsername, {
+    method: 'PATCH',
+    body: JSON.stringify({ username }),
+    token,
+  });
 
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
-};
+export const searchUsers = (query: string, token?: string) =>
+  apiFetch(API_ENDPOINTS.searchUsers(query), { token });
 
-export const checkUsername = async (username: string) => {
-  try {
-    const response = await fetch(API_ENDPOINTS.checkUsername(username), {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+export const getFriends = (token?: string) =>
+  apiFetch(API_ENDPOINTS.getFriends, { token });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+export const getFriendRequests = (token?: string) =>
+  apiFetch(API_ENDPOINTS.getFriendRequests, { token });
 
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
-};
+export const sendFriendRequest = (targetUserId: string, token?: string) =>
+  apiFetch(API_ENDPOINTS.sendFriendRequest, {
+    method: 'POST',
+    body: JSON.stringify({ target_user_id: targetUserId }),
+    token,
+  });
 
-export const updateUsername = async (username: string, token?: string) => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+export const respondFriendRequest = (requestId: number, action: string, token?: string) =>
+  apiFetch(API_ENDPOINTS.respondFriendRequest(requestId), {
+    method: 'POST',
+    body: JSON.stringify({ action }),
+    token,
+  });
 
-    const response = await fetch(API_ENDPOINTS.updateUsername, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify({ username }),
-    });
+export const removeFriend = (friendUserId: string, token?: string) =>
+  apiFetch(API_ENDPOINTS.removeFriend(friendUserId), { method: 'DELETE', token });
 
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        }
-      } catch (e) {
-        // Ignore JSON parse error
-      }
-      throw new Error(errorMessage);
-    }
+export const sendFriendInvite = (targetUserId: string, token?: string) =>
+  apiFetch(API_ENDPOINTS.sendFriendInvite, {
+    method: 'POST',
+    body: JSON.stringify({ target_user_id: targetUserId }),
+    token,
+  });
 
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
-};
+export const respondFriendInvite = (inviteId: string, action: string, token?: string) =>
+  apiFetch(API_ENDPOINTS.respondFriendInvite, {
+    method: 'POST',
+    body: JSON.stringify({ invite_id: inviteId, action }),
+    token,
+  });
 
-export const searchUsers = async (query: string, token?: string) => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+export const cancelFriendInvite = (inviteId: string, token?: string) =>
+  apiFetch(API_ENDPOINTS.cancelFriendInvite, {
+    method: 'POST',
+    body: JSON.stringify({ invite_id: inviteId }),
+    token,
+  });
 
-    const response = await fetch(API_ENDPOINTS.searchUsers(query), {
-      method: 'GET',
-      headers,
-    });
+export const getActiveInvite = (token?: string) =>
+  apiFetch(API_ENDPOINTS.getActiveInvite, { token });
 
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        }
-      } catch (e) {
-        // Ignore JSON parse error
-      }
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const getFriends = async (token?: string) => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(API_ENDPOINTS.getFriends, {
-      method: 'GET',
-      headers,
-    });
-
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        }
-      } catch (e) {
-        // Ignore JSON parse error
-      }
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const getFriendRequests = async (token?: string) => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(API_ENDPOINTS.getFriendRequests, {
-      method: 'GET',
-      headers,
-    });
-
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        }
-      } catch (e) {
-        // Ignore JSON parse error
-      }
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const sendFriendRequest = async (targetUserId: string, token?: string) => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(API_ENDPOINTS.sendFriendRequest, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ target_user_id: targetUserId }),
-    });
-
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        }
-      } catch (e) {
-        // Ignore JSON parse error
-      }
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const respondFriendRequest = async (requestId: number, action: string, token?: string) => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(API_ENDPOINTS.respondFriendRequest(requestId), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ action }),
-    });
-
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        }
-      } catch (e) {
-        // Ignore JSON parse error
-      }
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const removeFriend = async (friendUserId: string, token?: string) => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(API_ENDPOINTS.removeFriend(friendUserId), {
-      method: 'DELETE',
-      headers,
-    });
-
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        }
-      } catch (e) {
-        // Ignore JSON parse error
-      }
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const sendFriendInvite = async (targetUserId: string, token?: string) => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(API_ENDPOINTS.sendFriendInvite, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ target_user_id: targetUserId }),
-    });
-
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        }
-      } catch (e) {
-        // Ignore JSON parse error
-      }
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const respondFriendInvite = async (inviteId: string, action: string, token?: string) => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(API_ENDPOINTS.respondFriendInvite, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ invite_id: inviteId, action }),
-    });
-
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        }
-      } catch (e) {
-        // Ignore JSON parse error
-      }
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const cancelFriendInvite = async (inviteId: string, token?: string) => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(API_ENDPOINTS.cancelFriendInvite, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ invite_id: inviteId }),
-    });
-
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        }
-      } catch (e) {
-        // Ignore JSON parse error
-      }
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const getActiveInvite = async (token?: string) => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(API_ENDPOINTS.getActiveInvite, {
-      method: 'GET',
-      headers,
-    });
-
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        }
-      } catch (e) {
-        // Ignore JSON parse error
-      }
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const getInviteStatus = async (inviteId: string, token?: string) => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(API_ENDPOINTS.getInviteStatus(inviteId), {
-      method: 'GET',
-      headers,
-    });
-
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        }
-      } catch (e) {
-        // Ignore JSON parse error
-      }
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
-};
+export const getInviteStatus = (inviteId: string, token?: string) =>
+  apiFetch(API_ENDPOINTS.getInviteStatus(inviteId), { token });
 
 export const getUserStats = async (userId: string, token?: string): Promise<UserStats | null> => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(API_ENDPOINTS.getUserStats(userId), {
-      method: 'GET',
-      headers,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-    }
-
-    const data = await response.json();
-    return data.success ? data.stats : null;
-  } catch (error) {
-    throw error;
-  }
+  const data = await apiFetch<{ success: boolean; stats: UserStats }>(
+    API_ENDPOINTS.getUserStats(userId),
+    { token },
+  );
+  return data.success ? data.stats : null;
 };
 
-export const getUserGames = async (userId: string, limit: number = 10, token?: string): Promise<GameHistory[]> => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(API_ENDPOINTS.getUserGames(userId, limit), {
-      method: 'GET',
-      headers,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-    }
-
-    const data = await response.json();
-    return data.success ? data.games : [];
-  } catch (error) {
-    throw error;
-  }
+export const getUserGames = async (userId: string, limit = 10, token?: string): Promise<GameHistory[]> => {
+  const data = await apiFetch<{ success: boolean; games: GameHistory[] }>(
+    API_ENDPOINTS.getUserGames(userId, limit),
+    { token },
+  );
+  return data.success ? data.games : [];
 };
 
-export const getLeaderboard = async (limit: number = 100, token?: string): Promise<LeaderboardEntry[]> => {
+export const getLeaderboard = async (limit = 100, token?: string): Promise<LeaderboardEntry[]> => {
   try {
-    const headers: Record<string, string> = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(API_ENDPOINTS.getLeaderboard(limit), { headers });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
+    const data = await apiFetch<{ success: boolean; leaderboard: LeaderboardEntry[] }>(
+      API_ENDPOINTS.getLeaderboard(limit),
+      { token },
+    );
     return data.success ? data.leaderboard : [];
   } catch {
     return [];
@@ -761,69 +320,26 @@ export const getLeaderboard = async (limit: number = 100, token?: string): Promi
 
 export const saveGame = async (gameData: SaveGameData, token?: string) => {
   try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(API_ENDPOINTS.saveGame, {
+    return await apiFetch(API_ENDPOINTS.saveGame, {
       method: 'POST',
-      headers,
       body: JSON.stringify(gameData),
+      token,
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      // Check if this is a duplicate key error - this is expected behavior
-      if (errorText.includes('duplicate key') && errorText.includes('ix_game_history_room_id')) {
-        return { success: true, message: 'Game already saved by opponent' };
-      }
-      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+  } catch (err) {
+    // Duplicate key = server already saved the game (expected race condition)
+    if (err instanceof ApiError && err.message.includes('duplicate key')) {
+      return { success: true, message: 'Game already saved by opponent' };
     }
-
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    throw error;
+    throw err;
   }
 };
 
-export const deleteUserAccount = async (token?: string) => {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-
-    const response = await fetch(API_ENDPOINTS.deleteUserAccount, {
-      method: 'DELETE',
-      headers,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-    }
-
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    throw error;
-  }
-};
+export const deleteUserAccount = (token?: string) =>
+  apiFetch(API_ENDPOINTS.deleteUserAccount, { method: 'DELETE', token });
 
 export const getOnlineStats = async (): Promise<OnlineStats | null> => {
   try {
-    const response = await fetch(API_ENDPOINTS.getOnlineStats, { method: 'GET' });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return await response.json();
+    return await apiFetch<OnlineStats>(API_ENDPOINTS.getOnlineStats);
   } catch {
     return null;
   }
@@ -831,11 +347,7 @@ export const getOnlineStats = async (): Promise<OnlineStats | null> => {
 
 export const getAppVersionInfo = async (): Promise<AppVersionInfo | null> => {
   try {
-    const response = await fetch(API_ENDPOINTS.getAppVersion, { method: 'GET' });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return await response.json();
+    return await apiFetch<AppVersionInfo>(API_ENDPOINTS.getAppVersion);
   } catch {
     return null;
   }

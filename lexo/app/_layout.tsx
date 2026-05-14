@@ -1,4 +1,5 @@
 import "../global.css";
+import * as Sentry from '@sentry/react-native';
 import { Stack } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { AuthProvider } from '../context/AuthContext';
@@ -10,6 +11,14 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import { getErrorMessage } from '../utils/errorMessages';
 import { getAppVersionInfo, pingPresence } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  environment: process.env.EXPO_PUBLIC_ENVIRONMENT ?? (__DEV__ ? 'development' : 'production'),
+  enabled: !__DEV__,
+  tracesSampleRate: 0.1,
+  release: Constants.expoConfig?.version,
+});
 
 const getCurrentVersion = () => {
   return (

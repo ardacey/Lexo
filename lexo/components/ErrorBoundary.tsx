@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Sentry from '@sentry/react-native';
 
 interface Props {
   children: ReactNode;
@@ -21,8 +22,8 @@ class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  public componentDidCatch(_error: Error, _errorInfo: ErrorInfo) {
-    // Error caught by boundary - no logging in production
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
   }
 
   public resetError = () => {
