@@ -1,6 +1,9 @@
-from typing import List, Dict, Optional
-from datetime import datetime
+import json
 import uuid
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
+
+import redis.asyncio as aioredis
 
 from app.models.domain import Player, GameRoom
 from app.services.game_service import GameService
@@ -8,97 +11,148 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+_QUEUE_KEY = "mm:queue"
+_ROOM_TTL = 7200  # 2 hours
+
+# Atomic Lua: pop front player, find a different player, return both or push back.
+_LUA_MATCH = """
+local key = KEYS[1]
+local p1 = redis.call('LPOP', key)
+if not p1 then return nil end
+local p1id = cjson.decode(p1)['id']
+local len = redis.call('LLEN', key)
+for i = 0, len - 1 do
+  local p2 = redis.call('LINDEX', key, i)
+  if cjson.decode(p2)['id'] ~= p1id then
+    redis.call('LREM', key, 1, p2)
+    return {p1, p2}
+  end
+end
+redis.call('LPUSH', key, p1)
+return nil
+"""
+
 
 class MatchmakingService:
-    
-    def __init__(self, game_service: GameService):
+
+    def __init__(self, game_service: GameService, redis: aioredis.Redis):
         self.game_service = game_service
-        self.waiting_queue: List[Player] = []
+        self.redis = redis
+        self.worker_id: str = ""  # set by WebSocketBridge after init
+
+        # In-memory: rooms owned by this worker
         self.active_rooms: Dict[str, GameRoom] = {}
-        self.player_rooms: Dict[str, str] = {}
-        self.connected_players: Dict[str, Player] = {}
-        self.notification_sockets: Dict[str, any] = {}
+
+        # In-memory: friend invites (cross-worker invite state is Phase 3)
         self.friend_invites: Dict[str, Dict] = {}
         self.invites_by_user: Dict[str, str] = {}
-    
-    def add_to_queue(self, player: Player) -> int:
-        self.waiting_queue = [p for p in self.waiting_queue if p.id != player.id]
-        self.waiting_queue.append(player)
-        logger.info(f"Player {player.username} ({player.id}) joined queue")
-        return len(self.waiting_queue)
-    
-    def remove_from_queue(self, player: Player):
-        if player in self.waiting_queue:
-            self.waiting_queue.remove(player)
-            logger.info(f"Removed {player.username} from queue")
 
-    def remove_from_queue_by_id(self, player_id: str):
-        self.waiting_queue = [p for p in self.waiting_queue if p.id != player_id]
-    
-    def try_match_players(self) -> Optional[GameRoom]:
-        if len(self.waiting_queue) < 2:
+    # ------------------------------------------------------------------
+    # Queue
+    # ------------------------------------------------------------------
+
+    async def add_to_queue(self, player_id: str, username: str) -> int:
+        await self.remove_from_queue_by_id(player_id)
+        entry = json.dumps({"id": player_id, "username": username})
+        await self.redis.rpush(_QUEUE_KEY, entry)
+        length = await self.redis.llen(_QUEUE_KEY)
+        logger.info(f"Player {username} ({player_id}) joined queue — depth {length}")
+        return length
+
+    async def remove_from_queue_by_id(self, player_id: str):
+        items = await self.redis.lrange(_QUEUE_KEY, 0, -1)
+        for item in items:
+            if json.loads(item).get("id") == player_id:
+                await self.redis.lrem(_QUEUE_KEY, 1, item)
+                logger.info(f"Removed {player_id} from queue")
+                return
+
+    async def is_in_queue(self, player_id: str) -> bool:
+        items = await self.redis.lrange(_QUEUE_KEY, 0, -1)
+        return any(json.loads(i).get("id") == player_id for i in items)
+
+    async def try_match_players(self) -> Optional[GameRoom]:
+        result = await self.redis.eval(_LUA_MATCH, 1, _QUEUE_KEY)
+        if not result:
             return None
-
-        player1 = self.waiting_queue.pop(0)
-        player2 = None
-        for i, candidate in enumerate(self.waiting_queue):
-            if candidate.id != player1.id:
-                player2 = candidate
-                del self.waiting_queue[i]
-                break
-
-        if not player2:
-            self.waiting_queue.insert(0, player1)
-            return None
-        
-        room_id = str(uuid.uuid4())
-        room = self.game_service.create_game_room(room_id, player1, player2)
-        
-        self.active_rooms[room_id] = room
-        self.player_rooms[player1.id] = room_id
-        self.player_rooms[player2.id] = room_id
-        
-        logger.info(f"Matched {player1.username} vs {player2.username} in room {room_id}")
+        p1 = json.loads(result[0])
+        p2 = json.loads(result[1])
+        room = await self._create_and_register_room(p1["id"], p1["username"], p2["id"], p2["username"])
+        logger.info(f"Matched {p1['username']} vs {p2['username']} in room {room.id}")
         return room
 
-    def create_room_with_players(self, player1: Player, player2: Player) -> GameRoom:
+    # ------------------------------------------------------------------
+    # Rooms
+    # ------------------------------------------------------------------
+
+    async def _create_and_register_room(
+        self, p1_id: str, p1_name: str, p2_id: str, p2_name: str
+    ) -> GameRoom:
+        player1 = Player(p1_id, p1_name)
+        player2 = Player(p2_id, p2_name)
         room_id = str(uuid.uuid4())
         room = self.game_service.create_game_room(room_id, player1, player2)
-
         self.active_rooms[room_id] = room
-        self.player_rooms[player1.id] = room_id
-        self.player_rooms[player2.id] = room_id
-        logger.info(f"Created friend match {player1.username} vs {player2.username} in room {room_id}")
+        await self._register_room_in_redis(room)
         return room
-    
+
+    async def create_room(
+        self, p1_id: str, p1_name: str, p2_id: str, p2_name: str
+    ) -> GameRoom:
+        room = await self._create_and_register_room(p1_id, p1_name, p2_id, p2_name)
+        logger.info(f"Created friend room: {p1_name} vs {p2_name} in room {room.id}")
+        return room
+
+    async def _register_room_in_redis(self, room: GameRoom):
+        pipe = self.redis.pipeline()
+        pipe.set(f"mm:player:{room.player1.id}:room", room.id, ex=_ROOM_TTL)
+        pipe.set(f"mm:player:{room.player2.id}:room", room.id, ex=_ROOM_TTL)
+        pipe.set(f"mm:room:{room.id}:worker", self.worker_id, ex=_ROOM_TTL)
+        await pipe.execute()
+        await self._snapshot_room(room)
+
+    async def _snapshot_room(self, room: GameRoom):
+        """Write reconnect state to Redis — any worker can serve a reconnect."""
+        await self.redis.hset(f"mm:room:{room.id}", mapping=room.to_snapshot())
+        await self.redis.expire(f"mm:room:{room.id}", _ROOM_TTL)
+
+    def get_room(self, room_id: str) -> Optional[GameRoom]:
+        return self.active_rooms.get(room_id)
+
     def get_room_by_player(self, player_id: str) -> Optional[GameRoom]:
-        room_id = self.player_rooms.get(player_id)
-        if room_id:
-            return self.active_rooms.get(room_id)
+        """Local in-memory lookup only."""
+        for room in self.active_rooms.values():
+            if room.player1.id == player_id or room.player2.id == player_id:
+                return room
         return None
 
-    def register_player(self, player: Player) -> None:
-        self.connected_players[player.id] = player
+    async def get_room_id_from_redis(self, player_id: str) -> Optional[str]:
+        return await self.redis.get(f"mm:player:{player_id}:room")
 
-    def unregister_player(self, player_id: str) -> None:
-        if player_id in self.connected_players:
-            del self.connected_players[player_id]
+    async def get_room_snapshot(self, room_id: str) -> Optional[Dict]:
+        data = await self.redis.hgetall(f"mm:room:{room_id}")
+        return data if data else None
 
-    def register_notification(self, user_id: str, websocket) -> None:
-        self.notification_sockets[user_id] = websocket
+    async def is_player_busy(self, player_id: str) -> bool:
+        return bool(await self.redis.exists(f"mm:player:{player_id}:room"))
 
-    def unregister_notification(self, user_id: str) -> None:
-        if user_id in self.notification_sockets:
-            del self.notification_sockets[user_id]
+    async def cleanup_room(self, room_id: str):
+        room = self.active_rooms.pop(room_id, None)
+        if room:
+            pipe = self.redis.pipeline()
+            pipe.delete(f"mm:player:{room.player1.id}:room")
+            pipe.delete(f"mm:player:{room.player2.id}:room")
+            pipe.delete(f"mm:room:{room_id}:worker")
+            pipe.delete(f"mm:room:{room_id}")
+            await pipe.execute()
+            logger.info(f"Cleaned up room {room_id}")
 
-    def get_notification(self, user_id: str):
-        return self.notification_sockets.get(user_id)
+    # ------------------------------------------------------------------
+    # Friend invites (in-memory — Phase 3 will migrate to Redis)
+    # ------------------------------------------------------------------
 
-    def get_connected_player(self, player_id: str) -> Optional[Player]:
-        return self.connected_players.get(player_id)
-
-    def is_player_busy(self, player_id: str) -> bool:
-        return player_id in self.player_rooms
+    def get_invite_for_user(self, user_id: str) -> Optional[str]:
+        return self.invites_by_user.get(user_id)
 
     def store_invite(
         self,
@@ -119,7 +173,7 @@ class MatchmakingService:
             "inviter_in_queue": inviter_in_queue,
             "target_in_queue": target_in_queue,
             "status": "pending",
-            "joiners": set(),
+            "joiners": {},
             "created_at": datetime.utcnow(),
         }
         self.invites_by_user[inviter_id] = invite_id
@@ -132,12 +186,6 @@ class MatchmakingService:
             self.invites_by_user.pop(invite["target_id"], None)
         return invite
 
-    def get_invite_for_user(self, user_id: str) -> Optional[str]:
-        return self.invites_by_user.get(user_id)
-
-    def is_in_queue(self, player_id: str) -> bool:
-        return any(player.id == player_id for player in self.waiting_queue)
-
     def cancel_invite_by_inviter(self, inviter_id: str) -> Optional[Dict]:
         invite_id = self.invites_by_user.get(inviter_id)
         if not invite_id:
@@ -147,21 +195,13 @@ class MatchmakingService:
             return None
         return self.pop_invite(invite_id)
 
-    def create_invite(self, inviter_id: str, inviter_name: str, target_id: str, target_name: str) -> Dict:
+    def create_invite(
+        self, inviter_id: str, inviter_name: str, target_id: str, target_name: str
+    ) -> Dict:
         if inviter_id in self.invites_by_user or target_id in self.invites_by_user:
             raise ValueError("Invite already exists")
         invite_id = str(uuid.uuid4())
-        inviter_in_queue = self.is_in_queue(inviter_id)
-        target_in_queue = self.is_in_queue(target_id)
-        self.store_invite(
-            invite_id,
-            inviter_id,
-            target_id,
-            inviter_name,
-            target_name,
-            inviter_in_queue,
-            target_in_queue,
-        )
+        self.store_invite(invite_id, inviter_id, target_id, inviter_name, target_name, False, False)
         return self.friend_invites[invite_id]
 
     def get_active_invite_for_user(self, user_id: str) -> Optional[Dict]:
@@ -184,36 +224,32 @@ class MatchmakingService:
             self.pop_invite(invite_id)
         return invite
 
-    def mark_invite_join(self, invite_id: str, player: Player) -> Optional[GameRoom]:
+    async def mark_invite_join(self, invite_id: str, user_id: str, username: str) -> Optional[GameRoom]:
         invite = self.friend_invites.get(invite_id)
-        if not invite:
+        if not invite or invite.get("status") != "accepted":
             return None
-        if invite.get("status") != "accepted":
-            return None
-        invite["joiners"].add(player.id)
-        if invite["inviter_id"] in invite["joiners"] and invite["target_id"] in invite["joiners"]:
-            room = self.create_room_with_players(
-                self.connected_players[invite["inviter_id"]],
-                self.connected_players[invite["target_id"]],
+        invite["joiners"][user_id] = username
+        if (
+            invite["inviter_id"] in invite["joiners"]
+            and invite["target_id"] in invite["joiners"]
+        ):
+            room = await self.create_room(
+                invite["inviter_id"], invite["inviter_name"],
+                invite["target_id"], invite["target_name"],
             )
             self.pop_invite(invite_id)
             return room
         return None
-    
-    def cleanup_room(self, room_id: str):
-        if room_id in self.active_rooms:
-            room = self.active_rooms[room_id]
-            
-            if room.player1.id in self.player_rooms:
-                del self.player_rooms[room.player1.id]
-            if room.player2.id in self.player_rooms:
-                del self.player_rooms[room.player2.id]
-            
-            del self.active_rooms[room_id]
-            logger.info(f"Cleaned up room {room_id}")
-    
+
+    # ------------------------------------------------------------------
+    # Stats
+    # ------------------------------------------------------------------
+
     def get_stats(self) -> Dict:
         return {
-            'active_rooms': len(self.active_rooms),
-            'waiting_players': len(self.waiting_queue)
+            "active_rooms": len(self.active_rooms),
+            "waiting_players": -1,  # async — read from Redis if needed
         }
+
+    async def get_queue_depth(self) -> int:
+        return await self.redis.llen(_QUEUE_KEY)

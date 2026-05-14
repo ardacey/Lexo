@@ -13,7 +13,7 @@ from app.models.schemas import (
 )
 from app.services.user_service import UserService
 from app.services.friend_service import FriendService
-from app.dependencies import get_matchmaking_service
+from app.dependencies import get_matchmaking_service, get_bridge
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -227,14 +227,13 @@ async def send_friend_invite(
             target.username,
         )
 
-        target_notify = matchmaking_service.get_notification(payload.target_user_id)
-        if target_notify:
-            await target_notify.send_json({
-                "type": "friend_invite",
-                "invite_id": invite["invite_id"],
-                "from_user_id": inviter.supabase_user_id,
-                "from_username": inviter.username
-            })
+        bridge = get_bridge()
+        await bridge.send_to_user(payload.target_user_id, {
+            "type": "friend_invite",
+            "invite_id": invite["invite_id"],
+            "from_user_id": inviter.supabase_user_id,
+            "from_username": inviter.username,
+        })
 
         return {"success": True, "invite_id": invite["invite_id"]}
     except ValueError as e:
@@ -285,25 +284,22 @@ async def respond_friend_invite(
         if action not in ("accept", "decline"):
             raise ValidationError("Invalid action")
 
+        bridge = get_bridge()
         if action == "accept":
             invite["status"] = "accepted"
-            inviter_notify = matchmaking_service.get_notification(invite["inviter_id"])
-            if inviter_notify:
-                await inviter_notify.send_json({
-                    "type": "friend_invite_accepted",
-                    "invite_id": invite["invite_id"],
-                    "from_user_id": invite["target_id"],
-                    "from_username": invite["target_name"],
-                })
+            await bridge.send_to_user(invite["inviter_id"], {
+                "type": "friend_invite_accepted",
+                "invite_id": invite["invite_id"],
+                "from_user_id": invite["target_id"],
+                "from_username": invite["target_name"],
+            })
         else:
             matchmaking_service.set_invite_status(payload.invite_id, "declined")
-            inviter_notify = matchmaking_service.get_notification(invite["inviter_id"])
-            if inviter_notify:
-                await inviter_notify.send_json({
-                    "type": "friend_invite_declined",
-                    "invite_id": invite["invite_id"],
-                    "message": "Davet reddedildi"
-                })
+            await bridge.send_to_user(invite["inviter_id"], {
+                "type": "friend_invite_declined",
+                "invite_id": invite["invite_id"],
+                "message": "Davet reddedildi",
+            })
 
         return {"success": True, "status": action}
     except ValidationError as e:
