@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/react-native';
 import { Stack } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { AuthProvider } from '../context/AuthContext';
+import { NotificationProvider } from '../context/NotificationContext';
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { Alert, AppState, Linking, Platform, Text, View } from 'react-native';
 import Constants from 'expo-constants';
@@ -187,12 +188,14 @@ function AppContent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <PresenceTracker />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(home)" />
-        </Stack>
+        <NotificationProvider>
+          <PresenceTracker />
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(home)" />
+          </Stack>
+        </NotificationProvider>
       </AuthProvider>
       {/* Development modunda React Query Devtools - sadece web için */}
       {__DEV__ && Platform.OS === 'web' && (

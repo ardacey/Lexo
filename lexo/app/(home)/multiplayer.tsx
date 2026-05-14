@@ -96,6 +96,7 @@ export default function Multiplayer() {
   const timerRef = useRef<number | null>(null);
   const gameEndTimeoutRef = useRef<number | null>(null);
   const pingIntervalRef = useRef<number | null>(null);
+  const tokenExpiryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const myWordsScrollRef = useRef<ScrollView | null>(null);
   const opponentWordsScrollRef = useRef<ScrollView | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -189,6 +190,10 @@ export default function Multiplayer() {
         gameEndTimeoutRef.current = null;
       }
       stopPingLoop();
+      if (tokenExpiryTimeoutRef.current !== null) {
+        clearTimeout(tokenExpiryTimeoutRef.current);
+        tokenExpiryTimeoutRef.current = null;
+      }
       if (wsRef.current) {
         try {
           wsRef.current.close();
@@ -372,66 +377,6 @@ export default function Multiplayer() {
         } else {
           setGameState('matched');
         }
-        break;
-
-      case 'friend_invite':
-        Alert.alert(
-          'Arkadaş Daveti',
-          `${data.from_username || 'Bir arkadaş'} seni maça çağırıyor`,
-          [
-            {
-              text: 'Reddet',
-              style: 'destructive',
-              onPress: () => {
-                wsRef.current?.send(JSON.stringify({
-                  type: 'friend_invite_response',
-                  invite_id: data.invite_id,
-                  action: 'decline'
-                }));
-              }
-            },
-            {
-              text: 'Kabul Et',
-              onPress: () => {
-                wsRef.current?.send(JSON.stringify({
-                  type: 'friend_invite_response',
-                  invite_id: data.invite_id,
-                  action: 'accept'
-                }));
-              }
-            },
-          ]
-        );
-        break;
-
-      case 'friend_invite_sent':
-        Toast.show({
-          type: 'info',
-          text1: 'Davet Gönderildi',
-          text2: 'Arkadaşının onayı bekleniyor',
-          position: 'top',
-          visibilityTime: 2000,
-        });
-        break;
-
-      case 'friend_invite_declined':
-        Toast.show({
-          type: 'error',
-          text1: 'Davet Reddedildi',
-          text2: data.message || 'Arkadaş daveti reddetti',
-          position: 'top',
-          visibilityTime: 2500,
-        });
-        break;
-
-      case 'friend_invite_error':
-        Toast.show({
-          type: 'error',
-          text1: 'Davet Hatası',
-          text2: data.message || 'Davet gönderilemedi',
-          position: 'top',
-          visibilityTime: 2500,
-        });
         break;
 
       case 'match_found':
@@ -678,6 +623,20 @@ export default function Multiplayer() {
           serverTimeOffsetRef.current = estimatedServerNow - now;
         } else if (typeof data.server_time === 'number') {
           serverTimeOffsetRef.current = data.server_time - Date.now();
+        }
+        if (data.token_expiring && typeof data.expires_in === 'number') {
+          if (tokenExpiryTimeoutRef.current !== null) {
+            clearTimeout(tokenExpiryTimeoutRef.current);
+          }
+          const reconnectIn = Math.max((data.expires_in - 30) * 1_000, 0);
+          tokenExpiryTimeoutRef.current = setTimeout(() => {
+            if (!isMounted.current) return;
+            if (wsRef.current) {
+              wsRef.current.close(1000, 'token_refresh');
+              wsRef.current = null;
+            }
+            reconnectToGame();
+          }, reconnectIn);
         }
         break;
       }

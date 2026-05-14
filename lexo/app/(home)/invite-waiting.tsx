@@ -5,7 +5,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { cancelFriendInvite, getInviteStatus, sendFriendInvite } from '@/utils/api';
+import { useNotifications } from '../../context/NotificationContext';
+import { cancelFriendInvite, sendFriendInvite } from '@/utils/api';
 
 export default function InviteWaitingPage() {
   const router = useRouter();
@@ -14,6 +15,7 @@ export default function InviteWaitingPage() {
   const friendUsername = params.friendUsername as string | undefined;
   const { getToken } = useAuth();
   const { showToast } = useToast();
+  const { onFriendInviteAccepted, onFriendInviteDeclined } = useNotifications();
   const [status, setStatus] = useState('Davet gönderiliyor...');
   const [inviteId, setInviteId] = useState<string | null>(null);
   const endedRef = useRef(false);
@@ -56,34 +58,25 @@ export default function InviteWaitingPage() {
 
   useEffect(() => {
     if (!inviteId) return;
-    let cancelled = false;
-    const poll = async () => {
-      if (!tokenRef.current) return;
-      try {
-        const result = await getInviteStatus(inviteId, tokenRef.current);
-        if (cancelled) return;
-        if (result.status === 'accepted') {
-          endedRef.current = true;
-          router.replace({
-            pathname: '/multiplayer',
-            params: { inviteId },
-          });
-        } else if (result.status === 'declined' || result.status === 'cancelled' || result.status === 'missing') {
-          endedRef.current = true;
-          showToast('Davet reddedildi', 'info');
-          router.back();
-        }
-      } catch {
-        // Silent poll error
-      }
-    };
-    poll();
-    const intervalId = setInterval(poll, 2000);
+
+    const unsubAccepted = onFriendInviteAccepted((payload) => {
+      if (payload.invite_id !== inviteId) return;
+      endedRef.current = true;
+      router.replace({ pathname: '/multiplayer', params: { inviteId } });
+    });
+
+    const unsubDeclined = onFriendInviteDeclined((payload) => {
+      if (payload.invite_id !== inviteId) return;
+      endedRef.current = true;
+      showToast('Davet reddedildi', 'info');
+      router.back();
+    });
+
     return () => {
-      cancelled = true;
-      clearInterval(intervalId);
+      unsubAccepted();
+      unsubDeclined();
     };
-  }, [inviteId, router, showToast]);
+  }, [inviteId, onFriendInviteAccepted, onFriendInviteDeclined, router, showToast]);
 
   const handleCancel = () => {
     if (tokenRef.current && inviteId) {
