@@ -1,5 +1,5 @@
 from typing import Optional, List, Dict
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.database import UserStats
 from app.repositories.stats_repository import StatsRepository
@@ -16,14 +16,14 @@ logger = get_logger(__name__)
 
 
 class StatsService:
-    
-    def __init__(self, db: Session):
+
+    def __init__(self, db: AsyncSession):
         self.stats_repo = StatsRepository(db)
-    
-    def get_user_stats(self, user_id: int) -> Optional[UserStats]:
-        return self.stats_repo.get_by_user_id(user_id)
-    
-    def update_stats_after_game(
+
+    async def get_user_stats(self, user_id: int) -> Optional[UserStats]:
+        return await self.stats_repo.get_by_user_id(user_id)
+
+    async def update_stats_after_game(
         self,
         user_id: int,
         score: int,
@@ -33,7 +33,7 @@ class StatsService:
         game_duration: int
     ) -> UserStats:
         try:
-            return self.stats_repo.update_after_game(
+            return await self.stats_repo.update_after_game(
                 user_id=user_id,
                 score=score,
                 words=words,
@@ -48,15 +48,15 @@ class StatsService:
             cache_invalidate(f"user_stats:{user_id}")
             cache_invalidate(f"user_rank:{user_id}")
             cache_invalidate_prefix("leaderboard:")
-    
-    def get_leaderboard(self, limit: int = 100) -> List[Dict]:
-        return self.stats_repo.get_leaderboard(limit)
-    
-    def get_user_rank(self, user_id: int) -> Optional[int]:
+
+    async def get_leaderboard(self, limit: int = 100) -> List[Dict]:
+        return await self.stats_repo.get_leaderboard(limit)
+
+    async def get_user_rank(self, user_id: int) -> Optional[int]:
         cache_key = f"user_rank:{user_id}"
         cached = cache_get(cache_key)
         if cached is not None:
             return cached
-        rank = self.stats_repo.get_user_rank(user_id)
+        rank = await self.stats_repo.get_user_rank(user_id)
         cache_set(cache_key, rank, ttl_seconds=15)
         return rank

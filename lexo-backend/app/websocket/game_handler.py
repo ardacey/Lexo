@@ -11,7 +11,7 @@ from app.services.word_service import WordService
 from app.services.user_service import UserService
 from app.services.stats_service import StatsService
 from app.services.game_history_service import GameHistoryService
-from app.database.session import get_db
+from app.database.session import AsyncSessionLocal
 from app.core.logging import get_logger
 from app.websocket.auth import (
     authenticate_websocket,
@@ -614,16 +614,15 @@ class GameWebSocketHandler:
         
         try:
             room.game_saved = True
-            
-            db = next(get_db())
-            try:
+
+            async with AsyncSessionLocal() as db:
                 user_service = UserService(db)
                 stats_service = StatsService(db)
                 game_history_service = GameHistoryService(db)
 
-                player1 = user_service.get_user_by_supabase_id(room.player1.id)
-                player2 = user_service.get_user_by_supabase_id(room.player2.id)
-                
+                player1 = await user_service.get_user_by_supabase_id(room.player1.id)
+                player2 = await user_service.get_user_by_supabase_id(room.player2.id)
+
                 if not player1 or not player2:
                     logger.error(f"Cannot save game {room.id}: Player not found in database")
                     return
@@ -635,7 +634,7 @@ class GameWebSocketHandler:
                     elif winner_name == room.player2.username:
                         winner_id = player2.id
 
-                game_history_service.create_game_history(
+                await game_history_service.create_game_history(
                     room_id=room.id,
                     player1_id=player1.id,
                     player2_id=player2.id,
@@ -652,7 +651,7 @@ class GameWebSocketHandler:
 
                 player1_won = winner_id == player1.id if winner_id else False
                 player1_tied = winner_id is None
-                stats_service.update_stats_after_game(
+                await stats_service.update_stats_after_game(
                     user_id=player1.id,
                     score=room.player1.score,
                     words=room.player1.words,
@@ -663,7 +662,7 @@ class GameWebSocketHandler:
 
                 player2_won = winner_id == player2.id if winner_id else False
                 player2_tied = winner_id is None
-                stats_service.update_stats_after_game(
+                await stats_service.update_stats_after_game(
                     user_id=player2.id,
                     score=room.player2.score,
                     words=room.player2.words,
@@ -671,10 +670,8 @@ class GameWebSocketHandler:
                     tied=player2_tied,
                     game_duration=room.duration
                 )
-                
+
                 logger.info(f"Successfully saved game {room.id} to database")
-            finally:
-                db.close()
         except Exception as e:
             logger.error(f"Error saving game {room.id} to database: {e}")
             room.game_saved = False

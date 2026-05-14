@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.stats_service import StatsService
 from app.database.session import get_db
@@ -13,9 +13,9 @@ router = APIRouter()
 
 
 @router.get("/leaderboard", response_model=dict)
-def get_leaderboard(
+async def get_leaderboard(
     limit: int = 100,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     _current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
@@ -25,7 +25,7 @@ def get_leaderboard(
             return cached
 
         stats_service = StatsService(db)
-        leaderboard = stats_service.get_leaderboard(limit)
+        leaderboard = await stats_service.get_leaderboard(limit)
 
         response = {
             "success": True,

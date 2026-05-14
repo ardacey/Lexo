@@ -5,14 +5,44 @@ pydantic-settings
 python-multipart
 websockets
 python-dotenv
-sqlalchemy
+
+# Database
+sqlalchemy[asyncio]
 psycopg2-binary
+asyncpg
 alembic
+
+# Redis
+redis[hiredis]>=5.0
+
+# Performance
+orjson
+uvloop; sys_platform != "win32"
+
+# Auth / JWT
+pyjwt[crypto]
+
+# HTTP client
+httpx
+
+# System metrics
+psutil
+
+# Supabase auth (user deletion)
+supabase
+
+# Observability
+sentry-sdk[fastapi]
+
+# Rate limiting
+slowapi
+
+# Metrics
+prometheus-fastapi-instrumentator
+
+# Testing
 pytest
 pytest-asyncio
 pytest-cov
 pytest-mock
-pyjwt[crypto]
-httpx
-psutil
-supabase
+fakeredis

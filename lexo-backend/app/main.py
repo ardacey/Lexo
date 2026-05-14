@@ -4,6 +4,9 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 
+import os
+import sentry_sdk
+
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 from app.core.exceptions import LexoException
@@ -29,13 +32,20 @@ from app.middleware.timing import RequestTimingMiddleware
 setup_logging()
 logger = get_logger(__name__)
 
+if settings.sentry.dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry.dsn,
+        traces_sample_rate=settings.sentry.traces_sample_rate,
+        environment=os.environ.get('ENVIRONMENT', 'development'),
+    )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.api.title} v{settings.api.version}")
 
     try:
-        init_db()
+        await init_db()
         logger.info("✅ Database initialized successfully")
     except Exception as e:
         logger.error(f"❌ Database initialization failed: {e}")

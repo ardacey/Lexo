@@ -1,5 +1,5 @@
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
 from app.models.database import GameHistory
@@ -12,11 +12,11 @@ logger = get_logger(__name__)
 
 
 class GameHistoryService:
-    
-    def __init__(self, db: Session):
+
+    def __init__(self, db: AsyncSession):
         self.game_repo = GameRepository(db)
-    
-    def create_game_history(
+
+    async def create_game_history(
         self,
         room_id: str,
         player1_id: int,
@@ -32,7 +32,7 @@ class GameHistoryService:
         ended_at: datetime
     ) -> GameHistory:
         try:
-            return self.game_repo.create_game(
+            return await self.game_repo.create_game(
                 room_id=room_id,
                 player1_id=player1_id,
                 player2_id=player2_id,
@@ -52,9 +52,9 @@ class GameHistoryService:
         finally:
             cache_invalidate_prefix(f"user_games:{player1_id}:")
             cache_invalidate_prefix(f"user_games:{player2_id}:")
-    
-    def get_user_games(self, user_id: int, limit: int = 10) -> List[GameHistory]:
-        return self.game_repo.get_user_games(user_id, limit)
-    
-    def get_game_by_room_id(self, room_id: str) -> Optional[GameHistory]:
-        return self.game_repo.get_by_room_id(room_id)
+
+    async def get_user_games(self, user_id: int, limit: int = 10) -> List[GameHistory]:
+        return await self.game_repo.get_user_games(user_id, limit)
+
+    async def get_game_by_room_id(self, room_id: str) -> Optional[GameHistory]:
+        return await self.game_repo.get_by_room_id(room_id)

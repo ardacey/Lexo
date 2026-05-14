@@ -1,6 +1,7 @@
 from typing import Optional, List, Dict
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import desc, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, desc, func
+from sqlalchemy.orm import selectinload
 from datetime import datetime
 
 from app.models.database import UserStats, User
@@ -11,34 +12,28 @@ logger = get_logger(__name__)
 
 
 class StatsRepository(BaseRepository[UserStats]):
-    
-    def __init__(self, db: Session):
+
+    def __init__(self, db: AsyncSession):
         super().__init__(UserStats, db)
-    
-    def get_by_user_id(self, user_id: int, with_user: bool = False) -> Optional[UserStats]:
-        """
-        Get stats by user ID with optional eager loading of user data
-        """
-        query = self.db.query(UserStats).filter(UserStats.user_id == user_id)
-        
+
+    async def get_by_user_id(self, user_id: int, with_user: bool = False) -> Optional[UserStats]:
+        stmt = select(UserStats).where(UserStats.user_id == user_id)
         if with_user:
-            query = query.options(joinedload(UserStats.user))
-        
-        stats = query.first()
-        
-        return stats
-    
-    def create_for_user(self, user_id: int) -> UserStats:
+            stmt = stmt.options(selectinload(UserStats.user))
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def create_for_user(self, user_id: int) -> UserStats:
         stats = UserStats(user_id=user_id)
-        return self.create(stats)
-    
-    def get_or_create(self, user_id: int) -> UserStats:
-        stats = self.get_by_user_id(user_id)
+        return await self.create(stats)
+
+    async def get_or_create(self, user_id: int) -> UserStats:
+        stats = await self.get_by_user_id(user_id)
         if not stats:
-            stats = self.create_for_user(user_id)
+            stats = await self.create_for_user(user_id)
         return stats
-    
-    def update_after_game(
+
+    async def update_after_game(
         self,
         user_id: int,
         score: int,
@@ -47,8 +42,8 @@ class StatsRepository(BaseRepository[UserStats]):
         tied: bool,
         game_duration: int
     ) -> UserStats:
-        stats = self.get_or_create(user_id)
-        
+        stats = await self.get_or_create(user_id)
+
         stats.total_games += 1
         if won:
             stats.wins += 1
@@ -72,34 +67,26 @@ class StatsRepository(BaseRepository[UserStats]):
             if len(word) > stats.longest_word_length:
                 stats.longest_word = word
                 stats.longest_word_length = len(word)
-        
+
         stats.total_play_time += game_duration
         stats.last_updated = datetime.utcnow()
-        
-        updated_stats = self.update(stats)
-        
-        
-        logger.info(
-            f"Updated stats for user {user_id}: "
-            f"total_games={stats.total_games}, wins={stats.wins}"
-        )
+
+        updated_stats = await self.update(stats)
+        logger.info(f"Updated stats for user {user_id}: total_games={stats.total_games}, wins={stats.wins}")
         return updated_stats
-    
-    def get_leaderboard(self, limit: int = 100) -> List[Dict]:
-        """
-        Get leaderboard with caching and optimized query (single join, eager loading)
-        """
-        # Optimized query with eager loading to avoid N+1
-        results = (
-            self.db.query(UserStats, User)
+
+    async def get_leaderboard(self, limit: int = 100) -> List[Dict]:
+        stmt = (
+            select(UserStats, User)
             .join(User)
             .order_by(desc(UserStats.wins), desc(UserStats.highest_score))
             .limit(limit)
-            .all()
         )
-        
+        result = await self.db.execute(stmt)
+        rows = result.all()
+
         leaderboard = []
-        for stat, user in results:
+        for stat, user in rows:
             leaderboard.append({
                 'username': user.username,
                 'total_games': stat.total_games,
@@ -113,29 +100,27 @@ class StatsRepository(BaseRepository[UserStats]):
                 'longest_word': stat.longest_word,
                 'best_win_streak': stat.best_win_streak
             })
-        
+
         return leaderboard
-    
-    def get_user_rank(self, user_id: int) -> Optional[int]:
-        stats = self.get_by_user_id(user_id)
+
+    async def get_user_rank(self, user_id: int) -> Optional[int]:
+        stats = await self.get_by_user_id(user_id)
         if not stats:
             return None
-        
-        rank = self.db.query(func.count(UserStats.id)).filter(
+
+        stmt = select(func.count(UserStats.id)).where(
             (UserStats.wins > stats.wins) |
             ((UserStats.wins == stats.wins) & (UserStats.highest_score > stats.highest_score))
-        ).scalar()
-        
+        )
+        result = await self.db.execute(stmt)
+        rank = result.scalar()
         return rank + 1
-    
-    def delete_by_user_id(self, user_id: int) -> bool:
-        """
-        Delete user stats by user ID
-        """
-        stats = self.get_by_user_id(user_id)
+
+    async def delete_by_user_id(self, user_id: int) -> bool:
+        stats = await self.get_by_user_id(user_id)
         if stats:
-            self.db.delete(stats)
-            self.db.commit()
+            await self.db.delete(stats)
+            await self.db.commit()
             logger.info(f"Deleted stats for user: {user_id}")
             return True
         return False

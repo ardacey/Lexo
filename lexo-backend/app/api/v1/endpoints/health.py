@@ -1,28 +1,20 @@
-"""
-Health check and monitoring endpoints.
-"""
 from datetime import datetime
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import psutil
 import time
 
-from app.database.session import get_db
+from app.database.session import get_db, engine
 
 router = APIRouter()
 
-# Store application start time
 APP_START_TIME = time.time()
 
 
 @router.get("/health", status_code=status.HTTP_200_OK)
 async def health_check():
-    """
-    Basic health check endpoint.
-    Returns OK if the service is running.
-    """
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
@@ -31,27 +23,18 @@ async def health_check():
 
 
 @router.get("/ready", status_code=status.HTTP_200_OK)
-async def readiness_check(db: Session = Depends(get_db)):
-    """
-    Readiness check endpoint.
-    Verifies that all critical dependencies are available.
-    """
-    checks = {
-        "database": "unknown",
-    }
-    
-    # Check database connection
+async def readiness_check(db: AsyncSession = Depends(get_db)):
+    checks = {"database": "unknown"}
+
     try:
-        db.execute(text("SELECT 1"))
+        await db.execute(text("SELECT 1"))
         checks["database"] = "healthy"
     except Exception as e:
         checks["database"] = f"unhealthy: {str(e)}"
-    
-    
-    # Determine overall status
+
     is_ready = checks["database"] == "healthy"
     response_status = status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE
-    
+
     return JSONResponse(
         status_code=response_status,
         content={
@@ -63,27 +46,15 @@ async def readiness_check(db: Session = Depends(get_db)):
 
 
 @router.get("/metrics", status_code=status.HTTP_200_OK)
-async def metrics(db: Session = Depends(get_db)):
-    """
-    Application metrics endpoint.
-    Returns system and application metrics.
-    """
-    # System metrics
+async def metrics():
     cpu_percent = psutil.cpu_percent(interval=0.1)
     memory = psutil.virtual_memory()
     disk = psutil.disk_usage('/')
-    
-    # Database metrics
-    db_pool_size = 0
-    db_pool_checked_out = 0
-    try:
-        if hasattr(db.get_bind(), 'pool'):
-            pool = db.get_bind().pool
-            db_pool_size = pool.size()
-            db_pool_checked_out = pool.checkedout()
-    except:
-        pass
-    
+
+    pool = engine.pool
+    db_pool_size = pool.size()
+    db_pool_checked_out = pool.checkedout()
+
     return {
         "timestamp": datetime.utcnow().isoformat(),
         "uptime_seconds": int(time.time() - APP_START_TIME),

@@ -18,9 +18,8 @@ from app.models.database import Base
 # access to the values within the .ini file in use.
 config = context.config
 
-# Set the database URL from environment variables
-# Escape % characters for configparser interpolation
-db_url = settings.database.url.replace('%', '%%')
+# Use the synchronous URL (psycopg2) — Alembic doesn't support asyncpg
+db_url = settings.database.sync_url.replace('%', '%%')
 config.set_main_option('sqlalchemy.url', db_url)
 
 # Interpret the config file for Python logging.

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.schemas import CreateUserRequest, UpdateUsernameRequest, UserResponse, UserStatsResponse
 from app.services.user_service import UserService
@@ -16,9 +16,9 @@ router = APIRouter()
 
 
 @router.post("/users", response_model=dict)
-def create_user(
+async def create_user(
     request: CreateUserRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
@@ -27,14 +27,14 @@ def create_user(
 
         user_service = UserService(db)
         stats_service = StatsService(db)
-        
-        user = user_service.create_or_get_user(
+
+        user = await user_service.create_or_get_user(
             request.user_id,
             request.username,
             request.email
         )
-        stats = stats_service.get_user_stats(user.id)
-        
+        stats = await stats_service.get_user_stats(user.id)
+
         return {
             "success": True,
             "user": {
@@ -70,9 +70,9 @@ def create_user(
 
 
 @router.get("/users/{user_id}/stats", response_model=dict)
-def get_user_stats(
+async def get_user_stats(
     user_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
@@ -81,8 +81,8 @@ def get_user_stats(
 
         user_service = UserService(db)
         stats_service = StatsService(db)
-        
-        user = user_service.get_user_by_supabase_id(user_id)
+
+        user = await user_service.get_user_by_supabase_id(user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
@@ -91,9 +91,9 @@ def get_user_stats(
         if cached is not None:
             return cached
 
-        stats = stats_service.get_user_stats(user.id)
-        rank = stats_service.get_user_rank(user.id)
-        
+        stats = await stats_service.get_user_stats(user.id)
+        rank = await stats_service.get_user_rank(user.id)
+
         if not stats:
             response = {
                 "success": True,
@@ -117,7 +117,7 @@ def get_user_stats(
             }
             cache_set(cache_key, response, ttl_seconds=15)
             return response
-        
+
         response = {
             "success": True,
             "stats": {
@@ -148,15 +148,10 @@ def get_user_stats(
 
 
 @router.get("/users/check-username/{username}")
-def check_username_availability(username: str, db: Session = Depends(get_db)):
-    """
-    Check if a username is available for registration.
-    Returns {"available": true/false}
-    """
+async def check_username_availability(username: str, db: AsyncSession = Depends(get_db)):
     try:
         user_service = UserService(db)
-        # Check if username exists
-        user = user_service.get_user_by_username(username)
+        user = await user_service.get_user_by_username(username)
         return {
             "available": user is None,
             "username": username
@@ -167,14 +162,14 @@ def check_username_availability(username: str, db: Session = Depends(get_db)):
 
 
 @router.patch("/users/me/username", response_model=dict)
-def update_username(
+async def update_username(
     request: UpdateUsernameRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
         user_service = UserService(db)
-        user = user_service.update_username(current_user["user_id"], request.username)
+        user = await user_service.update_username(current_user["user_id"], request.username)
         return {
             "success": True,
             "username": user.username
@@ -190,49 +185,18 @@ def update_username(
 
 
 @router.delete("/users/me")
-def delete_user_account(
-    db: Session = Depends(get_db),
+async def delete_user_account(
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
-    """
-    Delete the current user's account and all associated data.
-    This action is irreversible.
-    """
+    """Delete the current user's account and all associated data. This action is irreversible."""
     try:
         user_service = UserService(db)
-        success = user_service.delete_user(current_user["user_id"])
-        
+        success = await user_service.delete_user(current_user["user_id"])
+
         if not success:
             raise HTTPException(status_code=404, detail="User not found")
-        
-        return {
-            "success": True,
-            "message": "Account and all associated data have been deleted successfully"
-        }
-    except DatabaseError as e:
-        logger.error(f"Database error deleting user {current_user['user_id']}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete account")
-    except Exception as e:
-        logger.error(f"Error deleting user {current_user['user_id']}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete account")
 
-
-@router.delete("/users/me")
-def delete_user_account(
-    db: Session = Depends(get_db),
-    current_user: AuthenticatedUser = Depends(get_current_user)
-):
-    """
-    Delete the current user's account and all associated data.
-    This action is irreversible.
-    """
-    try:
-        user_service = UserService(db)
-        success = user_service.delete_user(current_user["user_id"])
-        
-        if not success:
-            raise HTTPException(status_code=404, detail="User not found")
-        
         return {
             "success": True,
             "message": "Account and all associated data have been deleted successfully"

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
 from app.models.schemas import SaveGameRequest, SaveGameResponse
@@ -17,10 +17,10 @@ router = APIRouter()
 
 
 @router.get("/users/{user_id}/games", response_model=dict)
-def get_user_games(
+async def get_user_games(
     user_id: str,
     limit: int = 10,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
@@ -29,8 +29,8 @@ def get_user_games(
 
         user_service = UserService(db)
         game_history_service = GameHistoryService(db)
-        
-        user = user_service.get_user_by_supabase_id(user_id)
+
+        user = await user_service.get_user_by_supabase_id(user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
@@ -38,13 +38,13 @@ def get_user_games(
         cached = cache_get(cache_key)
         if cached is not None:
             return cached
-        
-        games = game_history_service.get_user_games(user.id, limit)
-        
+
+        games = await game_history_service.get_user_games(user.id, limit)
+
         games_list = []
         for game in games:
             tied = game.winner_id is None
-            
+
             won = False
             if not tied and game.winner_id:
                 if game.winner_id == game.player1_id:
@@ -52,9 +52,9 @@ def get_user_games(
                 else:
                     winner = game.player2
                 won = winner.supabase_user_id == user_id
-            
+
             opponent = game.player2 if game.player1_id == user.id else game.player1
-            
+
             if game.player1_id == user.id:
                 user_score = game.player1_score
                 opponent_score = game.player2_score
@@ -63,7 +63,7 @@ def get_user_games(
                 user_score = game.player2_score
                 opponent_score = game.player1_score
                 user_words = game.player2_words
-            
+
             games_list.append({
                 "room_id": game.room_id,
                 "opponent": opponent.username if opponent else "Unknown",
@@ -75,7 +75,7 @@ def get_user_games(
                 "duration": game.duration,
                 "played_at": game.ended_at.isoformat()
             })
-        
+
         response = {
             "success": True,
             "games": games_list
@@ -90,9 +90,9 @@ def get_user_games(
 
 
 @router.post("/games/save", response_model=SaveGameResponse)
-def save_game(
+async def save_game(
     request: SaveGameRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
@@ -102,25 +102,25 @@ def save_game(
         user_service = UserService(db)
         stats_service = StatsService(db)
         game_history_service = GameHistoryService(db)
-        
-        player1 = user_service.get_user_by_supabase_id(request.player1_user_id)
-        player2 = user_service.get_user_by_supabase_id(request.player2_user_id)
-        
+
+        player1 = await user_service.get_user_by_supabase_id(request.player1_user_id)
+        player2 = await user_service.get_user_by_supabase_id(request.player2_user_id)
+
         if not player1:
             raise HTTPException(status_code=404, detail="Player 1 not found")
         if not player2:
             raise HTTPException(status_code=404, detail="Player 2 not found")
-        
+
         winner_id = None
         if request.winner_user_id:
-            winner = user_service.get_user_by_supabase_id(request.winner_user_id)
+            winner = await user_service.get_user_by_supabase_id(request.winner_user_id)
             if winner:
                 winner_id = winner.id
-        
+
         started_at = datetime.fromisoformat(request.started_at.replace('Z', '+00:00'))
         ended_at = datetime.fromisoformat(request.ended_at.replace('Z', '+00:00'))
-        
-        game = game_history_service.create_game_history(
+
+        game = await game_history_service.create_game_history(
             room_id=request.room_id,
             player1_id=player1.id,
             player2_id=player2.id,
@@ -134,10 +134,10 @@ def save_game(
             started_at=started_at,
             ended_at=ended_at
         )
-        
+
         player1_won = winner_id == player1.id if winner_id else False
         player1_tied = winner_id is None
-        stats_service.update_stats_after_game(
+        await stats_service.update_stats_after_game(
             user_id=player1.id,
             score=request.player1_score,
             words=request.player1_words,
@@ -145,10 +145,10 @@ def save_game(
             tied=player1_tied,
             game_duration=request.duration
         )
-        
+
         player2_won = winner_id == player2.id if winner_id else False
         player2_tied = winner_id is None
-        stats_service.update_stats_after_game(
+        await stats_service.update_stats_after_game(
             user_id=player2.id,
             score=request.player2_score,
             words=request.player2_words,
@@ -156,7 +156,7 @@ def save_game(
             tied=player2_tied,
             game_duration=request.duration
         )
-        
+
         return SaveGameResponse(
             success=True,
             message="Game saved successfully",

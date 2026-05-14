@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import AuthenticatedUser, get_current_user
 from app.core.exceptions import DatabaseError, ValidationError
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-def ensure_user_exists(db: Session, current_user: AuthenticatedUser) -> None:
+async def ensure_user_exists(db: AsyncSession, current_user: AuthenticatedUser) -> None:
     claims = current_user.get("claims") or {}
     user_metadata = claims.get("user_metadata", {}) or {}
     username = (
@@ -33,19 +33,19 @@ def ensure_user_exists(db: Session, current_user: AuthenticatedUser) -> None:
     email = claims.get("email")
 
     user_service = UserService(db)
-    user_service.create_or_get_user(current_user["user_id"], username, email)
+    await user_service.create_or_get_user(current_user["user_id"], username, email)
 
 
 @router.get("/friends/search")
-def search_users(
+async def search_users(
     q: str = Query(..., min_length=1),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
-        ensure_user_exists(db, current_user)
+        await ensure_user_exists(db, current_user)
         friend_service = FriendService(db)
-        users = friend_service.search_users(current_user["user_id"], q)
+        users = await friend_service.search_users(current_user["user_id"], q)
         return {
             "success": True,
             "users": [
@@ -61,14 +61,14 @@ def search_users(
 
 
 @router.get("/friends")
-def list_friends(
-    db: Session = Depends(get_db),
+async def list_friends(
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
-        ensure_user_exists(db, current_user)
+        await ensure_user_exists(db, current_user)
         friend_service = FriendService(db)
-        friends = friend_service.list_friends(current_user["user_id"])
+        friends = await friend_service.list_friends(current_user["user_id"])
         return {
             "success": True,
             "friends": [
@@ -84,14 +84,14 @@ def list_friends(
 
 
 @router.get("/friends/requests")
-def list_friend_requests(
-    db: Session = Depends(get_db),
+async def list_friend_requests(
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
-        ensure_user_exists(db, current_user)
+        await ensure_user_exists(db, current_user)
         friend_service = FriendService(db)
-        requests = friend_service.list_requests(current_user["user_id"])
+        requests = await friend_service.list_requests(current_user["user_id"])
         return {
             "success": True,
             "requests": [
@@ -115,15 +115,15 @@ def list_friend_requests(
 
 
 @router.post("/friends/requests")
-def send_friend_request(
+async def send_friend_request(
     request: FriendRequestCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
-        ensure_user_exists(db, current_user)
+        await ensure_user_exists(db, current_user)
         friend_service = FriendService(db)
-        friend_service.send_request(current_user["user_id"], request.target_user_id)
+        await friend_service.send_request(current_user["user_id"], request.target_user_id)
         return {
             "success": True,
             "message": "Friend request sent"
@@ -138,16 +138,16 @@ def send_friend_request(
 
 
 @router.post("/friends/requests/{request_id}/respond")
-def respond_friend_request(
+async def respond_friend_request(
     request_id: int,
     payload: FriendRequestRespond,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
-        ensure_user_exists(db, current_user)
+        await ensure_user_exists(db, current_user)
         friend_service = FriendService(db)
-        request = friend_service.respond_request(current_user["user_id"], request_id, payload.action)
+        request = await friend_service.respond_request(current_user["user_id"], request_id, payload.action)
         return {
             "success": True,
             "status": request.status
@@ -162,15 +162,15 @@ def respond_friend_request(
 
 
 @router.delete("/friends/{friend_user_id}")
-def remove_friend(
+async def remove_friend(
     friend_user_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
-        ensure_user_exists(db, current_user)
+        await ensure_user_exists(db, current_user)
         friend_service = FriendService(db)
-        friend_service.remove_friend(current_user["user_id"], friend_user_id)
+        await friend_service.remove_friend(current_user["user_id"], friend_user_id)
         return {
             "success": True,
             "message": "Friend removed"
@@ -187,11 +187,11 @@ def remove_friend(
 @router.post("/friends/invites/cancel")
 async def cancel_friend_invite(
     payload: FriendInviteCancel,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
-        ensure_user_exists(db, current_user)
+        await ensure_user_exists(db, current_user)
         matchmaking_service = get_matchmaking_service()
         invite = matchmaking_service.cancel_invite_by_inviter(current_user["user_id"])
         if not invite or invite.get("invite_id") != payload.invite_id:
@@ -208,15 +208,15 @@ async def cancel_friend_invite(
 @router.post("/friends/invites/send")
 async def send_friend_invite(
     payload: FriendInviteSend,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
-        ensure_user_exists(db, current_user)
+        await ensure_user_exists(db, current_user)
         matchmaking_service = get_matchmaking_service()
         user_service = UserService(db)
-        inviter = user_service.get_user_by_supabase_id(current_user["user_id"])
-        target = user_service.get_user_by_supabase_id(payload.target_user_id)
+        inviter = await user_service.get_user_by_supabase_id(current_user["user_id"])
+        target = await user_service.get_user_by_supabase_id(payload.target_user_id)
         if not inviter or not target:
             raise ValidationError("User not found")
 
@@ -247,11 +247,11 @@ async def send_friend_invite(
 
 
 @router.get("/friends/invites/active")
-def get_active_invite(
-    db: Session = Depends(get_db),
+async def get_active_invite(
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
-    ensure_user_exists(db, current_user)
+    await ensure_user_exists(db, current_user)
     matchmaking_service = get_matchmaking_service()
     invite = matchmaking_service.get_active_invite_for_user(current_user["user_id"])
     if not invite:
@@ -269,11 +269,11 @@ def get_active_invite(
 @router.post("/friends/invites/respond")
 async def respond_friend_invite(
     payload: FriendInviteRespond,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     try:
-        ensure_user_exists(db, current_user)
+        await ensure_user_exists(db, current_user)
         matchmaking_service = get_matchmaking_service()
         invite = matchmaking_service.friend_invites.get(payload.invite_id)
         if not invite:
@@ -314,12 +314,12 @@ async def respond_friend_invite(
 
 
 @router.get("/friends/invites/status/{invite_id}")
-def invite_status(
+async def invite_status(
     invite_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
-    ensure_user_exists(db, current_user)
+    await ensure_user_exists(db, current_user)
     matchmaking_service = get_matchmaking_service()
     invite = matchmaking_service.friend_invites.get(invite_id)
     if not invite:
