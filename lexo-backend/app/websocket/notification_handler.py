@@ -51,7 +51,7 @@ class NotificationWebSocketHandler:
                 await self.bridge.unregister(user_id)
 
     async def _handle_decline(self, user_id: str, invite_id: str):
-        invite = self.matchmaking_service.pop_invite(invite_id)
+        invite = await self.matchmaking_service.pop_invite(invite_id)
         if not invite:
             return
         if invite["target_id"] != user_id:

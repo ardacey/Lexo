@@ -72,6 +72,7 @@ async def authenticate_websocket(websocket: WebSocket) -> Dict[str, Any]:
         "is_reconnect": is_reconnect,
         "initial_data": initial_data,
         "token_claims": payload,
+        "token_exp": payload.get("exp", 0),
     }
 
 
@@ -155,6 +156,8 @@ def validate_message(message: Dict) -> bool:
         "send_emoji",
         "ping",
         "pong",
+        "friend_invite",
+        "friend_invite_response",
     ]
     
     if message_type not in valid_types:
@@ -191,8 +194,6 @@ def validate_message(message: Dict) -> bool:
             logger.warning(f"Emoji too long: {len(emoji)} characters")
             return False
 
-    return True
-    
     return True
 
 

@@ -1,7 +1,7 @@
 import json
 import uuid
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import redis.asyncio as aioredis
 
@@ -12,7 +12,8 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 _QUEUE_KEY = "mm:queue"
-_ROOM_TTL = 7200  # 2 hours
+_ROOM_TTL = 7200   # 2 hours
+_INVITE_TTL = 300  # 5 minutes
 
 # Atomic Lua: pop front player, find a different player, return both or push back.
 _LUA_MATCH = """
@@ -38,14 +39,10 @@ class MatchmakingService:
     def __init__(self, game_service: GameService, redis: aioredis.Redis):
         self.game_service = game_service
         self.redis = redis
-        self.worker_id: str = ""  # set by WebSocketBridge after init
+        self.worker_id: str = ""  # set by main.py after init
 
         # In-memory: rooms owned by this worker
         self.active_rooms: Dict[str, GameRoom] = {}
-
-        # In-memory: friend invites (cross-worker invite state is Phase 3)
-        self.friend_invites: Dict[str, Dict] = {}
-        self.invites_by_user: Dict[str, str] = {}
 
     # ------------------------------------------------------------------
     # Queue
@@ -148,13 +145,23 @@ class MatchmakingService:
             logger.info(f"Cleaned up room {room_id}")
 
     # ------------------------------------------------------------------
-    # Friend invites (in-memory — Phase 3 will migrate to Redis)
+    # Friend invites (Redis-backed)
     # ------------------------------------------------------------------
 
-    def get_invite_for_user(self, user_id: str) -> Optional[str]:
-        return self.invites_by_user.get(user_id)
+    async def get_invite_for_user(self, user_id: str) -> Optional[str]:
+        """Returns the invite_id if user has an active invite, else None."""
+        return await self.redis.get(f"mm:user_invite:{user_id}")
 
-    def store_invite(
+    async def get_invite(self, invite_id: str) -> Optional[Dict]:
+        """Returns the full invite dict or None if not found."""
+        data = await self.redis.hgetall(f"mm:invite:{invite_id}")
+        if not data:
+            return None
+        data["inviter_in_queue"] = data.get("inviter_in_queue") == "1"
+        data["target_in_queue"] = data.get("target_in_queue") == "1"
+        return data
+
+    async def store_invite(
         self,
         invite_id: str,
         inviter_id: str,
@@ -164,80 +171,88 @@ class MatchmakingService:
         inviter_in_queue: bool,
         target_in_queue: bool,
     ) -> None:
-        self.friend_invites[invite_id] = {
+        mapping = {
             "invite_id": invite_id,
             "inviter_id": inviter_id,
             "target_id": target_id,
             "inviter_name": inviter_name,
             "target_name": target_name,
-            "inviter_in_queue": inviter_in_queue,
-            "target_in_queue": target_in_queue,
+            "inviter_in_queue": "1" if inviter_in_queue else "0",
+            "target_in_queue": "1" if target_in_queue else "0",
             "status": "pending",
-            "joiners": {},
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.utcnow().isoformat(),
         }
-        self.invites_by_user[inviter_id] = invite_id
-        self.invites_by_user[target_id] = invite_id
+        pipe = self.redis.pipeline()
+        pipe.hset(f"mm:invite:{invite_id}", mapping=mapping)
+        pipe.expire(f"mm:invite:{invite_id}", _INVITE_TTL)
+        pipe.set(f"mm:user_invite:{inviter_id}", invite_id, ex=_INVITE_TTL)
+        pipe.set(f"mm:user_invite:{target_id}", invite_id, ex=_INVITE_TTL)
+        await pipe.execute()
 
-    def pop_invite(self, invite_id: str) -> Optional[Dict]:
-        invite = self.friend_invites.pop(invite_id, None)
-        if invite:
-            self.invites_by_user.pop(invite["inviter_id"], None)
-            self.invites_by_user.pop(invite["target_id"], None)
+    async def pop_invite(self, invite_id: str) -> Optional[Dict]:
+        """Returns the invite and removes it atomically."""
+        invite = await self.get_invite(invite_id)
+        if not invite:
+            return None
+        pipe = self.redis.pipeline()
+        pipe.delete(f"mm:invite:{invite_id}")
+        pipe.delete(f"mm:user_invite:{invite['inviter_id']}")
+        pipe.delete(f"mm:user_invite:{invite['target_id']}")
+        await pipe.execute()
         return invite
 
-    def cancel_invite_by_inviter(self, inviter_id: str) -> Optional[Dict]:
-        invite_id = self.invites_by_user.get(inviter_id)
+    async def cancel_invite_by_inviter(self, inviter_id: str) -> Optional[Dict]:
+        invite_id = await self.get_invite_for_user(inviter_id)
         if not invite_id:
             return None
-        invite = self.friend_invites.get(invite_id)
+        invite = await self.get_invite(invite_id)
         if not invite or invite.get("inviter_id") != inviter_id:
             return None
-        return self.pop_invite(invite_id)
+        return await self.pop_invite(invite_id)
 
-    def create_invite(
+    async def create_invite(
         self, inviter_id: str, inviter_name: str, target_id: str, target_name: str
     ) -> Dict:
-        if inviter_id in self.invites_by_user or target_id in self.invites_by_user:
+        if await self.get_invite_for_user(inviter_id) or await self.get_invite_for_user(target_id):
             raise ValueError("Invite already exists")
         invite_id = str(uuid.uuid4())
-        self.store_invite(invite_id, inviter_id, target_id, inviter_name, target_name, False, False)
-        return self.friend_invites[invite_id]
+        await self.store_invite(invite_id, inviter_id, target_id, inviter_name, target_name, False, False)
+        return await self.get_invite(invite_id)
 
-    def get_active_invite_for_user(self, user_id: str) -> Optional[Dict]:
-        invite_id = self.invites_by_user.get(user_id)
+    async def get_active_invite_for_user(self, user_id: str) -> Optional[Dict]:
+        invite_id = await self.get_invite_for_user(user_id)
         if not invite_id:
             return None
-        invite = self.friend_invites.get(invite_id)
+        invite = await self.get_invite(invite_id)
         if not invite or invite.get("status") != "pending":
             return None
         if invite.get("target_id") != user_id:
             return None
         return invite
 
-    def set_invite_status(self, invite_id: str, status: str) -> Optional[Dict]:
-        invite = self.friend_invites.get(invite_id)
+    async def set_invite_status(self, invite_id: str, status: str) -> Optional[Dict]:
+        invite = await self.get_invite(invite_id)
         if not invite:
             return None
-        invite["status"] = status
         if status in ("declined", "cancelled"):
-            self.pop_invite(invite_id)
-        return invite
+            return await self.pop_invite(invite_id)
+        await self.redis.hset(f"mm:invite:{invite_id}", "status", status)
+        return {**invite, "status": status}
 
     async def mark_invite_join(self, invite_id: str, user_id: str, username: str) -> Optional[GameRoom]:
-        invite = self.friend_invites.get(invite_id)
+        invite = await self.get_invite(invite_id)
         if not invite or invite.get("status") != "accepted":
             return None
-        invite["joiners"][user_id] = username
-        if (
-            invite["inviter_id"] in invite["joiners"]
-            and invite["target_id"] in invite["joiners"]
-        ):
+        await self.redis.hset(f"mm:invite:{invite_id}", f"joiner_{user_id}", username)
+        updated = await self.get_invite(invite_id)
+        has_inviter = bool(updated.get(f"joiner_{updated['inviter_id']}"))
+        has_target = bool(updated.get(f"joiner_{updated['target_id']}"))
+        if has_inviter and has_target:
             room = await self.create_room(
                 invite["inviter_id"], invite["inviter_name"],
                 invite["target_id"], invite["target_name"],
             )
-            self.pop_invite(invite_id)
+            await self.pop_invite(invite_id)
             return room
         return None
 

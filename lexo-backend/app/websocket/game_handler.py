@@ -25,6 +25,8 @@ from app.websocket.auth import (
 
 logger = get_logger(__name__)
 
+_TOKEN_EXPIRY_WARN_SECS = 120  # warn client when < 2 min remain on JWT
+
 
 class GameWebSocketHandler:
 
@@ -38,6 +40,7 @@ class GameWebSocketHandler:
         self.word_service = word_service
         self.bridge = bridge
         self.rate_limiters: Dict[str, RateLimiter] = {}
+        self._token_expiries: Dict[str, int] = {}
 
     # ------------------------------------------------------------------
     # Main connection loop
@@ -61,19 +64,16 @@ class GameWebSocketHandler:
             await self.bridge.register(user_id, websocket)
             if user_id not in self.rate_limiters:
                 self.rate_limiters[user_id] = RateLimiter()
+            self._token_expiries[user_id] = user_data.get("token_exp", 0)
 
             # --- Reconnect check ---
             existing_room = self.matchmaking_service.get_room_by_player(user_id)
             if not existing_room:
-                # Try Redis for cross-worker reconnect
                 room_id = await self.matchmaking_service.get_room_id_from_redis(user_id)
                 if room_id:
                     snapshot = await self.matchmaking_service.get_room_snapshot(room_id)
                     if snapshot and snapshot.get("game_started") == "1" and snapshot.get("game_ended") == "0":
-                        # Serve reconnect state from snapshot (game lives on another worker)
                         await self._serve_reconnect_from_snapshot(websocket, user_id, snapshot)
-                        # Drop into message loop — game messages will be handled here
-                        # but the owning worker has the authoritative room state
                         await self._message_loop(websocket, user_id, username)
                         return
 
@@ -176,10 +176,17 @@ class GameWebSocketHandler:
                 elif msg_type == "friend_invite_response":
                     await self._handle_friend_invite_response(websocket, user_id, data)
                 elif msg_type == "ping":
+                    token_exp = self._token_expiries.get(user_id, 0)
+                    now = int(time.time())
+                    extra = {}
+                    if token_exp and 0 < (token_exp - now) < _TOKEN_EXPIRY_WARN_SECS:
+                        extra["token_expiring"] = True
+                        extra["expires_in"] = token_exp - now
                     await websocket.send_json({
                         "type": "pong",
                         "client_time": data.get("client_time"),
                         "server_time": int(time.time() * 1000),
+                        **extra,
                     })
                     await self.bridge.refresh_ttl(user_id)
 
@@ -373,11 +380,11 @@ class GameWebSocketHandler:
             await websocket.send_json({"type": "friend_invite_error", "message": "Geçersiz arkadaş daveti"})
             return
 
-        if self.matchmaking_service.get_invite_for_user(user_id):
+        if await self.matchmaking_service.get_invite_for_user(user_id):
             await websocket.send_json({"type": "friend_invite_error", "message": "Zaten bekleyen bir davetin var"})
             return
 
-        if self.matchmaking_service.get_invite_for_user(target_id):
+        if await self.matchmaking_service.get_invite_for_user(target_id):
             await websocket.send_json({"type": "friend_invite_error", "message": "Arkadaşın başka bir davette"})
             return
 
@@ -394,7 +401,7 @@ class GameWebSocketHandler:
         target_in_queue = await self.matchmaking_service.is_in_queue(target_id)
         target_name = data.get("target_username", "Player")
 
-        self.matchmaking_service.store_invite(
+        await self.matchmaking_service.store_invite(
             invite_id, user_id, target_id, username, target_name,
             inviter_in_queue, target_in_queue,
         )
@@ -418,13 +425,14 @@ class GameWebSocketHandler:
     ):
         invite_id = data.get("invite_id")
         action = (data.get("action") or "").strip().lower()
-        invite = self.matchmaking_service.pop_invite(invite_id)
+        invite = await self.matchmaking_service.get_invite(invite_id)
         if not invite:
             return
 
         if action == "cancel":
             if invite["inviter_id"] != user_id:
                 return
+            await self.matchmaking_service.pop_invite(invite_id)
             await self.bridge.send_to_user(invite["target_id"], {
                 "type": "friend_invite_cancelled",
                 "invite_id": invite_id,
@@ -452,10 +460,7 @@ class GameWebSocketHandler:
 
             await self.matchmaking_service.remove_from_queue_by_id(invite["inviter_id"])
             await self.matchmaking_service.remove_from_queue_by_id(invite["target_id"])
-            invite["status"] = "accepted"
-            self.matchmaking_service.friend_invites[invite_id] = invite
-            self.matchmaking_service.invites_by_user[invite["inviter_id"]] = invite_id
-            self.matchmaking_service.invites_by_user[invite["target_id"]] = invite_id
+            await self.matchmaking_service.set_invite_status(invite_id, "accepted")
 
             await self.bridge.send_to_user(invite["inviter_id"], {
                 "type": "friend_invite_accepted",
@@ -466,6 +471,7 @@ class GameWebSocketHandler:
             if room:
                 await self._handle_match_found(room)
         else:
+            await self.matchmaking_service.pop_invite(invite_id)
             await self.bridge.send_to_user(invite["inviter_id"], {
                 "type": "friend_invite_declined",
                 "message": "Arkadaş daveti reddetti",
@@ -481,11 +487,12 @@ class GameWebSocketHandler:
 
     async def _handle_disconnect(self, player_id: str):
         self.rate_limiters.pop(player_id, None)
+        self._token_expiries.pop(player_id, None)
         await self.bridge.unregister(player_id)
 
-        invite_id = self.matchmaking_service.get_invite_for_user(player_id)
+        invite_id = await self.matchmaking_service.get_invite_for_user(player_id)
         if invite_id:
-            invite = self.matchmaking_service.pop_invite(invite_id)
+            invite = await self.matchmaking_service.pop_invite(invite_id)
             if invite and invite.get("inviter_id") == player_id:
                 await self.bridge.send_to_user(invite["target_id"], {
                     "type": "friend_invite_cancelled",

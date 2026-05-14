@@ -193,7 +193,7 @@ async def cancel_friend_invite(
     try:
         await ensure_user_exists(db, current_user)
         matchmaking_service = get_matchmaking_service()
-        invite = matchmaking_service.cancel_invite_by_inviter(current_user["user_id"])
+        invite = await matchmaking_service.cancel_invite_by_inviter(current_user["user_id"])
         if not invite or invite.get("invite_id") != payload.invite_id:
             return {"success": True, "cancelled": False}
 
@@ -220,7 +220,7 @@ async def send_friend_invite(
         if not inviter or not target:
             raise ValidationError("User not found")
 
-        invite = matchmaking_service.create_invite(
+        invite = await matchmaking_service.create_invite(
             inviter.supabase_user_id,
             inviter.username,
             target.supabase_user_id,
@@ -252,7 +252,7 @@ async def get_active_invite(
 ):
     await ensure_user_exists(db, current_user)
     matchmaking_service = get_matchmaking_service()
-    invite = matchmaking_service.get_active_invite_for_user(current_user["user_id"])
+    invite = await matchmaking_service.get_active_invite_for_user(current_user["user_id"])
     if not invite:
         return {"success": True, "invite": None}
     return {
@@ -274,7 +274,7 @@ async def respond_friend_invite(
     try:
         await ensure_user_exists(db, current_user)
         matchmaking_service = get_matchmaking_service()
-        invite = matchmaking_service.friend_invites.get(payload.invite_id)
+        invite = await matchmaking_service.get_invite(payload.invite_id)
         if not invite:
             raise ValidationError("Invite not found")
         if invite["target_id"] != current_user["user_id"]:
@@ -286,7 +286,7 @@ async def respond_friend_invite(
 
         bridge = get_bridge()
         if action == "accept":
-            invite["status"] = "accepted"
+            await matchmaking_service.set_invite_status(payload.invite_id, "accepted")
             await bridge.send_to_user(invite["inviter_id"], {
                 "type": "friend_invite_accepted",
                 "invite_id": invite["invite_id"],
@@ -294,7 +294,7 @@ async def respond_friend_invite(
                 "from_username": invite["target_name"],
             })
         else:
-            matchmaking_service.set_invite_status(payload.invite_id, "declined")
+            await matchmaking_service.set_invite_status(payload.invite_id, "declined")
             await bridge.send_to_user(invite["inviter_id"], {
                 "type": "friend_invite_declined",
                 "invite_id": invite["invite_id"],
@@ -317,7 +317,7 @@ async def invite_status(
 ):
     await ensure_user_exists(db, current_user)
     matchmaking_service = get_matchmaking_service()
-    invite = matchmaking_service.friend_invites.get(invite_id)
+    invite = await matchmaking_service.get_invite(invite_id)
     if not invite:
         return {"success": True, "status": "missing"}
     if current_user["user_id"] not in (invite["inviter_id"], invite["target_id"]):
