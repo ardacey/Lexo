@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+import sentry_sdk
 from fastapi import Depends, Header, HTTPException, Request, status
 
 from app.security.supabase import SupabaseAuthError, verify_supabase_jwt
@@ -59,4 +60,5 @@ async def get_current_user(token: str = Depends(get_bearer_token)) -> Authentica
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    sentry_sdk.set_user({"id": user_id})
     return {"user_id": user_id, "claims": claims}

@@ -1,12 +1,14 @@
+import time
 from datetime import datetime
+
+import psutil
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-import psutil
-import time
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database.session import get_db, engine
+from app.core.redis import get_redis
+from app.database.session import engine, get_db
 
 router = APIRouter()
 
@@ -18,61 +20,64 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
-        "uptime_seconds": int(time.time() - APP_START_TIME)
+        "uptime_seconds": int(time.time() - APP_START_TIME),
     }
 
 
 @router.get("/ready", status_code=status.HTTP_200_OK)
 async def readiness_check(db: AsyncSession = Depends(get_db)):
-    checks = {"database": "unknown"}
+    checks: dict = {"database": "unknown", "redis": "unknown"}
 
     try:
         await db.execute(text("SELECT 1"))
         checks["database"] = "healthy"
     except Exception as e:
-        checks["database"] = f"unhealthy: {str(e)}"
+        checks["database"] = f"unhealthy: {e}"
 
-    is_ready = checks["database"] == "healthy"
-    response_status = status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE
+    try:
+        redis = get_redis()
+        await redis.ping()
+        checks["redis"] = "healthy"
+    except Exception as e:
+        checks["redis"] = f"unhealthy: {e}"
 
+    is_ready = all(v == "healthy" for v in checks.values())
     return JSONResponse(
-        status_code=response_status,
+        status_code=status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE,
         content={
             "status": "ready" if is_ready else "not_ready",
             "timestamp": datetime.utcnow().isoformat(),
-            "checks": checks
-        }
+            "checks": checks,
+        },
     )
 
 
-@router.get("/metrics", status_code=status.HTTP_200_OK)
-async def metrics():
+@router.get("/debug/metrics", status_code=status.HTTP_200_OK, include_in_schema=False)
+async def debug_metrics():
+    """Internal JSON metrics — for debugging. Prometheus metrics live at /metrics."""
     cpu_percent = psutil.cpu_percent(interval=0.1)
     memory = psutil.virtual_memory()
-    disk = psutil.disk_usage('/')
+    disk = psutil.disk_usage("/")
 
     pool = engine.pool
-    db_pool_size = pool.size()
-    db_pool_checked_out = pool.checkedout()
-
     return {
         "timestamp": datetime.utcnow().isoformat(),
         "uptime_seconds": int(time.time() - APP_START_TIME),
         "system": {
             "cpu_percent": cpu_percent,
             "memory": {
-                "total_mb": memory.total / (1024 * 1024),
-                "available_mb": memory.available / (1024 * 1024),
-                "percent_used": memory.percent
+                "total_mb": round(memory.total / 1_048_576, 1),
+                "available_mb": round(memory.available / 1_048_576, 1),
+                "percent_used": memory.percent,
             },
             "disk": {
-                "total_gb": disk.total / (1024 * 1024 * 1024),
-                "used_gb": disk.used / (1024 * 1024 * 1024),
-                "percent_used": disk.percent
-            }
+                "total_gb": round(disk.total / 1_073_741_824, 2),
+                "used_gb": round(disk.used / 1_073_741_824, 2),
+                "percent_used": disk.percent,
+            },
         },
         "database": {
-            "pool_size": db_pool_size,
-            "checked_out_connections": db_pool_checked_out
-        }
+            "pool_size": pool.size(),
+            "checked_out_connections": pool.checkedout(),
+        },
     }

@@ -1,11 +1,26 @@
+import os
+import sys
+
+# Install uvloop on Linux/macOS for faster event loop
+if sys.platform != "win32":
+    try:
+        import uvloop
+        uvloop.install()
+    except ImportError:
+        pass
+
+import sentry_sdk
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import ORJSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
-
-import os
-import sentry_sdk
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
@@ -28,7 +43,7 @@ from app.middleware.error_handler import (
     lexo_exception_handler,
     http_exception_handler,
     validation_exception_handler,
-    general_exception_handler
+    general_exception_handler,
 )
 from app.middleware.timing import RequestTimingMiddleware
 
@@ -39,8 +54,15 @@ if settings.sentry.dsn:
     sentry_sdk.init(
         dsn=settings.sentry.dsn,
         traces_sample_rate=settings.sentry.traces_sample_rate,
-        environment=os.environ.get('ENVIRONMENT', 'development'),
+        environment=os.environ.get("ENVIRONMENT", "development"),
+        release=f"lexo@{settings.api.version}",
+        server_name=os.environ.get("DYNO") or os.environ.get("HOSTNAME"),
     )
+
+# ---------------------------------------------------------------------------
+# Rate limiter (global — applies to all HTTP routes via SlowAPIMiddleware)
+# ---------------------------------------------------------------------------
+limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
 
 
 @asynccontextmanager
@@ -54,10 +76,10 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Database initialization failed: {e}")
         raise
 
-    env = os.environ.get('ENVIRONMENT', 'development')
-    if env == 'production' and settings.api.cors_origins == ['*']:
+    env = os.environ.get("ENVIRONMENT", "development")
+    if env == "production" and settings.api.cors_origins == ["*"]:
         logger.error('CORS_ORIGINS is set to "*" in production. This is insecure.')
-        raise RuntimeError('CORS_ORIGINS must be restricted in production')
+        raise RuntimeError("CORS_ORIGINS must be restricted in production")
 
     try:
         redis = await init_redis()
@@ -94,9 +116,13 @@ app = FastAPI(
     title=settings.api.title,
     version=settings.api.version,
     description="A modular multiplayer word game backend with WebSocket support",
-    lifespan=lifespan
+    lifespan=lifespan,
+    default_response_class=ORJSONResponse,
 )
 
+# ---------------------------------------------------------------------------
+# Middleware (order matters: outermost first)
+# ---------------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.api.cors_origins,
@@ -104,17 +130,40 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(RequestTimingMiddleware)
 
+# ---------------------------------------------------------------------------
+# Exception handlers
+# ---------------------------------------------------------------------------
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_exception_handler(LexoException, lexo_exception_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, general_exception_handler)
 
+# ---------------------------------------------------------------------------
+# Prometheus instrumentation — exposes /metrics (Prometheus text format)
+# ---------------------------------------------------------------------------
+Instrumentator(
+    should_group_status_codes=True,
+    should_ignore_untemplated=True,
+    should_respect_env_var=True,
+    env_var_name="ENABLE_METRICS",
+    excluded_handlers=["/health", "/ready"],
+).instrument(app).expose(app, include_in_schema=False, tags=["observability"])
+
+# ---------------------------------------------------------------------------
+# Routers
+# ---------------------------------------------------------------------------
 app.include_router(api_router)
 app.include_router(health_router, tags=["health"])
 
+
+# ---------------------------------------------------------------------------
+# WebSocket endpoints
+# ---------------------------------------------------------------------------
 
 @app.websocket("/ws/queue")
 async def websocket_queue_endpoint(websocket: WebSocket):
@@ -133,7 +182,11 @@ async def websocket_notify_endpoint(websocket: WebSocket):
     await handler.handle_connection(websocket)
 
 
-@app.get("/")
+# ---------------------------------------------------------------------------
+# Misc HTTP routes
+# ---------------------------------------------------------------------------
+
+@app.get("/", include_in_schema=False)
 async def read_root():
     matchmaking_service = get_matchmaking_service()
     stats = matchmaking_service.get_stats()
@@ -142,12 +195,12 @@ async def read_root():
         "message": "Lexo Multiplayer API",
         "version": settings.api.version,
         "status": "running",
-        "active_rooms": stats['active_rooms'],
+        "active_rooms": stats["active_rooms"],
         "waiting_players": queue_depth,
     }
 
 
-@app.get("/stats")
+@app.get("/stats", include_in_schema=False)
 async def get_stats():
     matchmaking_service = get_matchmaking_service()
     word_service = get_word_service()
@@ -155,7 +208,7 @@ async def get_stats():
     stats = matchmaking_service.get_stats()
     queue_depth = await matchmaking_service.get_queue_depth()
     return {
-        "active_rooms": stats['active_rooms'],
+        "active_rooms": stats["active_rooms"],
         "waiting_players": queue_depth,
         "total_words": word_service.get_word_count(),
         "online_players": presence_service.get_online_count(),
@@ -168,7 +221,7 @@ def get_app_version():
         "min_version": settings.app.min_version,
         "latest_version": settings.app.latest_version,
         "update_url": settings.app.update_url,
-        "force_update": settings.app.force_update
+        "force_update": settings.app.force_update,
     }
 
 
@@ -178,5 +231,5 @@ if __name__ == "__main__":
         app,
         host=settings.api.host,
         port=settings.api.port,
-        log_level=settings.log.level.lower()
+        log_level=settings.log.level.lower(),
     )

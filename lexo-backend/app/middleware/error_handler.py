@@ -1,3 +1,4 @@
+import sentry_sdk
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -76,6 +77,7 @@ async def general_exception_handler(request: Request, exc: Exception):
         },
         exc_info=True
     )
+    sentry_sdk.capture_exception(exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
