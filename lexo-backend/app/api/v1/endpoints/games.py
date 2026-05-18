@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
@@ -19,7 +19,7 @@ router = APIRouter()
 @router.get("/users/{user_id}/games", response_model=dict)
 async def get_user_games(
     user_id: str,
-    limit: int = 10,
+    limit: int = Query(default=10, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):

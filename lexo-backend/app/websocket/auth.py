@@ -3,6 +3,7 @@ WebSocket authentication utilities
 """
 from __future__ import annotations
 
+import re
 from typing import Dict, Any
 
 from fastapi import WebSocket
@@ -176,7 +177,6 @@ def validate_message(message: Dict) -> bool:
         if not word.strip():
             logger.warning(f"Word is empty or whitespace")
             return False
-        import re
         # Only allow Turkish alphabet (upper/lower), no digits or symbols
         if not re.fullmatch(r"[a-zA-ZçÇğĞıİöÖşŞüÜ]+", word):
             logger.warning(f"Word contains invalid characters: {word}")

@@ -61,12 +61,8 @@ async def verify_supabase_jwt(token: str) -> Dict[str, Any]:
         # First, decode header to check the algorithm
         unverified_header = jwt.get_unverified_header(token)
         algorithm = unverified_header.get("alg", "HS256")
-        
-        logger.info(f"Token algorithm: {algorithm}")
-        
-        # Decode without verification first to see what's in the token
-        unverified_payload = jwt.decode(token, options={"verify_signature": False})
-        logger.info(f"Token payload (unverified): sub={unverified_payload.get('sub')}, aud={unverified_payload.get('aud')}")
+
+        logger.debug(f"Token algorithm: {algorithm}")
         
         if algorithm == "ES256":
             # Use JWKS for ES256 tokens (new Supabase keys)
@@ -97,7 +93,7 @@ async def verify_supabase_jwt(token: str) -> Dict[str, Any]:
                 audience="authenticated",
             )
         
-        logger.info(f"Successfully verified Supabase JWT for user: {payload.get('sub')}")
+        logger.debug(f"Successfully verified Supabase JWT for user: {payload.get('sub')}")
         return payload
         
     except ExpiredSignatureError as exc:

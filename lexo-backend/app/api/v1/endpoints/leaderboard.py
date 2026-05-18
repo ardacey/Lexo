@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.stats_service import StatsService
@@ -11,10 +11,12 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
+_LEADERBOARD_MAX = 200
+
 
 @router.get("/leaderboard", response_model=dict)
 async def get_leaderboard(
-    limit: int = 100,
+    limit: int = Query(default=100, ge=1, le=_LEADERBOARD_MAX),
     db: AsyncSession = Depends(get_db),
     _current_user: AuthenticatedUser = Depends(get_current_user)
 ):
