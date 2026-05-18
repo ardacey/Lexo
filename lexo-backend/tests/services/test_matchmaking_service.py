@@ -1,353 +1,264 @@
 """
-Tests for MatchmakingService
-"""
-import pytest
-from unittest.mock import Mock
+Tests for MatchmakingService (Redis-backed).
 
-from app.services.matchmaking_service import MatchmakingService
+Uses fakeredis so no Redis server is required.
+The Lua-based try_match_players is tested via a manual redis.eval mock
+because the base `fakeredis` package does not ship with the Lua runtime.
+"""
+import json
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import fakeredis.aioredis as fakeredis
+
 from app.services.game_service import GameService
+from app.services.matchmaking_service import MatchmakingService
+from app.services.word_service import WordService
 from app.models.domain import Player, GameRoom
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+async def redis():
+    r = fakeredis.FakeRedis(decode_responses=True)
+    yield r
+    await r.aclose()
 
 
 @pytest.fixture
 def game_service():
-    """Mock GameService for testing"""
-    return Mock(spec=GameService)
+    svc = MagicMock(spec=GameService)
+
+    def _create_room(room_id, p1, p2, *_, **__):
+        room = GameRoom(room_id, p1, p2)
+        room.letter_pool = list("ABCDEFGHIJKLMNOP")
+        return room
+
+    svc.create_game_room.side_effect = _create_room
+    return svc
 
 
 @pytest.fixture
-def matchmaking_service(game_service):
-    """Create MatchmakingService instance"""
-    return MatchmakingService(game_service)
+async def mm(redis, game_service):
+    svc = MatchmakingService(game_service, redis)
+    svc.worker_id = "test-worker-1"
+    return svc
 
 
-@pytest.fixture
-def mock_websocket():
-    """Create mock WebSocket"""
-    return Mock()
+# ---------------------------------------------------------------------------
+# Queue
+# ---------------------------------------------------------------------------
+
+class TestQueue:
+    async def test_add_to_queue_increments_depth(self, mm):
+        depth = await mm.add_to_queue("u1", "Alice")
+        assert depth == 1
+
+    async def test_add_two_players(self, mm):
+        await mm.add_to_queue("u1", "Alice")
+        depth = await mm.add_to_queue("u2", "Bob")
+        assert depth == 2
+
+    async def test_add_duplicate_replaces_entry(self, mm):
+        await mm.add_to_queue("u1", "Alice")
+        await mm.add_to_queue("u1", "Alice")   # duplicate
+        depth = await mm.get_queue_depth()
+        assert depth == 1
+
+    async def test_remove_from_queue(self, mm):
+        await mm.add_to_queue("u1", "Alice")
+        await mm.add_to_queue("u2", "Bob")
+        await mm.remove_from_queue_by_id("u1")
+        assert not await mm.is_in_queue("u1")
+        assert await mm.is_in_queue("u2")
+
+    async def test_is_in_queue_false_when_absent(self, mm):
+        assert not await mm.is_in_queue("nobody")
+
+    async def test_queue_depth(self, mm):
+        for i in range(5):
+            await mm.add_to_queue(f"u{i}", f"User{i}")
+        assert await mm.get_queue_depth() == 5
 
 
-@pytest.fixture
-def player1(mock_websocket):
-    """Create test player 1"""
-    return Player(
-        player_id="player1_id",
-        username="player1",
-        websocket=mock_websocket
-    )
+# ---------------------------------------------------------------------------
+# try_match_players  (Lua path — mocked)
+# ---------------------------------------------------------------------------
 
-
-@pytest.fixture
-def player2(mock_websocket):
-    """Create test player 2"""
-    return Player(
-        player_id="player2_id",
-        username="player2",
-        websocket=mock_websocket
-    )
-
-
-@pytest.fixture
-def player3(mock_websocket):
-    """Create test player 3"""
-    return Player(
-        player_id="player3_id",
-        username="player3",
-        websocket=mock_websocket
-    )
-
-
-class TestMatchmakingService:
-    """Test suite for MatchmakingService"""
-    
-    def test_initialization(self, matchmaking_service, game_service):
-        """Test service initialization"""
-        assert matchmaking_service.game_service == game_service
-        assert matchmaking_service.waiting_queue == []
-        assert matchmaking_service.active_rooms == {}
-        assert matchmaking_service.player_rooms == {}
-    
-    def test_add_to_queue(self, matchmaking_service, player1):
-        """Test adding player to matchmaking queue"""
-        queue_size = matchmaking_service.add_to_queue(player1)
-        
-        assert queue_size == 1
-        assert player1 in matchmaking_service.waiting_queue
-        assert len(matchmaking_service.waiting_queue) == 1
-    
-    def test_add_multiple_to_queue(self, matchmaking_service, player1, player2, player3):
-        """Test adding multiple players to queue"""
-        size1 = matchmaking_service.add_to_queue(player1)
-        size2 = matchmaking_service.add_to_queue(player2)
-        size3 = matchmaking_service.add_to_queue(player3)
-        
-        assert size1 == 1
-        assert size2 == 2
-        assert size3 == 3
-        assert len(matchmaking_service.waiting_queue) == 3
-        assert matchmaking_service.waiting_queue[0] == player1
-        assert matchmaking_service.waiting_queue[1] == player2
-        assert matchmaking_service.waiting_queue[2] == player3
-    
-    def test_remove_from_queue(self, matchmaking_service, player1, player2):
-        """Test removing player from queue"""
-        matchmaking_service.add_to_queue(player1)
-        matchmaking_service.add_to_queue(player2)
-        
-        matchmaking_service.remove_from_queue(player1)
-        
-        assert player1 not in matchmaking_service.waiting_queue
-        assert player2 in matchmaking_service.waiting_queue
-        assert len(matchmaking_service.waiting_queue) == 1
-    
-    def test_remove_from_queue_not_present(self, matchmaking_service, player1, player2):
-        """Test removing player that's not in queue"""
-        matchmaking_service.add_to_queue(player1)
-        
-        # Should not raise error
-        matchmaking_service.remove_from_queue(player2)
-        
-        assert player1 in matchmaking_service.waiting_queue
-        assert len(matchmaking_service.waiting_queue) == 1
-    
-    def test_try_match_players_insufficient(self, matchmaking_service, player1):
-        """Test matching with insufficient players"""
-        matchmaking_service.add_to_queue(player1)
-        
-        room = matchmaking_service.try_match_players()
-        
+class TestMatchPlayers:
+    async def test_returns_none_when_empty(self, mm, redis):
+        """Simulates eval returning nil (empty queue)."""
+        redis.eval = AsyncMock(return_value=None)
+        room = await mm.try_match_players()
         assert room is None
-        assert player1 in matchmaking_service.waiting_queue
-    
-    def test_try_match_players_empty_queue(self, matchmaking_service):
-        """Test matching with empty queue"""
-        room = matchmaking_service.try_match_players()
-        
-        assert room is None
-        assert len(matchmaking_service.waiting_queue) == 0
-    
-    def test_try_match_players_success(self, matchmaking_service, game_service, player1, player2):
-        """Test successful player matching"""
-        # Setup mock to return the room it receives
-        def create_room_side_effect(room_id, p1, p2):
-            return GameRoom(room_id=room_id, player1=p1, player2=p2)
-        
-        game_service.create_game_room.side_effect = create_room_side_effect
-        
-        matchmaking_service.add_to_queue(player1)
-        matchmaking_service.add_to_queue(player2)
-        
-        room = matchmaking_service.try_match_players()
-        
+
+    async def test_creates_room_on_match(self, mm, redis):
+        """Simulates eval returning two serialised players."""
+        p1_json = json.dumps({"id": "u1", "username": "Alice"}).encode()
+        p2_json = json.dumps({"id": "u2", "username": "Bob"}).encode()
+        redis.eval = AsyncMock(return_value=[p1_json, p2_json])
+
+        room = await mm.try_match_players()
+
         assert room is not None
-        assert room.player1 == player1
-        assert room.player2 == player2
-        assert len(matchmaking_service.waiting_queue) == 0
-        assert room.id in matchmaking_service.active_rooms
-        assert matchmaking_service.player_rooms[player1.id] == room.id
-        assert matchmaking_service.player_rooms[player2.id] == room.id
-        
-        # Verify game service was called
-        game_service.create_game_room.assert_called_once()
-    
-    def test_try_match_players_fifo_order(self, matchmaking_service, game_service, player1, player2, player3):
-        """Test that matching follows FIFO order"""
-        # Setup mock game room
-        mock_room = GameRoom(
-            room_id="test_room_id",
-            player1=player1,
-            player2=player2
-        )
-        game_service.create_game_room.return_value = mock_room
-        
-        # Add players in order
-        matchmaking_service.add_to_queue(player1)
-        matchmaking_service.add_to_queue(player2)
-        matchmaking_service.add_to_queue(player3)
-        
-        room = matchmaking_service.try_match_players()
-        
-        # First two players should be matched
-        assert room.player1 == player1
-        assert room.player2 == player2
-        # Third player should still be in queue
-        assert player3 in matchmaking_service.waiting_queue
-        assert len(matchmaking_service.waiting_queue) == 1
-    
-    def test_get_room_by_player(self, matchmaking_service, game_service, player1, player2):
-        """Test getting room by player ID"""
-        # Setup and create a match
-        mock_room = GameRoom(
-            room_id="test_room_id",
-            player1=player1,
-            player2=player2
-        )
-        game_service.create_game_room.return_value = mock_room
-        
-        matchmaking_service.add_to_queue(player1)
-        matchmaking_service.add_to_queue(player2)
-        matchmaking_service.try_match_players()
-        
-        # Get room by player1
-        room1 = matchmaking_service.get_room_by_player(player1.id)
-        assert room1 is not None
-        assert room1.id == mock_room.id
-        
-        # Get room by player2
-        room2 = matchmaking_service.get_room_by_player(player2.id)
-        assert room2 is not None
-        assert room2.id == mock_room.id
-    
-    def test_get_room_by_player_not_found(self, matchmaking_service):
-        """Test getting room for player not in any room"""
-        room = matchmaking_service.get_room_by_player("nonexistent_player")
-        
-        assert room is None
-    
-    def test_cleanup_room(self, matchmaking_service, game_service, player1, player2):
-        """Test cleaning up a game room"""
-        # Setup mock to return the room it receives
-        def create_room_side_effect(room_id, p1, p2):
-            return GameRoom(room_id=room_id, player1=p1, player2=p2)
-        
-        game_service.create_game_room.side_effect = create_room_side_effect
-        
-        matchmaking_service.add_to_queue(player1)
-        matchmaking_service.add_to_queue(player2)
-        room = matchmaking_service.try_match_players()
-        
-        room_id = room.id
-        
-        # Verify room exists before cleanup
-        assert room_id in matchmaking_service.active_rooms
-        assert player1.id in matchmaking_service.player_rooms
-        assert player2.id in matchmaking_service.player_rooms
-        
-        # Cleanup
-        matchmaking_service.cleanup_room(room_id)
-        
-        # Verify cleanup
-        assert room_id not in matchmaking_service.active_rooms
-        assert player1.id not in matchmaking_service.player_rooms
-        assert player2.id not in matchmaking_service.player_rooms
-    
-    def test_cleanup_room_not_exists(self, matchmaking_service):
-        """Test cleaning up non-existent room"""
-        # Should not raise error
-        matchmaking_service.cleanup_room("nonexistent_room_id")
-        
-        assert len(matchmaking_service.active_rooms) == 0
-    
-    def test_get_stats_empty(self, matchmaking_service):
-        """Test getting stats with no activity"""
-        stats = matchmaking_service.get_stats()
-        
-        assert stats['active_rooms'] == 0
-        assert stats['waiting_players'] == 0
-    
-    def test_get_stats_with_waiting_players(self, matchmaking_service, player1, player2):
-        """Test getting stats with players in queue"""
-        matchmaking_service.add_to_queue(player1)
-        matchmaking_service.add_to_queue(player2)
-        
-        stats = matchmaking_service.get_stats()
-        
-        assert stats['active_rooms'] == 0
-        assert stats['waiting_players'] == 2
-    
-    def test_get_stats_with_active_rooms(self, matchmaking_service, game_service, player1, player2, player3):
-        """Test getting stats with active rooms and waiting players"""
-        # Setup mock room
-        mock_room = GameRoom(
-            room_id="test_room_id",
-            player1=player1,
-            player2=player2
-        )
-        game_service.create_game_room.return_value = mock_room
-        
-        # Create a match
-        matchmaking_service.add_to_queue(player1)
-        matchmaking_service.add_to_queue(player2)
-        matchmaking_service.try_match_players()
-        
-        # Add another waiting player
-        matchmaking_service.add_to_queue(player3)
-        
-        stats = matchmaking_service.get_stats()
-        
-        assert stats['active_rooms'] == 1
-        assert stats['waiting_players'] == 1
-    
-    def test_multiple_matches(self, matchmaking_service, game_service):
-        """Test creating multiple matches"""
-        # Create 4 players
-        mock_ws = Mock()
-        players = [
-            Player(player_id=f"player{i}", username=f"player{i}", websocket=mock_ws)
-            for i in range(4)
-        ]
-        
-        # Setup mock rooms
-        def create_room_side_effect(room_id, p1, p2):
-            return GameRoom(room_id=room_id, player1=p1, player2=p2)
-        
-        game_service.create_game_room.side_effect = create_room_side_effect
-        
-        # Add all players to queue
-        for player in players:
-            matchmaking_service.add_to_queue(player)
-        
-        # Create first match
-        room1 = matchmaking_service.try_match_players()
-        assert room1 is not None
-        assert room1.player1 == players[0]
-        assert room1.player2 == players[1]
-        
-        # Create second match
-        room2 = matchmaking_service.try_match_players()
-        assert room2 is not None
-        assert room2.player1 == players[2]
-        assert room2.player2 == players[3]
-        
-        # Verify state
-        assert len(matchmaking_service.waiting_queue) == 0
-        assert len(matchmaking_service.active_rooms) == 2
-        assert len(matchmaking_service.player_rooms) == 4
-        
-        stats = matchmaking_service.get_stats()
-        assert stats['active_rooms'] == 2
-        assert stats['waiting_players'] == 0
-    
-    def test_cleanup_one_of_multiple_rooms(self, matchmaking_service, game_service):
-        """Test cleaning up one room while keeping others active"""
-        # Create 4 players and 2 rooms
-        mock_ws = Mock()
-        players = [
-            Player(player_id=f"player{i}", username=f"player{i}", websocket=mock_ws)
-            for i in range(4)
-        ]
-        
-        def create_room_side_effect(room_id, p1, p2):
-            return GameRoom(room_id=room_id, player1=p1, player2=p2)
-        
-        game_service.create_game_room.side_effect = create_room_side_effect
-        
-        for player in players:
-            matchmaking_service.add_to_queue(player)
-        
-        room1 = matchmaking_service.try_match_players()
-        room2 = matchmaking_service.try_match_players()
-        
-        # Cleanup first room
-        matchmaking_service.cleanup_room(room1.id)
-        
-        # Verify first room is cleaned but second remains
-        assert room1.id not in matchmaking_service.active_rooms
-        assert room2.id in matchmaking_service.active_rooms
-        assert players[0].id not in matchmaking_service.player_rooms
-        assert players[1].id not in matchmaking_service.player_rooms
-        assert players[2].id in matchmaking_service.player_rooms
-        assert players[3].id in matchmaking_service.player_rooms
-        
-        stats = matchmaking_service.get_stats()
-        assert stats['active_rooms'] == 1
+        assert room.player1.id == "u1"
+        assert room.player2.id == "u2"
+        assert room.id in mm.active_rooms
+
+    async def test_room_registered_in_redis(self, mm, redis):
+        """After a match the room worker key should exist in Redis."""
+        p1_json = json.dumps({"id": "u1", "username": "Alice"}).encode()
+        p2_json = json.dumps({"id": "u2", "username": "Bob"}).encode()
+        redis.eval = AsyncMock(return_value=[p1_json, p2_json])
+
+        room = await mm.try_match_players()
+
+        worker_key = await redis.get(f"mm:room:{room.id}:worker")
+        assert worker_key == "test-worker-1"
+
+
+# ---------------------------------------------------------------------------
+# Rooms
+# ---------------------------------------------------------------------------
+
+class TestRooms:
+    async def _make_room(self, mm):
+        return await mm.create_room("u1", "Alice", "u2", "Bob")
+
+    async def test_create_room(self, mm):
+        room = await self._make_room(mm)
+        assert room is not None
+        assert room.player1.username == "Alice"
+        assert room.player2.username == "Bob"
+
+    async def test_get_room_local(self, mm):
+        room = await self._make_room(mm)
+        assert mm.get_room(room.id) is room
+
+    async def test_get_room_by_player(self, mm):
+        room = await self._make_room(mm)
+        assert mm.get_room_by_player("u1") is room
+        assert mm.get_room_by_player("u2") is room
+
+    async def test_get_room_by_player_unknown(self, mm):
+        assert mm.get_room_by_player("nobody") is None
+
+    async def test_room_id_in_redis(self, mm, redis):
+        room = await self._make_room(mm)
+        val = await redis.get(f"mm:player:u1:room")
+        assert val == room.id
+
+    async def test_is_player_busy(self, mm):
+        await self._make_room(mm)
+        assert await mm.is_player_busy("u1")
+        assert not await mm.is_player_busy("stranger")
+
+    async def test_cleanup_room(self, mm, redis):
+        room = await self._make_room(mm)
+        await mm.cleanup_room(room.id)
+
+        assert mm.get_room(room.id) is None
+        assert mm.get_room_by_player("u1") is None
+        assert not await redis.exists(f"mm:player:u1:room")
+        assert not await redis.exists(f"mm:room:{room.id}")
+
+    async def test_snapshot_readable(self, mm):
+        room = await self._make_room(mm)
+        snap = await mm.get_room_snapshot(room.id)
+        assert snap is not None
+        assert snap["player1_id"] == "u1"
+        assert snap["player2_id"] == "u2"
+
+
+# ---------------------------------------------------------------------------
+# Friend invites
+# ---------------------------------------------------------------------------
+
+class TestFriendInvites:
+    async def test_create_and_get_invite(self, mm):
+        invite = await mm.create_invite("u1", "Alice", "u2", "Bob")
+        assert invite["invite_id"]
+        assert invite["inviter_id"] == "u1"
+        assert invite["target_id"] == "u2"
+        assert invite["status"] == "pending"
+
+    async def test_get_nonexistent_invite(self, mm):
+        assert await mm.get_invite("nonexistent") is None
+
+    async def test_duplicate_invite_raises(self, mm):
+        await mm.create_invite("u1", "Alice", "u2", "Bob")
+        with pytest.raises(ValueError):
+            await mm.create_invite("u1", "Alice", "u3", "Carol")
+
+    async def test_pop_invite_removes_keys(self, mm, redis):
+        invite = await mm.create_invite("u1", "Alice", "u2", "Bob")
+        invite_id = invite["invite_id"]
+
+        popped = await mm.pop_invite(invite_id)
+        assert popped["invite_id"] == invite_id
+        assert await mm.get_invite(invite_id) is None
+        assert not await redis.exists(f"mm:user_invite:u1")
+        assert not await redis.exists(f"mm:user_invite:u2")
+
+    async def test_pop_nonexistent_returns_none(self, mm):
+        assert await mm.pop_invite("ghost") is None
+
+    async def test_set_invite_status_accepted(self, mm):
+        invite = await mm.create_invite("u1", "Alice", "u2", "Bob")
+        updated = await mm.set_invite_status(invite["invite_id"], "accepted")
+        assert updated["status"] == "accepted"
+
+    async def test_set_invite_status_declined_pops(self, mm):
+        invite = await mm.create_invite("u1", "Alice", "u2", "Bob")
+        invite_id = invite["invite_id"]
+        await mm.set_invite_status(invite_id, "declined")
+        assert await mm.get_invite(invite_id) is None
+
+    async def test_cancel_invite_by_inviter(self, mm):
+        invite = await mm.create_invite("u1", "Alice", "u2", "Bob")
+        invite_id = invite["invite_id"]
+
+        cancelled = await mm.cancel_invite_by_inviter("u1")
+        assert cancelled["invite_id"] == invite_id
+        assert await mm.get_invite(invite_id) is None
+
+    async def test_cancel_invite_wrong_inviter(self, mm):
+        await mm.create_invite("u1", "Alice", "u2", "Bob")
+        result = await mm.cancel_invite_by_inviter("u2")   # not the inviter
+        assert result is None
+
+    async def test_get_active_invite_for_target(self, mm):
+        await mm.create_invite("u1", "Alice", "u2", "Bob")
+        active = await mm.get_active_invite_for_user("u2")
+        assert active is not None
+        assert active["inviter_id"] == "u1"
+
+    async def test_get_active_invite_inviter_returns_none(self, mm):
+        """Inviter should not see their own invite via get_active_invite_for_user."""
+        await mm.create_invite("u1", "Alice", "u2", "Bob")
+        assert await mm.get_active_invite_for_user("u1") is None
+
+    async def test_mark_invite_join_creates_room_when_both_joined(self, mm):
+        invite = await mm.create_invite("u1", "Alice", "u2", "Bob")
+        invite_id = invite["invite_id"]
+        await mm.set_invite_status(invite_id, "accepted")
+
+        await mm.mark_invite_join(invite_id, "u1", "Alice")
+        room = await mm.mark_invite_join(invite_id, "u2", "Bob")
+
+        assert room is not None
+        assert room.player1.id == "u1"
+        assert room.player2.id == "u2"
+        # Invite should be popped after room creation
+        assert await mm.get_invite(invite_id) is None
+
+    async def test_mark_invite_join_waits_for_second_player(self, mm):
+        invite = await mm.create_invite("u1", "Alice", "u2", "Bob")
+        invite_id = invite["invite_id"]
+        await mm.set_invite_status(invite_id, "accepted")
+
+        room = await mm.mark_invite_join(invite_id, "u1", "Alice")
+        assert room is None   # only one player joined so far
