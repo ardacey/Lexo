@@ -17,7 +17,10 @@ async def init_redis() -> aioredis.Redis:
         max_connections=settings.redis.max_connections,
     )
     await _redis.ping()
-    logger.info(f"Redis connected: {settings.redis.url}")
+    # Log host only — URL contains credentials
+    from urllib.parse import urlparse
+    host = urlparse(settings.redis.url).hostname or "unknown"
+    logger.info(f"Redis connected: {host}")
     return _redis
 
 

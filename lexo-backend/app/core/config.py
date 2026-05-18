@@ -55,6 +55,9 @@ class DatabaseSettings(BaseSettings):
         alias='DATABASE_URL'
     )
     echo: bool = False
+    # Tune these down for hosted free-tier databases (e.g. Supabase pooler max ~15)
+    pool_size: int = Field(default=5, alias='DB_POOL_SIZE')
+    max_overflow: int = Field(default=10, alias='DB_MAX_OVERFLOW')
 
     model_config = {
         'env_file': str(Path(__file__).parent.parent.parent / '.env'),
