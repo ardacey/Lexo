@@ -197,13 +197,6 @@ function AppContent() {
           </Stack>
         </NotificationProvider>
       </AuthProvider>
-      {/* Development modunda React Query Devtools - sadece web için */}
-      {__DEV__ && Platform.OS === 'web' && (
-        React.createElement(
-          require('@tanstack/react-query-devtools').ReactQueryDevtools,
-          { initialIsOpen: false }
-        )
-      )}
     </QueryClientProvider>
   );
 }
