@@ -9,7 +9,7 @@ router = APIRouter()
 @router.post("/presence/ping")
 async def ping_presence(current_user: AuthenticatedUser = Depends(get_current_user)):
     presence_service = get_presence_service()
-    presence_service.mark_online(current_user["user_id"])
+    await presence_service.mark_online(current_user["user_id"])
     return {"success": True}
 
 
@@ -21,5 +21,5 @@ async def presence_status(
     presence_service = get_presence_service()
     if not user_ids:
         return {"success": True, "online_user_ids": []}
-    online_ids = presence_service.get_online_user_ids(user_ids)
+    online_ids = await presence_service.get_online_user_ids(user_ids)
     return {"success": True, "online_user_ids": online_ids}

@@ -72,9 +72,19 @@ export default function InviteWaitingPage() {
       router.back();
     });
 
+    // Guard: Redis invite TTL is 5 minutes — navigate back just before it expires
+    // so the page never gets stuck silently.
+    const ttlTimeoutId = setTimeout(() => {
+      if (endedRef.current) return;
+      endedRef.current = true;
+      showToast('Davet süresi doldu', 'info');
+      router.back();
+    }, 270_000); // 4.5 minutes
+
     return () => {
       unsubAccepted();
       unsubDeclined();
+      clearTimeout(ttlTimeoutId);
     };
   }, [inviteId, onFriendInviteAccepted, onFriendInviteDeclined, router, showToast]);
 

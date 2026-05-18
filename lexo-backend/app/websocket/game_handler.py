@@ -444,6 +444,7 @@ class GameWebSocketHandler:
                 await self.matchmaking_service.add_to_queue(invite["target_id"], invite["target_name"])
             return
 
+
         if invite["target_id"] != user_id:
             return
 
@@ -474,6 +475,7 @@ class GameWebSocketHandler:
             await self.matchmaking_service.pop_invite(invite_id)
             await self.bridge.send_to_user(invite["inviter_id"], {
                 "type": "friend_invite_declined",
+                "invite_id": invite_id,
                 "message": "Arkadaş daveti reddetti",
             })
             if invite.get("inviter_in_queue"):

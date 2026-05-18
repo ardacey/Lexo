@@ -197,6 +197,14 @@ async def cancel_friend_invite(
         if not invite or invite.get("invite_id") != payload.invite_id:
             return {"success": True, "cancelled": False}
 
+        # Notify target that the invite was cancelled
+        bridge = get_bridge()
+        await bridge.send_to_user(invite["target_id"], {
+            "type": "friend_invite_cancelled",
+            "invite_id": invite["invite_id"],
+            "message": "Davet iptal edildi",
+        })
+
         return {"success": True, "cancelled": True}
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))

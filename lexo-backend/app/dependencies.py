@@ -22,7 +22,7 @@ def init_services(redis: aioredis.Redis, bridge: WebSocketBridge):
     _word_service = WordService()
     _game_service = GameService(_word_service)
     _matchmaking_service = MatchmakingService(_game_service, redis)
-    _presence_service = PresenceService()
+    _presence_service = PresenceService(redis)
     _bridge = bridge
 
     logger.info("Services initialized successfully")

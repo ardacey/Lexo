@@ -58,5 +58,6 @@ class NotificationWebSocketHandler:
             return
         await self.bridge.send_to_user(invite["inviter_id"], {
             "type": "friend_invite_declined",
-            "message": "Arkadaş daveti reddetti"
+            "invite_id": invite_id,
+            "message": "Arkadaş daveti reddetti",
         })

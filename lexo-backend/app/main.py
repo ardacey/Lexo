@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sys
 
@@ -206,12 +207,15 @@ async def get_stats():
     word_service = get_word_service()
     presence_service = get_presence_service()
     stats = matchmaking_service.get_stats()
-    queue_depth = await matchmaking_service.get_queue_depth()
+    queue_depth, online_count = await asyncio.gather(
+        matchmaking_service.get_queue_depth(),
+        presence_service.get_online_count(),
+    )
     return {
         "active_rooms": stats["active_rooms"],
         "waiting_players": queue_depth,
         "total_words": word_service.get_word_count(),
-        "online_players": presence_service.get_online_count(),
+        "online_players": online_count,
     }
 
 
