@@ -66,31 +66,31 @@ class TestHealthEndpoints:
             app.dependency_overrides.clear()
     
     def test_metrics_endpoint(self, client):
-        """Test metrics endpoint."""
-        response = client.get("/metrics")
-        
+        """Test JSON debug-metrics endpoint."""
+        response = client.get("/debug/metrics")
+
         assert response.status_code == 200
         data = response.json()
-        
+
         # Check basic structure
         assert "timestamp" in data
         assert "uptime_seconds" in data
         assert "system" in data
         assert "database" in data
-        
+
         # Check system metrics
         system = data["system"]
         assert "cpu_percent" in system
         assert "memory" in system
         assert "disk" in system
-        
+
         # Check memory metrics
         memory = system["memory"]
         assert "total_mb" in memory
         assert "available_mb" in memory
         assert "percent_used" in memory
         assert 0 <= memory["percent_used"] <= 100
-        
+
         # Check disk metrics
         disk = system["disk"]
         assert "total_gb" in disk
@@ -114,7 +114,7 @@ class TestRequestTiming:
     
     def test_timing_on_different_endpoints(self, client):
         """Test timing on various endpoints."""
-        endpoints = ["/health", "/ready", "/metrics"]
+        endpoints = ["/health", "/ready", "/debug/metrics"]
         
         for endpoint in endpoints:
             response = client.get(endpoint)
