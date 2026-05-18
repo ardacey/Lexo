@@ -20,6 +20,9 @@ export default function InviteWaitingPage() {
   const [inviteId, setInviteId] = useState<string | null>(null);
   const endedRef = useRef(false);
   const tokenRef = useRef<string | null>(null);
+  // Ref so the first-effect cleanup always sees the latest inviteId,
+  // even though inviteId is not in that effect's dependency array.
+  const inviteIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!friendUserId) {
@@ -38,6 +41,7 @@ export default function InviteWaitingPage() {
       try {
         const result = await sendFriendInvite(friendUserId, token);
         if (cancelled) return;
+        inviteIdRef.current = result.invite_id;
         setInviteId(result.invite_id);
         setStatus('Onay bekleniyor...');
       } catch (error) {
@@ -50,8 +54,8 @@ export default function InviteWaitingPage() {
 
     return () => {
       cancelled = true;
-      if (!endedRef.current && tokenRef.current && inviteId) {
-        cancelFriendInvite(inviteId, tokenRef.current).catch(() => undefined);
+      if (!endedRef.current && tokenRef.current && inviteIdRef.current) {
+        cancelFriendInvite(inviteIdRef.current, tokenRef.current).catch(() => undefined);
       }
     };
   }, [friendUserId, getToken, router, showToast]);
@@ -89,8 +93,8 @@ export default function InviteWaitingPage() {
   }, [inviteId, onFriendInviteAccepted, onFriendInviteDeclined, router, showToast]);
 
   const handleCancel = () => {
-    if (tokenRef.current && inviteId) {
-      cancelFriendInvite(inviteId, tokenRef.current).catch(() => undefined);
+    if (tokenRef.current && inviteIdRef.current) {
+      cancelFriendInvite(inviteIdRef.current, tokenRef.current).catch(() => undefined);
     }
     endedRef.current = true;
     router.back();

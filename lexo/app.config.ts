@@ -64,13 +64,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     web: webBase as ExpoConfig['web'],
     plugins: [
-      ...(pluginsBase ?? []),
+      // Strip any existing expo-build-properties so we don't add a duplicate
+      ...(pluginsBase ?? []).filter((p) =>
+        Array.isArray(p) ? p[0] !== 'expo-build-properties' : p !== 'expo-build-properties'
+      ),
       [
         'expo-build-properties',
         {
           android: {
-            compileSdkVersion: 34,
-            targetSdkVersion: 34,
+            compileSdkVersion: 36,
+            targetSdkVersion: 35,
             minSdkVersion: 24,
             enableProguardInReleaseBuilds: true,
             enableShrinkResourcesInReleaseBuilds: true,
@@ -80,7 +83,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           },
         },
       ],
-  ] as ExpoConfig['plugins'],
+    ] as ExpoConfig['plugins'],
     updates: updatesUrl
       ? {
           url: updatesUrl,
