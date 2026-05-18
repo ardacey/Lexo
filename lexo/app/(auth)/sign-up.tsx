@@ -78,13 +78,18 @@ export default function SignUpScreen() {
 
     setIsSubmitting(true)
     try {
-      const { error } = await signUp(emailAddress, password, username)
+      const { error, requiresConfirmation } = await signUp(emailAddress, password, username)
 
       if (error) {
         showToast(getErrorMessage(error), 'error')
+      } else if (requiresConfirmation) {
+        // E-posta doğrulaması açıksa giriş ekranına yönlendir
+        showToast('Kayıt başarılı! E-postanızı doğrulayın, ardından giriş yapın.', 'success')
+        router.replace('/(auth)/sign-in')
       } else {
+        // E-posta doğrulaması kapalıysa otomatik oturum açılır,
+        // _layout.tsx'deki Redirect home'a yönlendirir
         showToast('Kayıt başarılı!', 'success')
-        // Yönlendirme otomatik olarak (auth)/_layout.tsx'deki Redirect ile yapılır
       }
     } catch (err: unknown) {
       showToast(getErrorMessage(err as Error), 'error')

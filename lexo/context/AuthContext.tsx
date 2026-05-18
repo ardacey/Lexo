@@ -13,7 +13,7 @@ interface AuthContextType {
   isLoading: boolean;
   isSignedIn: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null; requiresConfirmation?: boolean }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateUsername: (username: string) => Promise<{ error: Error | null }>;
@@ -85,12 +85,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           },
         },
       });
-      
+
       if (error) {
         return { error: new Error(error.message) };
       }
-      
-      return { error: null };
+
+      // session null ise Supabase e-posta doğrulaması bekliyor demektir
+      const requiresConfirmation = !data.session;
+      return { error: null, requiresConfirmation };
     } catch (error) {
       return { error: error as Error };
     }

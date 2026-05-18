@@ -163,6 +163,7 @@ export default function Page() {
                 </LinearGradient>
               </TouchableOpacity>
 
+              {/* TODO: Google OAuth — enable after configuring Supabase redirect URLs
               <View style={styles.dividerRow}>
                 <View style={styles.dividerLine} />
                 <Text style={styles.dividerText}>veya</Text>
@@ -181,6 +182,7 @@ export default function Page() {
                   </Text>
                 </View>
               </TouchableOpacity>
+              */}
             </View>
 
             {/* Sign Up Link */}
