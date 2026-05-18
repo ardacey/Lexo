@@ -25,13 +25,13 @@ def game_service(mock_word_service):
 @pytest.fixture
 def player1():
     """Create test player 1"""
-    return Player("user1", "Player1", "user_id_1")
+    return Player("user1", "Player1")
 
 
 @pytest.fixture
 def player2():
     """Create test player 2"""
-    return Player("user2", "Player2", "user_id_2")
+    return Player("user2", "Player2")
 
 
 @pytest.fixture
