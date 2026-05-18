@@ -65,7 +65,7 @@ export interface GameHistory {
   opponent: string;
   user_score: number;
   opponent_score: number;
-  user_words: string;
+  user_words: string[];
   won: boolean;
   tied: boolean;
   duration: number;

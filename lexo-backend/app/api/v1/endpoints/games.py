@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
@@ -58,11 +60,16 @@ async def get_user_games(
             if game.player1_id == user.id:
                 user_score = game.player1_score
                 opponent_score = game.player2_score
-                user_words = game.player1_words
+                raw_words = game.player1_words
             else:
                 user_score = game.player2_score
                 opponent_score = game.player1_score
-                user_words = game.player2_words
+                raw_words = game.player2_words
+
+            try:
+                user_words: list = json.loads(raw_words) if raw_words else []
+            except (json.JSONDecodeError, TypeError):
+                user_words = []
 
             games_list.append({
                 "room_id": game.room_id,
