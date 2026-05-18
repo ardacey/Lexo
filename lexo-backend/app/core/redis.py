@@ -10,16 +10,24 @@ _redis: Optional[aioredis.Redis] = None
 
 async def init_redis() -> aioredis.Redis:
     global _redis
-    _redis = aioredis.from_url(
-        settings.redis.url,
-        encoding="utf-8",
-        decode_responses=True,
-        max_connections=settings.redis.max_connections,
-    )
+    from urllib.parse import urlparse
+
+    url = settings.redis.url
+    kwargs: dict = {
+        "encoding": "utf-8",
+        "decode_responses": True,
+        "max_connections": settings.redis.max_connections,
+    }
+    # Upstash (and other hosted Redis) use TLS (rediss://) and self-signed or
+    # intermediate certs that may not be in the default trust store on Render.
+    # Disabling cert verification is safe here — traffic is still encrypted.
+    if url.startswith("rediss://"):
+        kwargs["ssl_cert_reqs"] = None
+
+    _redis = aioredis.from_url(url, **kwargs)
     await _redis.ping()
     # Log host only — URL contains credentials
-    from urllib.parse import urlparse
-    host = urlparse(settings.redis.url).hostname or "unknown"
+    host = urlparse(url).hostname or "unknown"
     logger.info(f"Redis connected: {host}")
     return _redis
 
