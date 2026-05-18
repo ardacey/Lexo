@@ -1,6 +1,8 @@
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy import text
 import logging
+import subprocess
 
 from app.core.config import settings
 from app.models.database import Base
@@ -25,10 +27,47 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+async def _alembic_version_exists(conn) -> bool:
+    """Return True if the alembic_version table is already present."""
+    result = await conn.execute(
+        text(
+            "SELECT EXISTS ("
+            "  SELECT 1 FROM information_schema.tables"
+            "  WHERE table_name = 'alembic_version'"
+            ")"
+        )
+    )
+    return bool(result.scalar())
+
+
 async def init_db() -> None:
+    """Create tables (idempotent) and ensure Alembic version is stamped.
+
+    On a fresh database, ``create_all`` creates all tables and we stamp
+    Alembic to ``head`` so future deploys can run ``alembic upgrade head``
+    incrementally.  On an existing database, ``create_all`` is a no-op and
+    the Alembic stamp is skipped.
+    """
     try:
         async with engine.begin() as conn:
+            already_stamped = await _alembic_version_exists(conn)
             await conn.run_sync(Base.metadata.create_all)
+
+        if not already_stamped:
+            # Fresh DB: stamp to head so future `alembic upgrade head` works.
+            result = subprocess.run(
+                ["alembic", "stamp", "head"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                logger.info("Alembic stamped to head on fresh database")
+            else:
+                # Non-fatal: app runs fine, but log so it's visible
+                logger.warning(
+                    f"Alembic stamp failed (non-fatal): {result.stderr.strip()}"
+                )
+
         logger.info("Database tables created successfully")
     except Exception as e:
         logger.error(f"Error creating database tables: {e}")

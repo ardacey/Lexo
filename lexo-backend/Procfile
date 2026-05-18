@@ -1,1 +1,4 @@
+# NOTE: After the first successful deploy, add the line below so future
+# schema changes are applied automatically before the web dyno restarts:
+#   release: alembic upgrade head
 web: gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000} --timeout 120 --keep-alive 75
