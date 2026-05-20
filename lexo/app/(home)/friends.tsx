@@ -31,6 +31,7 @@ export default function FriendsPage() {
   const { getToken } = useAuth();
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{ user_id: string; username: string }[]>([]);
+  const [sentRequestIds, setSentRequestIds] = useState<Set<string>>(new Set());
   const [onlineFriendIds, setOnlineFriendIds] = useState<Set<string>>(new Set());
 
   const { data: friendsData, isLoading: isFriendsLoading } = useFriends();
@@ -44,12 +45,14 @@ export default function FriendsPage() {
     const trimmed = query.trim();
     if (!trimmed) {
       setSearchResults([]);
+      setSentRequestIds(new Set());
       return;
     }
 
     try {
       const result = await searchMutation.mutateAsync(trimmed);
       setSearchResults(result.users || []);
+      setSentRequestIds(new Set());
     } catch (error) {
       showToast('Arama sırasında hata oluştu', 'error');
     }
@@ -58,6 +61,7 @@ export default function FriendsPage() {
   const handleSendRequest = async (userId: string) => {
     try {
       await sendRequestMutation.mutateAsync(userId);
+      setSentRequestIds((prev) => new Set([...prev, userId]));
       showToast('Arkadaş isteği gönderildi', 'success');
     } catch (error) {
       showToast((error as Error).message || 'İstek gönderilemedi', 'error');
@@ -168,21 +172,32 @@ export default function FriendsPage() {
             </View>
             {searchResults.length > 0 && (
               <View style={styles.list}>
-                {searchResults.map((user) => (
-                  <View key={user.user_id} style={styles.listRow}>
-                    <View>
-                      <Text style={styles.listText}>{user.username}</Text>
-                      <Text style={styles.listSubtext}>Yeni kişi</Text>
+                {searchResults.map((user) => {
+                  const alreadySent = sentRequestIds.has(user.user_id);
+                  const alreadyFriend = friends.some((f) => f.user_id === user.user_id);
+                  return (
+                    <View key={user.user_id} style={styles.listRow}>
+                      <View>
+                        <Text style={styles.listText}>{user.username}</Text>
+                        <Text style={styles.listSubtext}>
+                          {alreadyFriend ? 'Zaten arkadaşsınız' : alreadySent ? 'İstek gönderildi' : 'Yeni kişi'}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => handleSendRequest(user.user_id)}
+                        style={[
+                          styles.secondaryButton,
+                          (alreadySent || alreadyFriend) && styles.secondaryButtonSent,
+                        ]}
+                        disabled={sendRequestMutation.isPending || alreadySent || alreadyFriend}
+                      >
+                        <Text style={styles.secondaryButtonText}>
+                          {alreadyFriend ? 'Arkadaş' : alreadySent ? 'Gönderildi ✓' : 'İstek Gönder'}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
-                    <TouchableOpacity
-                      onPress={() => handleSendRequest(user.user_id)}
-                      style={styles.secondaryButton}
-                      disabled={sendRequestMutation.isPending}
-                    >
-                      <Text style={styles.secondaryButtonText}>İstek Gönder</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             )}
           </View>
@@ -403,6 +418,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 10,
     backgroundColor: '#e2e8f0',
+  },
+  secondaryButtonSent: {
+    backgroundColor: '#dcfce7',
   },
   secondaryButtonText: {
     color: '#334155',

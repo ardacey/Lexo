@@ -103,6 +103,12 @@ export default function Multiplayer() {
   const isMounted = useRef(true);
   const serverTimeOffsetRef = useRef(0);
   const serverStartTimeRef = useRef<number | null>(null);
+  // Ref so onclose/setTimeout closures can read the latest gameState without staleness
+  const gameStateRef = useRef<'queue' | 'matched' | 'playing' | 'ended'>(
+    inviteId ? 'matched' : 'queue'
+  );
+  // Stable ref to connectToQueue so reconnect closures always call the latest version
+  const connectToQueueRef = useRef<() => void>(() => {});
   const gameDataRef = useRef({
     startTime: null as Date | null,
     roomId: '',
@@ -206,6 +212,11 @@ export default function Multiplayer() {
     // Dependencies are intentionally omitted - this should only run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep gameStateRef in sync so closures (onclose, setTimeout) always read current value
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
 
   useEffect(() => {
     if (timeLeft <= 10 && timeLeft > 0 && gameState === 'playing') {
@@ -317,19 +328,19 @@ export default function Multiplayer() {
       Alert.alert('Hata', 'Kullanıcı bilgisi bulunamadı');
       return;
     }
-    
+
     try {
       const token = await getToken();
       if (!token) {
         Alert.alert('Hata', 'Oturum süresi dolmuş');
         return;
       }
-      
+
       const websocket = new WebSocket(`${WS_BASE_URL}/ws/queue`);
       wsRef.current = websocket;
-      
+
       websocket.onopen = () => {
-        const payload = { 
+        const payload = {
           username: currentUsername,
           token,
           is_reconnect: false,
@@ -343,6 +354,7 @@ export default function Multiplayer() {
       websocket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          if (__DEV__) console.log('[WS ←]', data.type, JSON.stringify(data).slice(0, 120));
           if (isMounted.current) {
             handleMessage(data);
           }
@@ -351,15 +363,23 @@ export default function Multiplayer() {
         }
       };
 
-      websocket.onerror = (error) => {
-        if (isMounted.current) {
-          Alert.alert('Bağlantı Hatası', 'Sunucuya bağlanılamadı');
-        }
+      websocket.onerror = () => {
+        // Errors are surfaced via onclose; no alert here to avoid double-dialog
       };
 
       websocket.onclose = () => {
-        // WebSocket closed
         stopPingLoop();
+        if (!isMounted.current) return;
+        // If the connection dropped while still looking for a match, retry automatically.
+        // Don't retry once the game has started/ended to avoid ghost connections.
+        const state = gameStateRef.current;
+        if (state === 'queue' || state === 'matched') {
+          setTimeout(() => {
+            if (isMounted.current) {
+              connectToQueueRef.current();
+            }
+          }, 3000);
+        }
       };
 
       setWs(websocket);
@@ -367,6 +387,8 @@ export default function Multiplayer() {
       Alert.alert('Hata', 'Sunucuya bağlanılamadı');
     }
   };
+  // Keep ref current so the onclose closure always calls the latest version
+  connectToQueueRef.current = connectToQueue;
 
   const handleMessage = (data: any) => {
     switch (data.type) {
@@ -396,7 +418,7 @@ export default function Multiplayer() {
         });
         break;
 
-      case 'game_start':
+      case 'game_start': {
         const startTime = new Date();
         serverStartTimeRef.current = typeof data.server_start_time === 'number'
           ? data.server_start_time
@@ -428,11 +450,12 @@ export default function Multiplayer() {
           startTime: startTime.toISOString(),
           duration: data.duration,
         });
-        
+
         startTimer(data.duration);
         break;
+      }
 
-      case 'word_valid':
+      case 'word_valid': {
         const newWord = { text: data.word, score: data.score };
         setMyWords(prevWords => {
           const updated = [...prevWords, newWord];
@@ -451,6 +474,7 @@ export default function Multiplayer() {
           visibilityTime: 1500,
         });
         break;
+      }
 
       case 'word_invalid':
         Toast.show({
@@ -462,11 +486,11 @@ export default function Multiplayer() {
         });
         break;
 
-      case 'opponent_word':
-        const opponentWord = { 
-          text: data.word, 
+      case 'opponent_word': {
+        const opponentWord = {
+          text: data.word,
           score: data.score,
-          player: data.player 
+          player: data.player
         };
         setOpponentWords(prevWords => {
           const updated = [...prevWords, opponentWord];
@@ -476,6 +500,7 @@ export default function Multiplayer() {
         setScores(data.scores);
         gameDataRef.current.scores = data.scores;
         break;
+      }
 
       case 'game_end':
         setEndReason(null);
@@ -548,7 +573,7 @@ export default function Multiplayer() {
         });
         break;
 
-      case 'reconnected':
+      case 'reconnected': {
         setRoomId(data.room_id);
         setOpponent(data.opponent);
         setOpponentUserId(data.opponent_user_id);
@@ -566,7 +591,7 @@ export default function Multiplayer() {
         if (typeof data.server_time === 'number') {
           serverTimeOffsetRef.current = data.server_time - Date.now();
         }
- 
+
         const restoredWords = data.my_words.map((word: string) => ({ text: word, score: 0 }));
         setMyWords(restoredWords);
 
@@ -575,7 +600,7 @@ export default function Multiplayer() {
         } else {
           startTimer(data.time_remaining);
         }
-        
+
         Toast.show({
           type: 'success',
           text1: 'Oyuna Geri Döndünüz',
@@ -584,6 +609,7 @@ export default function Multiplayer() {
           visibilityTime: 2000,
         });
         break;
+      }
 
       case 'game_expired':
         clearActiveGameFromStorage();

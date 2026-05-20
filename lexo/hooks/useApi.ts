@@ -168,8 +168,20 @@ export const useRespondFriendRequest = () => {
       const token = await getToken();
       return respondFriendRequest(requestId, action, token ?? undefined);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.friends.requests() });
+    onSuccess: (_data, variables) => {
+      // Immediately remove the handled request from the cache so the UI
+      // updates without waiting for a slow background refetch.
+      queryClient.setQueryData<{ success: boolean; requests: FriendRequest[] }>(
+        queryKeys.friends.requests(),
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            requests: old.requests.filter((r) => r.id !== variables.requestId),
+          };
+        }
+      );
+      // Refresh the friends list in the background (needed when accepting).
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.list() });
     },
   });
@@ -184,8 +196,19 @@ export const useRemoveFriend = () => {
       const token = await getToken();
       return removeFriend(friendUserId, token ?? undefined);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.friends.list() });
+    onSuccess: (_data, friendUserId) => {
+      // Immediately remove the friend from the cache so the UI updates
+      // without waiting for a slow background refetch.
+      queryClient.setQueryData<{ success: boolean; friends: FriendUser[] }>(
+        queryKeys.friends.list(),
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            friends: old.friends.filter((f) => f.user_id !== friendUserId),
+          };
+        }
+      );
     },
   });
 };
