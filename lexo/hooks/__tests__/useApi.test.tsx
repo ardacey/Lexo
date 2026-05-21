@@ -235,7 +235,7 @@ describe('useApi hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(mockGetUserGames).toHaveBeenCalledWith('user_123', 10, undefined);
+      expect(mockGetUserGames).toHaveBeenCalledWith('user_123', 10, 0, undefined);
       expect(result.current.data).toEqual(mockGames);
     });
 

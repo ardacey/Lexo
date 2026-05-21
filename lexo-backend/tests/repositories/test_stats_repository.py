@@ -276,6 +276,9 @@ class TestStatsRepository:
         await async_db_session.execute(sa_delete(User))
         await async_db_session.commit()
 
+        # Rank is now determined by elo_rating (descending).
+        # Assign distinct ELO values so the expected ranks are deterministic.
+        elo_ratings = [2000, 1800, 1600, 1400, 1200]
         users = []
         for i in range(5):
             uid = uuid.uuid4().hex[:8]
@@ -286,13 +289,16 @@ class TestStatsRepository:
             async_db_session.add(UserStats(
                 user_id=user.id, wins=10 - i * 2,
                 highest_score=50 - i * 5, total_games=15,
+                elo_rating=elo_ratings[i],
             ))
             users.append(user)
         await async_db_session.commit()
 
+        # users[0] has the highest ELO → rank 1 (0 users above it)
         rank = await repo.get_user_rank(users[0].id)
         assert rank == 1
 
+        # users[2] has the 3rd highest ELO → rank 3 (2 users above it)
         rank = await repo.get_user_rank(users[2].id)
         assert rank == 3
 

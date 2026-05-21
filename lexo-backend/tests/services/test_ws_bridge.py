@@ -56,7 +56,7 @@ class TestRegistration:
 
     async def test_register_writes_redis_key(self, bridge, redis):
         await bridge.register("u1", make_ws())
-        val = await redis.get("player:u1:ws:worker")
+        val = await redis.get("player:u1:ws:worker:game")
         assert val == "test-worker"
 
     async def test_unregister_removes_local(self, bridge):
@@ -68,7 +68,7 @@ class TestRegistration:
     async def test_unregister_deletes_redis_key(self, bridge, redis):
         await bridge.register("u1", make_ws())
         await bridge.unregister("u1")
-        assert not await redis.exists("player:u1:ws:worker")
+        assert not await redis.exists("player:u1:ws:worker:game")
 
     async def test_unregister_nonexistent_is_safe(self, bridge):
         """Unregistering a user that was never registered should not raise."""
@@ -77,12 +77,12 @@ class TestRegistration:
     async def test_refresh_ttl_extends_key(self, bridge, redis):
         await bridge.register("u1", make_ws())
         # Drain the TTL partially by setting a shorter expiry
-        await redis.expire("player:u1:ws:worker", 5)
-        ttl_before = await redis.ttl("player:u1:ws:worker")
+        await redis.expire("player:u1:ws:worker:game", 5)
+        ttl_before = await redis.ttl("player:u1:ws:worker:game")
         assert ttl_before <= 5
 
         await bridge.refresh_ttl("u1")
-        ttl_after = await redis.ttl("player:u1:ws:worker")
+        ttl_after = await redis.ttl("player:u1:ws:worker:game")
         # After refresh it should be back up to ~90 s
         assert ttl_after > 5
 
@@ -98,7 +98,7 @@ class TestIsUserConnected:
 
     async def test_redis_only_is_connected(self, bridge, redis):
         """A user whose key lives in Redis (another worker) should be seen as connected."""
-        await redis.set("player:u2:ws:worker", "other-worker", ex=90)
+        await redis.set("player:u2:ws:worker:game", "other-worker", ex=90)
         assert await bridge.is_user_connected("u2")
 
     async def test_unregistered_is_not_connected(self, bridge):
@@ -149,7 +149,7 @@ class TestSendToUserLocal:
 class TestSendToUserRemote:
     async def test_remote_send_publishes_to_correct_channel(self, bridge, redis):
         """When a user is on another worker, the message is published to that worker's channel."""
-        await redis.set("player:u2:ws:worker", "other-worker", ex=90)
+        await redis.set("player:u2:ws:worker:game", "other-worker", ex=90)
         redis.publish = AsyncMock(return_value=1)
 
         result = await bridge.send_to_user("u2", {"type": "hello"})
@@ -169,7 +169,7 @@ class TestSendToUserRemote:
 
     async def test_no_local_socket_but_redis_key_routes_remotely(self, bridge, redis):
         """Explicit check: user not in _local but has a Redis worker key → publish path."""
-        await redis.set("player:u3:ws:worker", "worker-B", ex=90)
+        await redis.set("player:u3:ws:worker:game", "worker-B", ex=90)
         redis.publish = AsyncMock(return_value=1)
 
         # u3 is NOT in bridge._local
