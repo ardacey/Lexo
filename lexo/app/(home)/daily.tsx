@@ -20,6 +20,7 @@ import Animated, {
   withSequence,
   interpolateColor,
 } from 'react-native-reanimated';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDailyChallenge, useSubmitDailyChallenge, useValidateWord } from '@/hooks/useApi';
 import { useToast } from '../../context/ToastContext';
 import { InteractiveLetterPool } from '@/components/GameComponents';
@@ -28,6 +29,7 @@ import { DailyChallengeLeaderboardEntry } from '@/utils/api';
 
 const DAILY_DURATION = 60;
 const DAILY_MIN_WORD_LENGTH = 3;
+const SESSION_KEY = 'lexo_daily_session';
 
 const TURKISH_MONTHS = [
   'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
@@ -37,6 +39,13 @@ const TURKISH_MONTHS = [
 function formatTurkishDate(dateStr: string): string {
   const [, month, day] = dateStr.split('-').map(Number);
   return `${day} ${TURKISH_MONTHS[month - 1]}`;
+}
+
+interface DailySession {
+  date: string;
+  startedAt: string;
+  words: Array<{ text: string; score: number }>;
+  totalScore: number;
 }
 
 export default function DailyChallengePage() {
@@ -62,6 +71,10 @@ export default function DailyChallengePage() {
 
   // Word validation cache
   const wordCacheRef = useRef<Map<string, boolean>>(new Map());
+  // Prevent double-submit
+  const submitRef = useRef(false);
+  // Prevent session restore running more than once per mount
+  const sessionRestoredRef = useRef(false);
 
   // Reanimated
   const successFlash = useSharedValue(0);
@@ -109,7 +122,53 @@ export default function DailyChallengePage() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   }, [timeLeft]);
 
-  // Timer countdown
+  // ── Restore in-progress session from AsyncStorage ────────────────────────
+  // Runs once per mount, after challengeData is available.
+  // Skipped if the user has already played today.
+  useEffect(() => {
+    if (!challengeData || challengeData.already_played || submitResult) return;
+    if (sessionRestoredRef.current) return;
+    sessionRestoredRef.current = true;
+
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(SESSION_KEY);
+        if (!raw) return;
+        const session: DailySession = JSON.parse(raw);
+
+        // Discard stale sessions from a different day
+        if (session.date !== challengeData.date) {
+          await AsyncStorage.removeItem(SESSION_KEY);
+          return;
+        }
+
+        // Calculate how much time has elapsed since the game started
+        const elapsed = Math.floor(
+          (Date.now() - new Date(session.startedAt).getTime()) / 1000,
+        );
+        const remaining = Math.max(0, DAILY_DURATION - elapsed);
+
+        // Restore state
+        setWords(session.words ?? []);
+        setTotalScore(session.totalScore ?? 0);
+        setHasStarted(true);
+        submitRef.current = false;
+
+        if (remaining > 0) {
+          setTimeLeft(remaining);
+          setIsRunning(true);
+        } else {
+          // Timer already expired while the user was away — go straight to submit
+          setTimeLeft(0);
+          // The auto-submit useEffect below will fire on the next render
+        }
+      } catch {
+        // Ignore JSON parse errors or storage failures
+      }
+    })();
+  }, [challengeData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Timer countdown ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!isRunning) return;
     const id = setInterval(() => {
@@ -125,8 +184,7 @@ export default function DailyChallengePage() {
     return () => clearInterval(id);
   }, [isRunning]);
 
-  // Auto-submit when timer reaches 0
-  const submitRef = useRef(false);
+  // ── Auto-submit when timer reaches 0 ────────────────────────────────────
   useEffect(() => {
     if (timeLeft === 0 && hasStarted && !submitRef.current) {
       submitRef.current = true;
@@ -142,9 +200,11 @@ export default function DailyChallengePage() {
       const score = words.reduce((s, w) => s + w.score, 0);
       const result = await submitMutation.mutateAsync({ words: wordsPlayed, score });
       setSubmitResult(result);
+      await AsyncStorage.removeItem(SESSION_KEY);
     } catch (err: any) {
+      // 409 = already submitted (e.g. user restored session that was already submitted)
+      await AsyncStorage.removeItem(SESSION_KEY);
       if (err?.status === 409) {
-        // Already submitted — refetch to get the stored entry
         refetch();
       } else {
         showToast('Sonuç kaydedilemedi', 'error');
@@ -152,7 +212,7 @@ export default function DailyChallengePage() {
     }
   };
 
-  const handleStart = () => {
+  const handleStart = async () => {
     wordCacheRef.current.clear();
     setWords([]);
     setCurrentWord('');
@@ -162,6 +222,17 @@ export default function DailyChallengePage() {
     submitRef.current = false;
     setHasStarted(true);
     setIsRunning(true);
+
+    // Persist the session so navigating away doesn't reset the timer
+    try {
+      const session: DailySession = {
+        date: challengeData!.date,
+        startedAt: new Date().toISOString(),
+        words: [],
+        totalScore: 0,
+      };
+      await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    } catch {}
   };
 
   const letterPool: string[] = challengeData?.letter_pool ?? [];
@@ -234,11 +305,27 @@ export default function DailyChallengePage() {
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       triggerSuccessAnim();
-      const score = calculateScore(normalized);
-      setWords((prev) => [{ text: normalized, score }, ...prev]);
-      setTotalScore((prev) => prev + score);
+
+      const wordScore = calculateScore(normalized);
+      const newWords = [{ text: normalized, score: wordScore }, ...words];
+      const newScore = totalScore + wordScore;
+
+      setWords(newWords);
+      setTotalScore(newScore);
       setCurrentWord('');
       setSelectedIndices([]);
+
+      // Persist updated word list so navigating away doesn't lose progress
+      AsyncStorage.getItem(SESSION_KEY).then((raw) => {
+        if (!raw) return;
+        try {
+          const session: DailySession = JSON.parse(raw);
+          AsyncStorage.setItem(
+            SESSION_KEY,
+            JSON.stringify({ ...session, words: newWords, totalScore: newScore }),
+          );
+        } catch {}
+      }).catch(() => {});
     } catch {
       showToast('Kelime doğrulanamadı', 'error');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -249,7 +336,7 @@ export default function DailyChallengePage() {
 
   const dateLabel = challengeData?.date ? formatTurkishDate(challengeData.date) : '';
 
-  // ── Loading state ──────────────────────────────────────────────────────────
+  // ── Loading ──────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <View style={styles.centeredFull}>
@@ -270,17 +357,8 @@ export default function DailyChallengePage() {
     );
   }
 
-  // ── Already played (or just submitted) ────────────────────────────────────
-  const alreadyPlayed = challengeData.already_played;
-  const resultToShow = submitResult ?? (alreadyPlayed && challengeData.user_entry
-    ? {
-        score: challengeData.user_entry.score,
-        rank: 0, // rank not stored in user_entry; 0 means unknown
-        leaderboard: challengeData.leaderboard,
-      }
-    : null);
-
-  if (alreadyPlayed || submitResult) {
+  // ── Already played (or just submitted) ──────────────────────────────────
+  if (challengeData.already_played || submitResult) {
     const displayEntry = submitResult ?? (challengeData.user_entry
       ? { score: challengeData.user_entry.score, rank: 0, leaderboard: challengeData.leaderboard }
       : null);
@@ -301,7 +379,6 @@ export default function DailyChallengePage() {
               </View>
             </View>
 
-            {/* Result summary */}
             <View style={styles.resultCard}>
               <View style={styles.checkBadge}>
                 <Text style={styles.checkIcon}>✓</Text>
@@ -322,7 +399,6 @@ export default function DailyChallengePage() {
               )}
             </View>
 
-            {/* User's words (if known) */}
             {challengeData.user_entry && challengeData.user_entry.words.length > 0 && (
               <View style={styles.listCard}>
                 <Text style={styles.listTitle}>Kelimeleriniz</Text>
@@ -335,7 +411,6 @@ export default function DailyChallengePage() {
               </View>
             )}
 
-            {/* Leaderboard */}
             <LeaderboardSection
               leaderboard={displayEntry?.leaderboard ?? challengeData.leaderboard}
             />
@@ -345,7 +420,7 @@ export default function DailyChallengePage() {
     );
   }
 
-  // ── Active game or pre-start ───────────────────────────────────────────────
+  // ── Active game or pre-start ─────────────────────────────────────────────
   const isFinished = hasStarted && !isRunning && timeLeft === 0;
 
   return (
@@ -368,83 +443,100 @@ export default function DailyChallengePage() {
               </View>
             </View>
 
-            <View style={styles.timerCard}>
-              <Text style={styles.timerLabel}>Süre</Text>
-              <Text style={[styles.timerValue, timeLeft <= 10 && isRunning && styles.timerUrgent]}>
-                {formattedTime}
-              </Text>
-              <View style={styles.timerMeta}>
-                <View>
-                  <Text style={styles.timerMetaText}>Skor</Text>
-                  <Text style={styles.timerMetaNumber}>{totalScore}</Text>
-                </View>
-                <View style={styles.metaDivider} />
-                <View>
-                  <Text style={styles.timerMetaText}>Doğru kelime</Text>
-                  <Text style={styles.timerMetaNumber}>{words.length}</Text>
-                </View>
-              </View>
-            </View>
-
-            <Animated.View style={[styles.wordCard, wordCardAnimStyle]}>
-              <Text style={styles.wordLabel}>Seçilen kelime</Text>
-              <View style={styles.wordRow}>
-                <Text style={styles.wordValue}>
-                  {currentWord.toLocaleUpperCase('tr-TR') || '—'}
+            {/* Timer — always visible once game has started */}
+            {hasStarted && (
+              <View style={styles.timerCard}>
+                <Text style={styles.timerLabel}>Süre</Text>
+                <Text style={[styles.timerValue, timeLeft <= 10 && isRunning && styles.timerUrgent]}>
+                  {formattedTime}
                 </Text>
-                <TouchableOpacity
-                  onPress={handleDeleteLastLetter}
-                  disabled={!isRunning || isChecking || !currentWord}
-                  style={[styles.backspaceButton, (!isRunning || isChecking || !currentWord) && styles.clearDisabled]}
-                >
-                  <Text style={styles.backspaceText}>⌫</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleClear}
-                  disabled={!isRunning || isChecking || !currentWord}
-                  style={[styles.clearButton, (!isRunning || isChecking || !currentWord) && styles.clearDisabled]}
-                >
-                  <Text style={styles.clearText}>✕</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleSubmitWord}
-                  disabled={!isRunning || isChecking || !currentWord}
-                  style={[styles.submitButton, (!isRunning || isChecking || !currentWord) && styles.submitDisabled]}
-                >
-                  <Text style={styles.submitText}>{isChecking ? '...' : 'Ekle'}</Text>
-                </TouchableOpacity>
+                <View style={styles.timerMeta}>
+                  <View>
+                    <Text style={styles.timerMetaText}>Skor</Text>
+                    <Text style={styles.timerMetaNumber}>{totalScore}</Text>
+                  </View>
+                  <View style={styles.metaDivider} />
+                  <View>
+                    <Text style={styles.timerMetaText}>Doğru kelime</Text>
+                    <Text style={styles.timerMetaNumber}>{words.length}</Text>
+                  </View>
+                </View>
               </View>
-            </Animated.View>
+            )}
 
-            <View style={styles.poolCard}>
-              <Text style={styles.poolTitle}>Harf Havuzu</Text>
-              <InteractiveLetterPool
-                letterPool={letterPool}
-                selectedIndices={selectedIndices}
-                onLetterClick={handleLetterClick}
-                disabled={!isRunning || timeLeft === 0}
-              />
-            </View>
+            {/* Word input — only visible during active game */}
+            {hasStarted && (
+              <Animated.View style={[styles.wordCard, wordCardAnimStyle]}>
+                <Text style={styles.wordLabel}>Seçilen kelime</Text>
+                <View style={styles.wordRow}>
+                  <Text style={styles.wordValue}>
+                    {currentWord.toLocaleUpperCase('tr-TR') || '—'}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={handleDeleteLastLetter}
+                    disabled={!isRunning || isChecking || !currentWord}
+                    style={[styles.backspaceButton, (!isRunning || isChecking || !currentWord) && styles.clearDisabled]}
+                  >
+                    <Text style={styles.backspaceText}>⌫</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleClear}
+                    disabled={!isRunning || isChecking || !currentWord}
+                    style={[styles.clearButton, (!isRunning || isChecking || !currentWord) && styles.clearDisabled]}
+                  >
+                    <Text style={styles.clearText}>✕</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleSubmitWord}
+                    disabled={!isRunning || isChecking || !currentWord}
+                    style={[styles.submitButton, (!isRunning || isChecking || !currentWord) && styles.submitDisabled]}
+                  >
+                    <Text style={styles.submitText}>{isChecking ? '...' : 'Ekle'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </Animated.View>
+            )}
 
-            {isFinished && submitMutation.isPending ? (
+            {/* Letter pool — only visible during active game */}
+            {hasStarted && (
+              <View style={styles.poolCard}>
+                <Text style={styles.poolTitle}>Harf Havuzu</Text>
+                <InteractiveLetterPool
+                  letterPool={letterPool}
+                  selectedIndices={selectedIndices}
+                  onLetterClick={handleLetterClick}
+                  disabled={!isRunning || timeLeft === 0}
+                />
+              </View>
+            )}
+
+            {/* Saving spinner after timer ends */}
+            {isFinished && submitMutation.isPending && (
               <View style={styles.savingCard}>
                 <ActivityIndicator size="small" color="#0f172a" />
                 <Text style={styles.savingText}>Sonuç kaydediliyor…</Text>
               </View>
-            ) : !hasStarted ? (
+            )}
+
+            {/* Pre-start info + button */}
+            {!hasStarted && (
               <>
                 <View style={styles.infoCard}>
+                  <Text style={styles.infoTitle}>Nasıl oynanır?</Text>
                   <Text style={styles.infoText}>
-                    Bugünün harf havuzu ile 60 saniyede olabildiğince çok kelime bul.
-                    Her oyuncu aynı harfleri kullanır. Yarışmaya bugün yalnızca bir kez katılabilirsin.
+                    Butona bastıktan sonra 15 harflik havuz açılır. 60 saniyede
+                    bu harflerden olabildiğince çok kelime bul. Her oyuncu
+                    bugün aynı harfleri kullanır. Yarışmaya yalnızca bir kez
+                    katılabilirsin — ekrandan çıksan bile süre devam eder.
                   </Text>
                 </View>
                 <TouchableOpacity onPress={handleStart} style={styles.primaryButton}>
                   <Text style={styles.primaryButtonText}>Yarışmayı Başlat</Text>
                 </TouchableOpacity>
               </>
-            ) : null}
+            )}
 
+            {/* Found words list */}
             {words.length > 0 && (
               <View style={styles.listCard}>
                 <Text style={styles.listTitle}>Bulunan kelimeler</Text>
@@ -657,6 +749,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fde68a',
     marginBottom: 18,
+    gap: 8,
+  },
+  infoTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#78350f',
   },
   infoText: { fontSize: 13, color: '#92400e', lineHeight: 20 },
   primaryButton: {

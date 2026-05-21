@@ -63,9 +63,21 @@ async def init_db() -> None:
             if result.returncode == 0:
                 logger.info("Alembic stamped to head on fresh database")
             else:
-                # Non-fatal: app runs fine, but log so it's visible
                 logger.warning(
                     f"Alembic stamp failed (non-fatal): {result.stderr.strip()}"
+                )
+        else:
+            # Existing DB: apply any pending schema migrations automatically.
+            result = subprocess.run(
+                ["alembic", "upgrade", "head"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                logger.info("Alembic migrations applied (or already at head)")
+            else:
+                logger.warning(
+                    f"Alembic upgrade failed (non-fatal): {result.stderr.strip()}"
                 )
 
         logger.info("Database tables created successfully")
