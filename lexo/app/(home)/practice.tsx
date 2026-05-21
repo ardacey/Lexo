@@ -93,6 +93,15 @@ export default function PracticePage() {
     setCurrentWord('');
   };
 
+  const handleDeleteLastLetter = () => {
+    setSelectedIndices(prev => {
+      if (prev.length === 0) return prev;
+      const updated = prev.slice(0, -1);
+      setCurrentWord(updated.map(i => letterPool[i]).join(''));
+      return updated;
+    });
+  };
+
   const handleSubmit = async () => {
     if (!isRunning || isChecking) return;
 
@@ -179,11 +188,18 @@ export default function PracticePage() {
                   {currentWord.toLocaleUpperCase('tr-TR') || '—'}
                 </Text>
                 <TouchableOpacity
+                  onPress={handleDeleteLastLetter}
+                  disabled={!isRunning || isChecking || !currentWord}
+                  style={[styles.backspaceButton, (!isRunning || isChecking || !currentWord) && styles.clearDisabled]}
+                >
+                  <Text style={styles.backspaceText}>⌫</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   onPress={handleClear}
                   disabled={!isRunning || isChecking || !currentWord}
                   style={[styles.clearButton, (!isRunning || isChecking || !currentWord) && styles.clearDisabled]}
                 >
-                  <Text style={styles.clearText}>Temizle</Text>
+                  <Text style={styles.clearText}>✕</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleSubmit}
@@ -380,17 +396,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 13,
   },
-  clearButton: {
+  backspaceButton: {
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 12,
     backgroundColor: '#e2e8f0',
   },
+  backspaceText: {
+    color: '#334155',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  clearButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#fca5a5',
+  },
   clearDisabled: {
     backgroundColor: '#f1f5f9',
   },
   clearText: {
-    color: '#475569',
+    color: '#7f1d1d',
     fontWeight: '600',
     fontSize: 13,
   },

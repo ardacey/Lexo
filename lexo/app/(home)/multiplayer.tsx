@@ -753,6 +753,15 @@ export default function Multiplayer() {
     setCurrentWord('');
   }, []);
 
+  const handleDeleteLastLetter = useCallback(() => {
+    setSelectedIndices(prev => {
+      if (prev.length === 0) return prev;
+      const updated = prev.slice(0, -1);
+      setCurrentWord(updated.map(i => letterPool[i]).join(''));
+      return updated;
+    });
+  }, [letterPool]);
+
   const submitWord = useCallback(() => {
     if (!currentWord.trim() || !wsRef.current || gameState !== 'playing' || isTimeOver) return;
 
@@ -1143,10 +1152,18 @@ export default function Multiplayer() {
             </View>
             {currentWord && (
               <TouchableOpacity
+                className="bg-slate-200 rounded-lg px-3 py-3"
+                onPress={handleDeleteLastLetter}
+              >
+                <Text className="text-text-primary text-base font-bold">⌫</Text>
+              </TouchableOpacity>
+            )}
+            {currentWord && (
+              <TouchableOpacity
                 className="bg-red-500 rounded-lg px-4 py-3"
                 onPress={handleClearWord}
               >
-                <Text className="text-white text-base font-bold">Temizle</Text>
+                <Text className="text-white text-base font-bold">✕</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
