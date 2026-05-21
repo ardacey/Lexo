@@ -48,7 +48,7 @@ class NotificationWebSocketHandler:
             logger.error(f"Notification websocket error: {exc}")
         finally:
             if user_id:
-                await self.bridge.unregister(user_id)
+                await self.bridge.unregister(user_id, websocket)
 
     async def _handle_decline(self, user_id: str, invite_id: str):
         invite = await self.matchmaking_service.pop_invite(invite_id)

@@ -148,7 +148,7 @@ interface ApiFetchOptions extends Omit<RequestInit, 'headers'> {
 }
 
 async function apiFetch<T = any>(url: string, options: ApiFetchOptions = {}): Promise<T> {
-  const { token, timeoutMs = 10_000, ...fetchOptions } = options;
+  const { token, timeoutMs = 15_000, ...fetchOptions } = options;
 
   const headers: Record<string, string> = {};
   if (fetchOptions.body !== undefined) {
@@ -251,6 +251,7 @@ export const sendFriendRequest = (targetUserId: string, token?: string) =>
     method: 'POST',
     body: JSON.stringify({ target_user_id: targetUserId }),
     token,
+    timeoutMs: 25_000,
   });
 
 export const respondFriendRequest = (requestId: number, action: string, token?: string) =>
@@ -258,10 +259,11 @@ export const respondFriendRequest = (requestId: number, action: string, token?: 
     method: 'POST',
     body: JSON.stringify({ action }),
     token,
+    timeoutMs: 25_000,
   });
 
 export const removeFriend = (friendUserId: string, token?: string) =>
-  apiFetch(API_ENDPOINTS.removeFriend(friendUserId), { method: 'DELETE', token });
+  apiFetch(API_ENDPOINTS.removeFriend(friendUserId), { method: 'DELETE', token, timeoutMs: 25_000 });
 
 export const sendFriendInvite = (targetUserId: string, token?: string) =>
   apiFetch(API_ENDPOINTS.sendFriendInvite, {

@@ -191,7 +191,7 @@ class TestNotificationHandlerLifecycle:
         ):
             await handler.handle_connection(ws)
 
-        bridge.unregister.assert_awaited_once_with("u1")
+        bridge.unregister.assert_awaited_once_with("u1", ws)
 
     async def test_ping_replies_with_pong(self):
         """

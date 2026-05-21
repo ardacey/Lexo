@@ -163,14 +163,22 @@ export const useRespondFriendRequest = () => {
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
 
-  return useMutation<any, Error, { requestId: number; action: string }>({
+  return useMutation<
+    any,
+    Error,
+    { requestId: number; action: string },
+    { previousRequests: { success: boolean; requests: FriendRequest[] } | undefined }
+  >({
     mutationFn: async ({ requestId, action }) => {
       const token = await getToken();
       return respondFriendRequest(requestId, action, token ?? undefined);
     },
-    onSuccess: (_data, variables) => {
-      // Immediately remove the handled request from the cache so the UI
-      // updates without waiting for a slow background refetch.
+    // Optimistic update: remove the request from the list BEFORE the API call
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.friends.requests() });
+      const previousRequests = queryClient.getQueryData<{ success: boolean; requests: FriendRequest[] }>(
+        queryKeys.friends.requests()
+      );
       queryClient.setQueryData<{ success: boolean; requests: FriendRequest[] }>(
         queryKeys.friends.requests(),
         (old) => {
@@ -181,6 +189,19 @@ export const useRespondFriendRequest = () => {
           };
         }
       );
+      return { previousRequests };
+    },
+    // Retry once silently so a single slow Render cold-start doesn't surface an error.
+    // onMutate is NOT re-called on retry (optimistic state stays in place).
+    retry: 1,
+    retryDelay: 1_000,
+    // Roll back only after all retries are exhausted
+    onError: (_error, _variables, context) => {
+      if (context?.previousRequests !== undefined) {
+        queryClient.setQueryData(queryKeys.friends.requests(), context.previousRequests);
+      }
+    },
+    onSuccess: () => {
       // Refresh the friends list in the background (needed when accepting).
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.list() });
     },
@@ -191,14 +212,22 @@ export const useRemoveFriend = () => {
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
 
-  return useMutation<any, Error, string>({
+  return useMutation<
+    any,
+    Error,
+    string,
+    { previousFriends: { success: boolean; friends: FriendUser[] } | undefined }
+  >({
     mutationFn: async (friendUserId: string) => {
       const token = await getToken();
       return removeFriend(friendUserId, token ?? undefined);
     },
-    onSuccess: (_data, friendUserId) => {
-      // Immediately remove the friend from the cache so the UI updates
-      // without waiting for a slow background refetch.
+    // Optimistic update: remove the friend BEFORE the API call
+    onMutate: async (friendUserId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.friends.list() });
+      const previousFriends = queryClient.getQueryData<{ success: boolean; friends: FriendUser[] }>(
+        queryKeys.friends.list()
+      );
       queryClient.setQueryData<{ success: boolean; friends: FriendUser[] }>(
         queryKeys.friends.list(),
         (old) => {
@@ -209,6 +238,15 @@ export const useRemoveFriend = () => {
           };
         }
       );
+      return { previousFriends };
+    },
+    retry: 1,
+    retryDelay: 1_000,
+    // Roll back only after all retries are exhausted
+    onError: (_error, _variables, context) => {
+      if (context?.previousFriends !== undefined) {
+        queryClient.setQueryData(queryKeys.friends.list(), context.previousFriends);
+      }
     },
   });
 };

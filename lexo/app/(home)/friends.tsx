@@ -59,11 +59,18 @@ export default function FriendsPage() {
   };
 
   const handleSendRequest = async (userId: string) => {
+    // Optimistically mark as sent immediately so the button changes without waiting for the API
+    setSentRequestIds((prev) => new Set([...prev, userId]));
     try {
       await sendRequestMutation.mutateAsync(userId);
-      setSentRequestIds((prev) => new Set([...prev, userId]));
       showToast('Arkadaş isteği gönderildi', 'success');
     } catch (error) {
+      // Roll back the optimistic update if the request failed
+      setSentRequestIds((prev) => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
       showToast((error as Error).message || 'İstek gönderilemedi', 'error');
     }
   };

@@ -55,7 +55,17 @@ class WebSocketBridge:
             f"player:{user_id}:ws:worker", self.worker_id, ex=_PLAYER_WORKER_TTL
         )
 
-    async def unregister(self, user_id: str):
+    async def unregister(self, user_id: str, websocket: Optional[WebSocket] = None):
+        """
+        Remove a user from the bridge.
+
+        If *websocket* is provided, the entry is only removed when it matches
+        the currently-registered socket.  This prevents a stale cleanup (e.g.
+        a closing notify socket) from evicting a newer connection (e.g. the
+        game socket that registered immediately afterwards).
+        """
+        if websocket is not None and self._local.get(user_id) is not websocket:
+            return
         self._local.pop(user_id, None)
         await self.redis.delete(f"player:{user_id}:ws:worker")
 

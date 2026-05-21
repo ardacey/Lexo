@@ -150,7 +150,7 @@ class GameWebSocketHandler:
             logger.error(f"WebSocket error for {user_id}: {e}")
         finally:
             if user_id:
-                await self._handle_disconnect(user_id)
+                await self._handle_disconnect(user_id, websocket)
 
     async def _message_loop(self, websocket: WebSocket, user_id: str, username: str):
         while True:
@@ -487,10 +487,10 @@ class GameWebSocketHandler:
     # Disconnect
     # ------------------------------------------------------------------
 
-    async def _handle_disconnect(self, player_id: str):
+    async def _handle_disconnect(self, player_id: str, websocket: WebSocket):
         self.rate_limiters.pop(player_id, None)
         self._token_expiries.pop(player_id, None)
-        await self.bridge.unregister(player_id)
+        await self.bridge.unregister(player_id, websocket)
 
         invite_id = await self.matchmaking_service.get_invite_for_user(player_id)
         if invite_id:

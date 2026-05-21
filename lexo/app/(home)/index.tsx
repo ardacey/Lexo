@@ -21,8 +21,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useCheckUsername, useCreateUser, useUpdateUsername } from '@/hooks/useApi';
 import { useToast } from '../../context/ToastContext';
 import { getOnlineStats, respondFriendInvite } from '@/utils/api';
-import { WS_BASE_URL } from '@/utils/constants';
 import { Ionicons } from '@expo/vector-icons';
+import { useNotifications } from '../../context/NotificationContext';
 
 export default function Page() {
   const router = useRouter();
@@ -37,7 +37,7 @@ export default function Page() {
   const [usernameDraft, setUsernameDraft] = useState('');
   const [usernameError, setUsernameError] = useState('');
   const [isSavingUsername, setIsSavingUsername] = useState(false);
-  const notificationSocketRef = React.useRef<WebSocket | null>(null);
+  const { onFriendInvite, onFriendInviteCancelled } = useNotifications();
   const [pendingInvite, setPendingInvite] = useState<{
     inviteId: string;
     fromUserId: string;
@@ -121,62 +121,38 @@ export default function Page() {
     };
   }, [isSignedIn]);
 
+  // Subscribe to friend invite events via the app-wide NotificationContext.
+  // Using NotificationContext means there is only ONE ws/notify socket per user
+  // (managed at the app level), which avoids competing bridge registrations and
+  // the race condition where unmounting this screen could evict the game socket.
   useEffect(() => {
-    if (!isSignedIn) return;
-    let cancelled = false;
+    const unsubInvite = onFriendInvite((payload) => {
+      if (!payload.invite_id) return;
+      if (lastInviteIdRef.current === payload.invite_id) return;
+      lastInviteIdRef.current = payload.invite_id;
+      setPendingInvite({
+        inviteId: payload.invite_id,
+        fromUserId: payload.from_user_id,
+        fromUsername: payload.from_username || 'Arkadaş',
+      });
+    });
 
-    const connectNotifications = async () => {
-      const authToken = await getToken();
-      if (cancelled) return;
-      if (!authToken) return;
-
-      const socket = new WebSocket(`${WS_BASE_URL}/ws/notify?token=${encodeURIComponent(authToken)}`);
-      notificationSocketRef.current = socket;
-
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'friend_invite') {
-            if (!data.invite_id) return;
-            if (pendingInvite && pendingInvite.inviteId === data.invite_id) return;
-            if (lastInviteIdRef.current === data.invite_id) return;
-            lastInviteIdRef.current = data.invite_id;
-            setPendingInvite({
-              inviteId: data.invite_id,
-              fromUserId: data.from_user_id,
-              fromUsername: data.from_username || 'Arkadaş',
-            });
-          }
-          if (data.type === 'friend_invite_cancelled') {
-            if (!data.invite_id) return;
-            setPendingInvite((prev) => {
-              if (prev && prev.inviteId === data.invite_id) {
-                lastInviteIdRef.current = null;
-                return null;
-              }
-              return prev;
-            });
-          }
-        } catch {
-          // Silent parse error
+    const unsubCancelled = onFriendInviteCancelled((payload) => {
+      if (!payload.invite_id) return;
+      setPendingInvite((prev) => {
+        if (prev && prev.inviteId === payload.invite_id) {
+          lastInviteIdRef.current = null;
+          return null;
         }
-      };
-    };
-
-    connectNotifications();
+        return prev;
+      });
+    });
 
     return () => {
-      cancelled = true;
-      if (notificationSocketRef.current) {
-        try {
-          notificationSocketRef.current.close();
-        } catch {
-          // Silent close error
-        }
-        notificationSocketRef.current = null;
-      }
+      unsubInvite();
+      unsubCancelled();
     };
-  }, [isSignedIn, router, getToken]);
+  }, [onFriendInvite, onFriendInviteCancelled]);
 
   useEffect(() => {
     const loop = Animated.loop(
