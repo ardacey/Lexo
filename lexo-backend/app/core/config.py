@@ -46,7 +46,18 @@ class APISettings(BaseSettings):
         cors = os.getenv('CORS_ORIGINS', 'http://localhost:8081,http://localhost:19006')
         if cors == '*':
             return ['*']
-        return cors.split(',')
+        origins = [o.strip() for o in cors.split(',') if o.strip()]
+        # Always allow local Expo dev origins so developers can test against
+        # the production backend without needing to touch Render env vars.
+        dev_origins = [
+            'http://localhost:8081',
+            'http://localhost:19006',
+            'http://localhost:3000',
+        ]
+        for dev in dev_origins:
+            if dev not in origins:
+                origins.append(dev)
+        return origins
 
 
 class DatabaseSettings(BaseSettings):
