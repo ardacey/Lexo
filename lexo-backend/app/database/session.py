@@ -67,25 +67,17 @@ async def init_db() -> None:
     Fresh database
     --------------
     ``create_all`` creates every table in one shot, then we stamp Alembic to
-    ``head`` so future deploys run incremental migrations instead of re-creating
-    tables from scratch.
+    ``head`` so future deploys run incremental migrations instead of
+    re-creating tables from scratch.
 
     Existing database
     -----------------
-    We do **not** call ``create_all`` here.  SQLAlchemy's ``create_all`` sees
-    every model and would create any table that does not yet exist — including
-    tables that belong to *pending* Alembic migrations.  That means Alembic
-    would then try to ``CREATE TABLE`` something that already exists and fail.
-
-    Instead, we let Alembic be the sole owner of DDL on existing databases.
-
-    Race condition (multiple gunicorn workers)
-    ------------------------------------------
-    All workers call ``init_db()`` at startup in parallel.  We use a
-    PostgreSQL session-level advisory lock (arbitrary key 9_876_543_210) so
-    only one worker runs ``alembic upgrade head`` at a time.  The others block
-    until the first worker finishes, then see "already at head" and return
-    immediately.
+    Migrations are handled by ``alembic upgrade head`` which runs in the
+    Procfile web command **before** gunicorn starts (single-worker, no race).
+    Workers therefore find the DB already at head and skip Alembic entirely.
+    We do NOT call ``create_all`` here — SQLAlchemy would eagerly create every
+    table including ones owned by pending migrations, causing Alembic to fail
+    with "relation already exists".
     """
     try:
         async with engine.begin() as conn:
@@ -102,30 +94,11 @@ async def init_db() -> None:
                 logger.info("Alembic stamped to head on fresh database")
             except Exception as exc:
                 logger.warning(f"Alembic stamp failed (non-fatal): {exc}")
-
         else:
             # ── Existing DB ───────────────────────────────────────────────────
-            # Advisory lock serialises migration runs across workers.
-            # Key 9_876_543_210 is arbitrary; it just needs to be consistent.
-            async with engine.connect() as lock_conn:
-                await lock_conn.execute(
-                    text("SELECT pg_advisory_lock(9876543210)")
-                )
-                try:
-                    _run_alembic('upgrade')
-                    logger.info("Alembic migrations applied (or already at head)")
-                except Exception as exc:
-                    logger.error(f"Alembic upgrade failed: {exc}", exc_info=True)
-                    raise
-                finally:
-                    # Always release — even if the migration raised, so that
-                    # other workers are not left waiting forever.
-                    try:
-                        await lock_conn.execute(
-                            text("SELECT pg_advisory_unlock(9876543210)")
-                        )
-                    except Exception:
-                        pass  # Connection may already be broken; lock auto-releases.
+            # Alembic upgrade already ran in the Procfile startup command.
+            # Nothing to do here — just log confirmation.
+            logger.info("Database already migrated; skipping Alembic upgrade in worker")
 
         logger.info("Database initialised successfully")
     except Exception as e:
