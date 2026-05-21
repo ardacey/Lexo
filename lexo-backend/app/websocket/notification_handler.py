@@ -26,7 +26,7 @@ class NotificationWebSocketHandler:
                 await websocket.close(code=1008)
                 return
 
-            await self.bridge.register(user_id, websocket)
+            await self.bridge.register(user_id, websocket, channel="notify")
 
             while True:
                 try:
@@ -38,7 +38,7 @@ class NotificationWebSocketHandler:
                         if invite_id and action == "decline":
                             await self._handle_decline(user_id, invite_id)
                     elif message_type == "ping":
-                        await self.bridge.refresh_ttl(user_id)
+                        await self.bridge.refresh_ttl(user_id, channel="notify")
                         await websocket.send_json({"type": "pong"})
                 except asyncio.TimeoutError:
                     await websocket.send_json({"type": "ping"})
@@ -48,7 +48,7 @@ class NotificationWebSocketHandler:
             logger.error(f"Notification websocket error: {exc}")
         finally:
             if user_id:
-                await self.bridge.unregister(user_id, websocket)
+                await self.bridge.unregister(user_id, websocket, channel="notify")
 
     async def _handle_decline(self, user_id: str, invite_id: str):
         invite = await self.matchmaking_service.pop_invite(invite_id)
@@ -60,4 +60,4 @@ class NotificationWebSocketHandler:
             "type": "friend_invite_declined",
             "invite_id": invite_id,
             "message": "Arkadaş daveti reddetti",
-        })
+        }, channel="game")

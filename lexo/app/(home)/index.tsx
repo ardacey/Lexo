@@ -413,6 +413,16 @@ export default function Page() {
                     </View>
                   </LinearGradient>
                 </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push('/daily')} style={styles.quickMini}>
+                  <View style={[styles.quickMiniIcon, styles.quickMiniIconDaily]}>
+                    <Ionicons name="calendar-outline" size={18} color="#0f172a" />
+                  </View>
+                  <View>
+                    <Text style={styles.quickMiniTitle}>Günlük Yarışma</Text>
+                    <Text style={styles.quickMiniSubtitle}>Bugünün meydan okuması</Text>
+                  </View>
+                  <Text style={styles.quickMiniArrow}>→</Text>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => router.push('/stats')} style={styles.quickMini}>
                   <View style={styles.quickMiniIcon}>
                     <Ionicons name="stats-chart-outline" size={18} color="#0f172a" />
@@ -420,6 +430,16 @@ export default function Page() {
                   <View>
                     <Text style={styles.quickMiniTitle}>İstatistikler</Text>
                     <Text style={styles.quickMiniSubtitle}>Performansını gör</Text>
+                  </View>
+                  <Text style={styles.quickMiniArrow}>→</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push('/leaderboard')} style={styles.quickMini}>
+                  <View style={styles.quickMiniIcon}>
+                    <Ionicons name="trophy-outline" size={18} color="#0f172a" />
+                  </View>
+                  <View>
+                    <Text style={styles.quickMiniTitle}>Sıralama</Text>
+                    <Text style={styles.quickMiniSubtitle}>ELO sıralaması</Text>
                   </View>
                   <Text style={styles.quickMiniArrow}>→</Text>
                 </TouchableOpacity>
@@ -807,6 +827,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#e2e8f0',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  quickMiniIconDaily: {
+    backgroundColor: '#fde68a',
   },
   quickMiniTitle: {
     fontSize: 14,

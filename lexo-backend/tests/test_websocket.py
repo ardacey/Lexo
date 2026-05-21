@@ -173,7 +173,7 @@ class TestNotificationHandlerLifecycle:
         ):
             await handler.handle_connection(ws)
 
-        bridge.register.assert_awaited_once_with("u1", ws)
+        bridge.register.assert_awaited_once_with("u1", ws, channel="notify")
 
     async def test_unregisters_user_on_disconnect(self):
         """Bridge.unregister must be called in the finally block on disconnect."""
@@ -191,7 +191,7 @@ class TestNotificationHandlerLifecycle:
         ):
             await handler.handle_connection(ws)
 
-        bridge.unregister.assert_awaited_once_with("u1", ws)
+        bridge.unregister.assert_awaited_once_with("u1", ws, channel="notify")
 
     async def test_ping_replies_with_pong(self):
         """
@@ -223,4 +223,4 @@ class TestNotificationHandlerLifecycle:
         assert len(pong_calls) == 1
 
         # TTL was refreshed
-        bridge.refresh_ttl.assert_awaited_once_with("u1")
+        bridge.refresh_ttl.assert_awaited_once_with("u1", channel="notify")

@@ -53,8 +53,8 @@ class GameHistoryService:
             cache_invalidate_prefix(f"user_games:{player1_id}:")
             cache_invalidate_prefix(f"user_games:{player2_id}:")
 
-    async def get_user_games(self, user_id: int, limit: int = 10) -> List[GameHistory]:
-        return await self.game_repo.get_user_games(user_id, limit)
+    async def get_user_games(self, user_id: int, limit: int = 10, offset: int = 0) -> List[GameHistory]:
+        return await self.game_repo.get_user_games(user_id, limit, offset)
 
     async def get_game_by_room_id(self, room_id: str) -> Optional[GameHistory]:
         return await self.game_repo.get_by_room_id(room_id)

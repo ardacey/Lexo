@@ -2,7 +2,7 @@ import asyncio
 import json
 import os
 import uuid
-from typing import Dict, Optional
+from typing import Dict, Literal, Optional
 
 import redis.asyncio as aioredis
 from fastapi import WebSocket
@@ -13,10 +13,20 @@ logger = get_logger(__name__)
 
 _PLAYER_WORKER_TTL = 90  # seconds — covers ping_interval * 3
 
+Channel = Literal["notify", "game"]
+
 
 class WebSocketBridge:
     """
     Routes WebSocket messages to users regardless of which worker holds their connection.
+
+    Two independent registries are maintained:
+    - ``notify`` — ws/notify connections (push notifications, friend invites …)
+    - ``game``   — ws/queue connections (in-game traffic)
+
+    This prevents a user's notify socket and game socket from evicting each other,
+    which was the root cause of the friend-invite "stuck on connecting" bug.
+
     - Local sends: direct in-process call to the WebSocket object.
     - Remote sends: serialized over Redis Pub/Sub to the owning worker.
     """
@@ -24,9 +34,22 @@ class WebSocketBridge:
     def __init__(self, redis: aioredis.Redis):
         self.redis = redis
         self.worker_id = f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
-        self._local: Dict[str, WebSocket] = {}
+        self._notify_local: Dict[str, WebSocket] = {}
+        self._game_local: Dict[str, WebSocket] = {}
         self._channel = f"ws:worker:{self.worker_id}"
         self._listener_task: Optional[asyncio.Task] = None
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _registry(self, channel: Channel) -> Dict[str, WebSocket]:
+        """Return the local dict for the given channel."""
+        return self._notify_local if channel == "notify" else self._game_local
+
+    @staticmethod
+    def _redis_key(user_id: str, channel: Channel) -> str:
+        return f"player:{user_id}:ws:worker:{channel}"
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -49,61 +72,69 @@ class WebSocketBridge:
     # Connection registry
     # ------------------------------------------------------------------
 
-    async def register(self, user_id: str, websocket: WebSocket):
-        self._local[user_id] = websocket
+    async def register(self, user_id: str, websocket: WebSocket, channel: Channel = "game"):
+        self._registry(channel)[user_id] = websocket
         await self.redis.set(
-            f"player:{user_id}:ws:worker", self.worker_id, ex=_PLAYER_WORKER_TTL
+            self._redis_key(user_id, channel), self.worker_id, ex=_PLAYER_WORKER_TTL
         )
 
-    async def unregister(self, user_id: str, websocket: Optional[WebSocket] = None):
+    async def unregister(
+        self,
+        user_id: str,
+        websocket: Optional[WebSocket] = None,
+        channel: Channel = "game",
+    ):
         """
-        Remove a user from the bridge.
+        Remove a user from the specified channel registry.
 
         If *websocket* is provided, the entry is only removed when it matches
         the currently-registered socket.  This prevents a stale cleanup (e.g.
         a closing notify socket) from evicting a newer connection (e.g. the
         game socket that registered immediately afterwards).
         """
-        if websocket is not None and self._local.get(user_id) is not websocket:
+        registry = self._registry(channel)
+        if websocket is not None and registry.get(user_id) is not websocket:
             return
-        self._local.pop(user_id, None)
-        await self.redis.delete(f"player:{user_id}:ws:worker")
+        registry.pop(user_id, None)
+        await self.redis.delete(self._redis_key(user_id, channel))
 
-    async def refresh_ttl(self, user_id: str):
-        """Call periodically (e.g. on each ping) to keep the key alive."""
-        await self.redis.expire(f"player:{user_id}:ws:worker", _PLAYER_WORKER_TTL)
+    async def refresh_ttl(self, user_id: str, channel: Channel = "game"):
+        """Call periodically (e.g. on each ping) to keep the Redis key alive."""
+        await self.redis.expire(self._redis_key(user_id, channel), _PLAYER_WORKER_TTL)
 
-    async def is_user_connected(self, user_id: str) -> bool:
-        """True if any worker currently holds a connection for this user."""
-        if user_id in self._local:
+    async def is_user_connected(self, user_id: str, channel: Channel = "game") -> bool:
+        """True if any worker currently holds a connection for this user on the given channel."""
+        if user_id in self._registry(channel):
             return True
-        return bool(await self.redis.exists(f"player:{user_id}:ws:worker"))
+        return bool(await self.redis.exists(self._redis_key(user_id, channel)))
 
-    def get_local_websocket(self, user_id: str) -> Optional[WebSocket]:
-        return self._local.get(user_id)
+    def get_local_websocket(self, user_id: str, channel: Channel = "game") -> Optional[WebSocket]:
+        return self._registry(channel).get(user_id)
 
     # ------------------------------------------------------------------
     # Messaging
     # ------------------------------------------------------------------
 
-    async def send_to_user(self, user_id: str, message: dict) -> bool:
+    async def send_to_user(
+        self, user_id: str, message: dict, channel: Channel = "game"
+    ) -> bool:
         """
-        Deliver a message to a user — local fast-path or cross-worker Pub/Sub.
+        Deliver a message to a user on the given channel — local fast-path or cross-worker Pub/Sub.
         Returns True if the message was dispatched (not necessarily received).
         """
-        ws = self._local.get(user_id)
+        ws = self._registry(channel).get(user_id)
         if ws is not None:
             try:
                 await ws.send_json(message)
                 return True
             except Exception as e:
-                logger.warning(f"Bridge: local send failed for {user_id}: {e}")
-                self._local.pop(user_id, None)
+                logger.warning(f"Bridge: local send failed for {user_id} ({channel}): {e}")
+                self._registry(channel).pop(user_id, None)
                 return False
 
-        target_worker = await self.redis.get(f"player:{user_id}:ws:worker")
+        target_worker = await self.redis.get(self._redis_key(user_id, channel))
         if not target_worker:
-            logger.debug(f"Bridge: no worker registered for {user_id}")
+            logger.debug(f"Bridge: no worker registered for {user_id} ({channel})")
             return False
 
         await self.redis.publish(
@@ -127,7 +158,9 @@ class WebSocketBridge:
                 try:
                     payload = json.loads(raw["data"])
                     user_id = payload["user_id"]
-                    ws = self._local.get(user_id)
+                    # Cross-worker messages are always game-channel traffic
+                    # (notify messages are typically same-worker or server-originated)
+                    ws = self._game_local.get(user_id) or self._notify_local.get(user_id)
                     if ws:
                         await ws.send_json(payload["message"])
                     else:

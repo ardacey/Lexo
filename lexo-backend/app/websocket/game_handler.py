@@ -388,7 +388,7 @@ class GameWebSocketHandler:
             await websocket.send_json({"type": "friend_invite_error", "message": "Arkadaşın başka bir davette"})
             return
 
-        if not await self.bridge.is_user_connected(target_id):
+        if not await self.bridge.is_user_connected(target_id, channel="notify"):
             await websocket.send_json({"type": "friend_invite_error", "message": "Arkadaşın çevrimiçi değil"})
             return
 
@@ -413,7 +413,7 @@ class GameWebSocketHandler:
             "invite_id": invite_id,
             "from_user_id": user_id,
             "from_username": username,
-        })
+        }, channel="notify")
         await websocket.send_json({
             "type": "friend_invite_sent",
             "invite_id": invite_id,
@@ -437,7 +437,7 @@ class GameWebSocketHandler:
                 "type": "friend_invite_cancelled",
                 "invite_id": invite_id,
                 "message": "Davet iptal edildi",
-            })
+            }, channel="notify")
             if invite.get("inviter_in_queue"):
                 await self.matchmaking_service.add_to_queue(invite["inviter_id"], invite["inviter_name"])
             if invite.get("target_in_queue"):
@@ -500,7 +500,7 @@ class GameWebSocketHandler:
                     "type": "friend_invite_cancelled",
                     "invite_id": invite_id,
                     "message": "Davet iptal edildi",
-                })
+                }, channel="notify")
 
         await self.matchmaking_service.remove_from_queue_by_id(player_id)
 
@@ -589,6 +589,11 @@ class GameWebSocketHandler:
                     ended_at=datetime.now(),
                 )
 
+                p1_stats = await stats_service.get_user_stats(player1.id)
+                p2_stats = await stats_service.get_user_stats(player2.id)
+                p1_elo = (p1_stats.elo_rating if p1_stats and p1_stats.elo_rating else 1000)
+                p2_elo = (p2_stats.elo_rating if p2_stats and p2_stats.elo_rating else 1000)
+
                 await stats_service.update_stats_after_game(
                     user_id=player1.id,
                     score=room.player1.score,
@@ -596,6 +601,7 @@ class GameWebSocketHandler:
                     won=winner_id == player1.id if winner_id else False,
                     tied=winner_id is None,
                     game_duration=room.duration,
+                    opponent_elo=p2_elo,
                 )
                 await stats_service.update_stats_after_game(
                     user_id=player2.id,
@@ -604,6 +610,7 @@ class GameWebSocketHandler:
                     won=winner_id == player2.id if winner_id else False,
                     tied=winner_id is None,
                     game_duration=room.duration,
+                    opponent_elo=p1_elo,
                 )
                 logger.info(f"Saved game {room.id} to database")
         except Exception as e:

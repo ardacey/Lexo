@@ -8,6 +8,14 @@ import {
   Animated,
   ActivityIndicator,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSequence,
+  interpolateColor,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -93,6 +101,26 @@ export default function Multiplayer() {
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const endScreenAnim = useRef(new Animated.Value(0)).current;
+
+  // Reanimated: word card flash (success/error) and shake (error)
+  const wordSuccessFlash = useSharedValue(0);
+  const wordErrorFlash = useSharedValue(0);
+  const wordShakeAnim = useSharedValue(0);
+
+  const wordDisplayStyle = useAnimatedStyle(() => {
+    'worklet';
+    const successBg = interpolateColor(wordSuccessFlash.value, [0, 1], ['#ffffff', '#dcfce7']);
+    const errorBg   = interpolateColor(wordErrorFlash.value,   [0, 1], ['#ffffff', '#fee2e2']);
+    const bg = wordSuccessFlash.value > 0
+      ? successBg
+      : wordErrorFlash.value > 0
+        ? errorBg
+        : '#ffffff';
+    return {
+      backgroundColor: bg,
+      transform: [{ translateX: wordShakeAnim.value }],
+    };
+  });
   const timerRef = useRef<number | null>(null);
   const gameEndTimeoutRef = useRef<number | null>(null);
   const pingIntervalRef = useRef<number | null>(null);
@@ -456,6 +484,11 @@ export default function Multiplayer() {
       }
 
       case 'word_valid': {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        wordSuccessFlash.value = withSequence(
+          withTiming(1, { duration: 150 }),
+          withTiming(0, { duration: 300 }),
+        );
         const newWord = { text: data.word, score: data.score };
         setMyWords(prevWords => {
           const updated = [...prevWords, newWord];
@@ -477,6 +510,17 @@ export default function Multiplayer() {
       }
 
       case 'word_invalid':
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        wordErrorFlash.value = withSequence(
+          withTiming(1, { duration: 120 }),
+          withTiming(0, { duration: 250 }),
+        );
+        wordShakeAnim.value = withSequence(
+          withTiming(-8, { duration: 60 }),
+          withTiming(8,  { duration: 60 }),
+          withTiming(-6, { duration: 60 }),
+          withTiming(0,  { duration: 60 }),
+        );
         Toast.show({
           type: 'error',
           text1: 'Hata',
@@ -731,7 +775,8 @@ export default function Multiplayer() {
 
   const handleLetterClick = useCallback((index: number) => {
     if (gameState !== 'playing' || isTimeOver) return;
-    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
     if (selectedIndices.includes(index)) {
       setSelectedIndices(prev => prev.filter(i => i !== index));
       const newWord = selectedIndices
@@ -749,11 +794,13 @@ export default function Multiplayer() {
   }, [gameState, selectedIndices, letterPool, isTimeOver]);
 
   const handleClearWord = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedIndices([]);
     setCurrentWord('');
   }, []);
 
   const handleDeleteLastLetter = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedIndices(prev => {
       if (prev.length === 0) return prev;
       const updated = prev.slice(0, -1);
@@ -1138,7 +1185,10 @@ export default function Multiplayer() {
         <View className="px-3 pb-2">
           <Text className="text-sm text-text-secondary mb-2">Seçilen Kelime:</Text>
           <View className="flex-row gap-2 items-center">
-            <View className="flex-1 bg-white rounded-lg px-4 py-3 border-2 border-slate-200 min-h-[52px] justify-center relative">
+            <Reanimated.View
+              className="flex-1 rounded-lg px-4 py-3 border-2 border-slate-200 min-h-[52px] justify-center relative"
+              style={wordDisplayStyle}
+            >
               <Text className="text-2xl font-bold text-text-primary">
                 {currentWord.toLocaleUpperCase('tr-TR') || '...'}
               </Text>
@@ -1149,7 +1199,7 @@ export default function Multiplayer() {
                   </Text>
                 </View>
               )}
-            </View>
+            </Reanimated.View>
             {currentWord && (
               <TouchableOpacity
                 className="bg-slate-200 rounded-lg px-3 py-3"

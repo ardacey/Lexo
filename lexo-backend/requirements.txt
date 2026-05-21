@@ -40,6 +40,9 @@ sentry-sdk[fastapi]
 # Rate limiting
 slowapi
 
+# Scheduling (daily challenge midnight job)
+apscheduler>=3.10.0
+
 # Metrics
 prometheus-fastapi-instrumentator
 

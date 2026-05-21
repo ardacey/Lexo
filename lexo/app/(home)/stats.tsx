@@ -5,7 +5,7 @@ import { useRouter, useNavigation } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
-import { useUserStats, useUserGames } from '@/hooks/useApi';
+import { useUserStats, useInfiniteUserGames } from '@/hooks/useApi';
 
 export default function StatsPage() {
   const router = useRouter();
@@ -23,8 +23,18 @@ export default function StatsPage() {
   };
   
   const { data: stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useUserStats(user?.id || null);
-  const { data: games = [], isLoading: gamesLoading, error: gamesError, refetch: refetchGames } = useUserGames(user?.id || null, 10);
-  
+  const {
+    data: gamesData,
+    isLoading: gamesLoading,
+    error: gamesError,
+    refetch: refetchGames,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteUserGames(user?.id || null, 10);
+
+  const games = gamesData?.pages.flatMap((p) => p.games) ?? [];
+
   const loading = !userLoaded || (statsLoading || gamesLoading);
   const [refreshing, setRefreshing] = React.useState(false);
 
@@ -139,6 +149,12 @@ export default function StatsPage() {
                 <Text className="text-lg font-bold text-blue-600">{stats.win_rate.toFixed(1)}%</Text>
               </View>
               
+              {stats.elo_rating !== undefined && (
+                <View className="flex-row justify-between mb-3">
+                  <Text className="text-slate-600">ELO Puanı</Text>
+                  <Text className="text-lg font-bold text-purple-600">{stats.elo_rating}</Text>
+                </View>
+              )}
               {stats.rank && (
                 <View className="flex-row justify-between">
                   <Text className="text-slate-600">Sıralama</Text>
@@ -219,21 +235,21 @@ export default function StatsPage() {
             {games.length > 0 && (
               <View className="mx-6 mt-4 mb-6">
                 <Text className="text-xl font-bold text-text-primary mb-4">Son Oyunlar</Text>
-                
+
                 {games.map((game, index) => {
-                  const resultColor = game.won ? 'bg-green-50 border-green-200' : 
-                                     game.tied ? 'bg-gray-50 border-gray-200' : 
+                  const resultColor = game.won ? 'bg-green-50 border-green-200' :
+                                     game.tied ? 'bg-gray-50 border-gray-200' :
                                      'bg-red-50 border-red-200';
-                  const resultText = game.won ? '✓ Kazandın' : 
-                                    game.tied ? '○ Berabere' : 
+                  const resultText = game.won ? '✓ Kazandın' :
+                                    game.tied ? '○ Berabere' :
                                     '✗ Kaybettin';
-                  const resultTextColor = game.won ? 'text-green-700' : 
-                                         game.tied ? 'text-gray-700' : 
+                  const resultTextColor = game.won ? 'text-green-700' :
+                                         game.tied ? 'text-gray-700' :
                                          'text-red-700';
 
                   return (
-                    <View 
-                      key={index} 
+                    <View
+                      key={index}
                       className={`bg-white rounded-xl p-4 mb-3 border ${resultColor}`}
                     >
                       <View className="flex-row justify-between items-center mb-2">
@@ -244,7 +260,7 @@ export default function StatsPage() {
                           {resultText}
                         </Text>
                       </View>
-                      
+
                       <View className="flex-row justify-between items-center">
                         <Text className="text-2xl font-bold text-text-primary">
                           {game.user_score} - {game.opponent_score}
@@ -256,6 +272,18 @@ export default function StatsPage() {
                     </View>
                   );
                 })}
+
+                {hasNextPage && (
+                  <TouchableOpacity
+                    onPress={() => fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                    className={`rounded-xl py-3 items-center mt-1 ${isFetchingNextPage ? 'bg-slate-200' : 'bg-white border border-slate-300'}`}
+                  >
+                    <Text className={`text-sm font-semibold ${isFetchingNextPage ? 'text-slate-400' : 'text-slate-600'}`}>
+                      {isFetchingNextPage ? 'Yükleniyor...' : 'Daha fazla yükle'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
 

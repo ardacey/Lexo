@@ -135,6 +135,7 @@ async def get_user_stats(
                 "total_play_time": stats.total_play_time,
                 "current_win_streak": stats.current_win_streak,
                 "best_win_streak": stats.best_win_streak,
+                "elo_rating": stats.elo_rating if stats.elo_rating is not None else 1000,
                 "rank": rank
             }
         }
@@ -144,6 +145,55 @@ async def get_user_stats(
         raise
     except Exception as e:
         logger.error(f"Error fetching user stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/users/{user_id}/profile", response_model=dict)
+async def get_user_profile(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user)  # any authenticated user can view
+):
+    """Return public profile stats for any user. The caller only needs to be authenticated."""
+    try:
+        user_service = UserService(db)
+        stats_service = StatsService(db)
+
+        user = await user_service.get_user_by_supabase_id(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        cache_key = f"user_profile:{user.id}"
+        cached = cache_get(cache_key)
+        if cached is not None:
+            return cached
+
+        stats = await stats_service.get_user_stats(user.id)
+        rank = await stats_service.get_user_rank(user.id)
+
+        response = {
+            "success": True,
+            "profile": {
+                "user_id": user.supabase_user_id,
+                "username": user.username,
+                "total_games": stats.total_games if stats else 0,
+                "wins": stats.wins if stats else 0,
+                "losses": stats.losses if stats else 0,
+                "ties": stats.ties if stats else 0,
+                "win_rate": round(stats.win_rate, 2) if stats else 0.0,
+                "highest_score": stats.highest_score if stats else 0,
+                "average_score": round(stats.average_score, 2) if stats else 0.0,
+                "best_win_streak": stats.best_win_streak if stats else 0,
+                "longest_word": stats.longest_word if stats else "",
+                "rank": rank,
+            }
+        }
+        cache_set(cache_key, response, ttl_seconds=30)
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching profile for {user_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

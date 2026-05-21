@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as Haptics from 'expo-haptics';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSequence,
+  interpolateColor,
+} from 'react-native-reanimated';
 import { useValidateWord } from '@/hooks/useApi';
 import { useToast } from '../../context/ToastContext';
 import { InteractiveLetterPool } from '@/components/GameComponents';
@@ -32,6 +40,49 @@ export default function PracticePage() {
   const [isChecking, setIsChecking] = useState(false);
   const [letterPool, setLetterPool] = useState<string[]>([]);
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
+
+  // Word validation cache — avoids redundant API calls for the same word
+  const wordCacheRef = useRef<Map<string, boolean>>(new Map());
+
+  // Reanimated values for word card flash and shake
+  const successFlash = useSharedValue(0);
+  const errorFlash = useSharedValue(0);
+  const shakeAnim = useSharedValue(0);
+
+  const wordCardAnimStyle = useAnimatedStyle(() => {
+    'worklet';
+    const successBg = interpolateColor(successFlash.value, [0, 1], ['#ffffff', '#dcfce7']);
+    const errorBg   = interpolateColor(errorFlash.value,   [0, 1], ['#ffffff', '#fee2e2']);
+    const bg = successFlash.value > 0
+      ? successBg
+      : errorFlash.value > 0
+        ? errorBg
+        : '#ffffff';
+    return {
+      backgroundColor: bg,
+      transform: [{ translateX: shakeAnim.value }],
+    };
+  });
+
+  const triggerSuccessAnim = () => {
+    successFlash.value = withSequence(
+      withTiming(1, { duration: 150 }),
+      withTiming(0, { duration: 300 }),
+    );
+  };
+
+  const triggerErrorAnim = () => {
+    errorFlash.value = withSequence(
+      withTiming(1, { duration: 120 }),
+      withTiming(0, { duration: 250 }),
+    );
+    shakeAnim.value = withSequence(
+      withTiming(-8, { duration: 60 }),
+      withTiming(8,  { duration: 60 }),
+      withTiming(-6, { duration: 60 }),
+      withTiming(0,  { duration: 60 }),
+    );
+  };
 
   const formattedTime = useMemo(() => {
     const minutes = Math.floor(timeLeft / 60);
@@ -61,6 +112,7 @@ export default function PracticePage() {
   }, []);
 
   const resetPractice = () => {
+    wordCacheRef.current.clear();
     setWords([]);
     setCurrentWord('');
     setTotalScore(0);
@@ -76,6 +128,7 @@ export default function PracticePage() {
 
   const handleLetterClick = (index: number) => {
     if (!isRunning || timeLeft === 0) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     if (selectedIndices.includes(index)) {
       const updated = selectedIndices.filter((i) => i !== index);
@@ -89,11 +142,13 @@ export default function PracticePage() {
   };
 
   const handleClear = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedIndices([]);
     setCurrentWord('');
   };
 
   const handleDeleteLastLetter = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedIndices(prev => {
       if (prev.length === 0) return prev;
       const updated = prev.slice(0, -1);
@@ -122,15 +177,29 @@ export default function PracticePage() {
       return;
     }
 
+    // Fast path: word was already rejected in this session
+    const cached = wordCacheRef.current.get(normalized);
+    if (cached === false) {
+      showToast('Geçersiz kelime', 'error');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      triggerErrorAnim();
+      return;
+    }
+
     setIsChecking(true);
     try {
       const result = await validateWordMutation.mutateAsync(normalized);
+      wordCacheRef.current.set(normalized, result.valid);
       if (!result.valid) {
         showToast(result.message || 'Geçersiz kelime', 'error');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        triggerErrorAnim();
         setIsChecking(false);
         return;
       }
 
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      triggerSuccessAnim();
       const score = calculateScore(normalized);
       setWords((prev) => [{ text: normalized, score }, ...prev]);
       setTotalScore((prev) => prev + score);
@@ -138,6 +207,7 @@ export default function PracticePage() {
       setSelectedIndices([]);
     } catch (error) {
       showToast('Kelime doğrulanamadı', 'error');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setIsChecking(false);
     }
@@ -181,7 +251,7 @@ export default function PracticePage() {
                 </View>
               </View>
 
-            <View style={styles.wordCard}>
+            <Animated.View style={[styles.wordCard, wordCardAnimStyle]}>
               <Text style={styles.wordLabel}>Seçilen kelime</Text>
               <View style={styles.wordRow}>
                 <Text style={styles.wordValue}>
@@ -209,7 +279,7 @@ export default function PracticePage() {
                   <Text style={styles.submitText}>{isChecking ? '...' : 'Ekle'}</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
 
             <View style={styles.poolCard}>
               <Text style={styles.poolTitle}>Harf Havuzu</Text>

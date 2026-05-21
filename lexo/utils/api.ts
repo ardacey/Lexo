@@ -12,7 +12,8 @@ export const API_ENDPOINTS = {
   checkUsername: (username: string) => `${apiPrefix}/users/check-username/${encodeURIComponent(username)}`,
   updateUsername: `${apiPrefix}/users/me/username`,
   getUserStats: (userId: string) => `${apiPrefix}/users/${userId}/stats`,
-  getUserGames: (userId: string, limit = 10) => `${apiPrefix}/users/${userId}/games?limit=${limit}`,
+  getUserProfile: (userId: string) => `${apiPrefix}/users/${userId}/profile`,
+  getUserGames: (userId: string, limit = 10, offset = 0) => `${apiPrefix}/users/${userId}/games?limit=${limit}&offset=${offset}`,
   getLeaderboard: (limit = 100) => `${apiPrefix}/leaderboard?limit=${limit}`,
   saveGame: `${apiPrefix}/games/save`,
   deleteUserAccount: `${apiPrefix}/users/me`,
@@ -20,6 +21,8 @@ export const API_ENDPOINTS = {
   getAppVersion: `${apiRoot}/app/version`,
   pingPresence: `${apiPrefix}/presence/ping`,
   getPresenceStatus: `${apiPrefix}/presence/status`,
+  getDailyChallenge: `${apiPrefix}/daily-challenge`,
+  submitDailyChallenge: `${apiPrefix}/daily-challenge/submit`,
   searchUsers: (query: string) => `${apiPrefix}/friends/search?q=${encodeURIComponent(query)}`,
   getFriends: `${apiPrefix}/friends`,
   getFriendRequests: `${apiPrefix}/friends/requests`,
@@ -57,6 +60,7 @@ export interface UserStats {
   total_play_time: number;
   current_win_streak: number;
   best_win_streak: number;
+  elo_rating?: number;
   rank?: number;
 }
 
@@ -72,6 +76,22 @@ export interface GameHistory {
   played_at: string;
 }
 
+export interface UserProfile {
+  user_id: string;
+  username: string;
+  total_games: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  win_rate: number;
+  highest_score: number;
+  average_score: number;
+  best_win_streak: number;
+  longest_word: string;
+  rank?: number;
+  elo_rating?: number;
+}
+
 export interface LeaderboardEntry {
   username: string;
   total_games: number;
@@ -84,6 +104,8 @@ export interface LeaderboardEntry {
   total_words: number;
   longest_word: string;
   best_win_streak: number;
+  elo_rating?: number;
+  user_id?: string;
 }
 
 export interface SaveGameData {
@@ -292,6 +314,14 @@ export const getActiveInvite = (token?: string) =>
 export const getInviteStatus = (inviteId: string, token?: string) =>
   apiFetch(API_ENDPOINTS.getInviteStatus(inviteId), { token });
 
+export const getUserProfile = async (userId: string, token?: string): Promise<UserProfile | null> => {
+  const data = await apiFetch<{ success: boolean; profile: UserProfile }>(
+    API_ENDPOINTS.getUserProfile(userId),
+    { token },
+  );
+  return data.success ? data.profile : null;
+};
+
 export const getUserStats = async (userId: string, token?: string): Promise<UserStats | null> => {
   const data = await apiFetch<{ success: boolean; stats: UserStats }>(
     API_ENDPOINTS.getUserStats(userId),
@@ -300,12 +330,17 @@ export const getUserStats = async (userId: string, token?: string): Promise<User
   return data.success ? data.stats : null;
 };
 
-export const getUserGames = async (userId: string, limit = 10, token?: string): Promise<GameHistory[]> => {
-  const data = await apiFetch<{ success: boolean; games: GameHistory[] }>(
-    API_ENDPOINTS.getUserGames(userId, limit),
+export interface GamesPage {
+  games: GameHistory[];
+  has_more: boolean;
+}
+
+export const getUserGames = async (userId: string, limit = 10, offset = 0, token?: string): Promise<GamesPage> => {
+  const data = await apiFetch<{ success: boolean; games: GameHistory[]; has_more: boolean }>(
+    API_ENDPOINTS.getUserGames(userId, limit, offset),
     { token },
   );
-  return data.success ? data.games : [];
+  return { games: data.success ? data.games : [], has_more: data.has_more ?? false };
 };
 
 export const getLeaderboard = async (limit = 100, token?: string): Promise<LeaderboardEntry[]> => {
@@ -353,4 +388,66 @@ export const getAppVersionInfo = async (): Promise<AppVersionInfo | null> => {
   } catch {
     return null;
   }
+};
+
+// ---------------------------------------------------------------------------
+// Daily Challenge types + functions
+// ---------------------------------------------------------------------------
+
+export interface DailyChallengeLeaderboardEntry {
+  username: string;
+  score: number;
+  word_count: number;
+  completed_at: string;
+}
+
+export interface DailyUserEntry {
+  score: number;
+  words: string[];
+  word_count: number;
+  completed_at: string;
+}
+
+export interface DailyChallengeState {
+  date: string;
+  letter_pool: string[];
+  already_played: boolean;
+  user_entry: DailyUserEntry | null;
+  leaderboard: DailyChallengeLeaderboardEntry[];
+}
+
+export interface DailySubmitResult {
+  score: number;
+  rank: number;
+  leaderboard: DailyChallengeLeaderboardEntry[];
+}
+
+export const getDailyChallenge = async (token?: string): Promise<DailyChallengeState> => {
+  const data = await apiFetch<{ success: boolean } & DailyChallengeState>(
+    API_ENDPOINTS.getDailyChallenge,
+    { token },
+  );
+  return {
+    date: data.date,
+    letter_pool: data.letter_pool,
+    already_played: data.already_played,
+    user_entry: data.user_entry,
+    leaderboard: data.leaderboard,
+  };
+};
+
+export const submitDailyChallenge = async (
+  words: string[],
+  score: number,
+  token?: string,
+): Promise<DailySubmitResult> => {
+  const data = await apiFetch<{ success: boolean } & DailySubmitResult>(
+    API_ENDPOINTS.submitDailyChallenge,
+    {
+      method: 'POST',
+      body: JSON.stringify({ words, score }),
+      token,
+    },
+  );
+  return { score: data.score, rank: data.rank, leaderboard: data.leaderboard };
 };

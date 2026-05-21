@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import words, users, games, leaderboard, friends, presence
+from app.api.v1.endpoints import words, users, games, leaderboard, friends, presence, daily_challenge
 
 api_router = APIRouter()
 
@@ -10,3 +10,4 @@ api_router.include_router(games.router, prefix="/api", tags=["games"])
 api_router.include_router(leaderboard.router, prefix="/api", tags=["leaderboard"])
 api_router.include_router(friends.router, prefix="/api", tags=["friends"])
 api_router.include_router(presence.router, prefix="/api", tags=["presence"])
+api_router.include_router(daily_challenge.router, prefix="/api", tags=["daily-challenge"])

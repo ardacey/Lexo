@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Index
+from sqlalchemy import Column, Date, Integer, String, Float, DateTime, ForeignKey, Text, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -103,6 +103,8 @@ class UserStats(Base):
     current_win_streak = Column(Integer, default=0, index=True)
     best_win_streak = Column(Integer, default=0, index=True)
 
+    elo_rating = Column(Integer, default=1000, index=True)
+
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="stats")
@@ -167,3 +169,36 @@ class Friend(Base):
 
     def __repr__(self):
         return f"<Friend(user_id={self.user_id}, friend_id={self.friend_id})>"
+
+
+class DailyChallenge(Base):
+    __tablename__ = "daily_challenges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    date = Column(Date, unique=True, index=True, nullable=False)
+    letter_pool = Column(String, nullable=False)  # comma-separated letters
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<DailyChallenge(date={self.date})>"
+
+
+class DailyChallengeEntry(Base):
+    __tablename__ = "daily_challenge_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    challenge_date = Column(Date, nullable=False, index=True)
+    score = Column(Integer, default=0)
+    words = Column(Text)       # JSON list of words
+    word_count = Column(Integer, default=0)
+    completed_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", foreign_keys=[user_id])
+
+    __table_args__ = (
+        Index("ix_dce_user_date", "user_id", "challenge_date", unique=True),
+    )
+
+    def __repr__(self):
+        return f"<DailyChallengeEntry(user_id={self.user_id}, date={self.challenge_date})>"

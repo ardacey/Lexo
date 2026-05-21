@@ -51,6 +51,23 @@ from app.middleware.timing import RequestTimingMiddleware
 setup_logging()
 logger = get_logger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# Daily challenge midnight job
+# ---------------------------------------------------------------------------
+
+async def _generate_daily_challenge_job() -> None:
+    """Pre-warm today's daily challenge at midnight Istanbul time."""
+    try:
+        from app.database.session import AsyncSessionLocal
+        from app.services.daily_challenge_service import DailyChallengeService
+        async with AsyncSessionLocal() as db:
+            service = DailyChallengeService(db)
+            result = await service.get_or_create_today()
+            logger.info(f"Daily challenge pre-warmed: {result['date']}")
+    except Exception as e:
+        logger.error(f"Daily challenge cron job failed: {e}")
+
 if settings.sentry.dsn:
     sentry_sdk.init(
         dsn=settings.sentry.dsn,
@@ -103,11 +120,32 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Service initialization failed: {e}")
         raise
 
+    # APScheduler: generate daily challenge at midnight Istanbul time
+    try:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        scheduler = AsyncIOScheduler(timezone="Europe/Istanbul")
+        scheduler.add_job(
+            _generate_daily_challenge_job,
+            "cron",
+            hour=0,
+            minute=0,
+            id="daily_challenge_prewarm",
+            replace_existing=True,
+        )
+        scheduler.start()
+        app.state.scheduler = scheduler
+        logger.info("✅ APScheduler started (daily challenge midnight job)")
+    except Exception as e:
+        logger.warning(f"APScheduler could not start: {e}; daily challenge will be auto-created on first request")
+        app.state.scheduler = None
+
     logger.info("🚀 Application started successfully")
 
     yield
 
     logger.info("Shutting down application...")
+    if getattr(app.state, "scheduler", None):
+        app.state.scheduler.shutdown(wait=False)
     await bridge.stop()
     await close_redis()
     logger.info("Application shutdown complete")

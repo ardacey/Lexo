@@ -21,12 +21,13 @@ class GameRepository(BaseRepository[GameHistory]):
         result = await self.db.execute(select(GameHistory).where(GameHistory.room_id == room_id))
         return result.scalar_one_or_none()
 
-    async def get_user_games(self, user_id: int, limit: int = 10) -> List[GameHistory]:
+    async def get_user_games(self, user_id: int, limit: int = 10, offset: int = 0) -> List[GameHistory]:
         stmt = (
             select(GameHistory)
             .options(selectinload(GameHistory.player1), selectinload(GameHistory.player2))
             .where(or_(GameHistory.player1_id == user_id, GameHistory.player2_id == user_id))
             .order_by(desc(GameHistory.ended_at))
+            .offset(offset)
             .limit(limit)
         )
         result = await self.db.execute(stmt)

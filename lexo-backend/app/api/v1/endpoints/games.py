@@ -22,6 +22,7 @@ router = APIRouter()
 async def get_user_games(
     user_id: str,
     limit: int = Query(default=10, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
@@ -36,12 +37,12 @@ async def get_user_games(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        cache_key = f"user_games:{user.id}:{limit}"
+        cache_key = f"user_games:{user.id}:{limit}:{offset}"
         cached = cache_get(cache_key)
         if cached is not None:
             return cached
 
-        games = await game_history_service.get_user_games(user.id, limit)
+        games = await game_history_service.get_user_games(user.id, limit, offset)
 
         games_list = []
         for game in games:
@@ -85,7 +86,8 @@ async def get_user_games(
 
         response = {
             "success": True,
-            "games": games_list
+            "games": games_list,
+            "has_more": len(games_list) == limit,
         }
         cache_set(cache_key, response, ttl_seconds=10)
         return response
@@ -142,6 +144,12 @@ async def save_game(
             ended_at=ended_at
         )
 
+        # Fetch current ELO ratings before updating so each player uses their pre-game value
+        p1_stats = await stats_service.get_user_stats(player1.id)
+        p2_stats = await stats_service.get_user_stats(player2.id)
+        p1_elo = (p1_stats.elo_rating if p1_stats and p1_stats.elo_rating else 1000)
+        p2_elo = (p2_stats.elo_rating if p2_stats and p2_stats.elo_rating else 1000)
+
         player1_won = winner_id == player1.id if winner_id else False
         player1_tied = winner_id is None
         await stats_service.update_stats_after_game(
@@ -150,7 +158,8 @@ async def save_game(
             words=request.player1_words,
             won=player1_won,
             tied=player1_tied,
-            game_duration=request.duration
+            game_duration=request.duration,
+            opponent_elo=p2_elo,
         )
 
         player2_won = winner_id == player2.id if winner_id else False
@@ -161,7 +170,8 @@ async def save_game(
             words=request.player2_words,
             won=player2_won,
             tied=player2_tied,
-            game_duration=request.duration
+            game_duration=request.duration,
+            opponent_elo=p1_elo,
         )
 
         return SaveGameResponse(

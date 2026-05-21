@@ -1,17 +1,24 @@
-import { useMutation, useQuery, useQueryClient, UseQueryOptions } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, useInfiniteQuery, UseQueryOptions } from '@tanstack/react-query';
 import {
   validateWord,
   createUser,
   getUserStats,
   getUserGames,
+  getUserProfile,
   getLeaderboard,
   saveGame,
   deleteUserAccount,
+  getDailyChallenge,
+  submitDailyChallenge,
   ValidateWordResponse,
   UserStats,
+  UserProfile,
   GameHistory,
+  GamesPage,
   LeaderboardEntry,
   SaveGameData,
+  DailyChallengeState,
+  DailySubmitResult,
   checkUsername,
   updateUsername,
   searchUsers,
@@ -41,6 +48,10 @@ export const queryKeys = {
   leaderboard: {
     all: () => [...queryKeys.all, 'leaderboard'] as const,
     list: (limit: number) => [...queryKeys.leaderboard.all(), limit] as const,
+  },
+  daily: {
+    all: () => [...queryKeys.all, 'daily'] as const,
+    challenge: () => [...queryKeys.daily.all(), 'challenge'] as const,
   },
 } as const;
 
@@ -251,6 +262,20 @@ export const useRemoveFriend = () => {
   });
 };
 
+export const useUserProfile = (userId: string | null, enabled: boolean = true) => {
+  const { getToken } = useAuth();
+
+  return useQuery<UserProfile | null, Error>({
+    queryKey: [...queryKeys.users.all(), 'profile', userId],
+    queryFn: async () => {
+      const token = await getToken();
+      return getUserProfile(userId!, token ?? undefined);
+    },
+    enabled: enabled && !!userId,
+    staleTime: 1000 * 60 * 5,
+  });
+};
+
 export const useUserStats = (userId: string | null, enabled: boolean = true) => {
   const { getToken } = useAuth();
   
@@ -268,15 +293,32 @@ export const useUserStats = (userId: string | null, enabled: boolean = true) => 
 
 export const useUserGames = (userId: string | null, limit: number = 10, enabled: boolean = true) => {
   const { getToken } = useAuth();
-  
-  return useQuery<GameHistory[], Error>({
+
+  return useQuery<GamesPage, Error>({
     queryKey: queryKeys.users.games(userId || '', limit),
     queryFn: async () => {
       const token = await getToken();
-      return getUserGames(userId!, limit, token ?? undefined);
+      return getUserGames(userId!, limit, 0, token ?? undefined);
     },
     enabled: enabled && !!userId,
     staleTime: 1000 * 60 * 2, // 2 dakika
+  });
+};
+
+export const useInfiniteUserGames = (userId: string | null, pageSize: number = 10) => {
+  const { getToken } = useAuth();
+
+  return useInfiniteQuery<GamesPage, Error>({
+    queryKey: [...queryKeys.users.all(), 'games-infinite', userId],
+    queryFn: async ({ pageParam = 0 }) => {
+      const token = await getToken();
+      return getUserGames(userId!, pageSize, pageParam as number, token ?? undefined);
+    },
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.has_more ? allPages.length * pageSize : undefined,
+    initialPageParam: 0,
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 2,
   });
 };
 
@@ -422,11 +464,44 @@ export const useOptimisticGameSave = () => {
 
 export const useDeleteUserAccount = () => {
   const { getToken } = useAuth();
-  
+
   return useMutation<any, Error, void>({
     mutationFn: async () => {
       const token = await getToken();
       return deleteUserAccount(token || undefined);
+    },
+  });
+};
+
+// ---------------------------------------------------------------------------
+// Daily Challenge hooks
+// ---------------------------------------------------------------------------
+
+export const useDailyChallenge = () => {
+  const { getToken } = useAuth();
+
+  return useQuery<DailyChallengeState, Error>({
+    queryKey: queryKeys.daily.challenge(),
+    queryFn: async () => {
+      const token = await getToken();
+      return getDailyChallenge(token ?? undefined);
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes — pool changes only once per day
+  });
+};
+
+export const useSubmitDailyChallenge = () => {
+  const { getToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation<DailySubmitResult, Error, { words: string[]; score: number }>({
+    mutationFn: async ({ words, score }) => {
+      const token = await getToken();
+      return submitDailyChallenge(words, score, token ?? undefined);
+    },
+    onSuccess: () => {
+      // Invalidate so the GET returns already_played: true on next focus
+      queryClient.invalidateQueries({ queryKey: queryKeys.daily.challenge() });
     },
   });
 };

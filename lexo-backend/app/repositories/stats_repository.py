@@ -40,7 +40,8 @@ class StatsRepository(BaseRepository[UserStats]):
         words: List[str],
         won: bool,
         tied: bool,
-        game_duration: int
+        game_duration: int,
+        opponent_elo: int = 1000,
     ) -> UserStats:
         stats = await self.get_or_create(user_id)
 
@@ -69,17 +70,28 @@ class StatsRepository(BaseRepository[UserStats]):
                 stats.longest_word_length = len(word)
 
         stats.total_play_time += game_duration
+
+        # ELO update  (K=32, standard Elo formula)
+        current_elo = stats.elo_rating or 1000
+        K = 32
+        expected = 1.0 / (1.0 + 10.0 ** ((opponent_elo - current_elo) / 400.0))
+        actual = 1.0 if won else (0.5 if tied else 0.0)
+        stats.elo_rating = max(100, round(current_elo + K * (actual - expected)))
+
         stats.last_updated = datetime.utcnow()
 
         updated_stats = await self.update(stats)
-        logger.info(f"Updated stats for user {user_id}: total_games={stats.total_games}, wins={stats.wins}")
+        logger.info(
+            f"Updated stats for user {user_id}: total_games={stats.total_games}, "
+            f"wins={stats.wins}, elo={stats.elo_rating}"
+        )
         return updated_stats
 
     async def get_leaderboard(self, limit: int = 100) -> List[Dict]:
         stmt = (
             select(UserStats, User)
             .join(User)
-            .order_by(desc(UserStats.wins), desc(UserStats.highest_score))
+            .order_by(desc(UserStats.elo_rating), desc(UserStats.wins))
             .limit(limit)
         )
         result = await self.db.execute(stmt)
@@ -89,6 +101,7 @@ class StatsRepository(BaseRepository[UserStats]):
         for stat, user in rows:
             leaderboard.append({
                 'username': user.username,
+                'user_id': user.supabase_user_id,
                 'total_games': stat.total_games,
                 'wins': stat.wins,
                 'losses': stat.losses,
@@ -98,7 +111,8 @@ class StatsRepository(BaseRepository[UserStats]):
                 'average_score': round(stat.average_score, 2),
                 'total_words': stat.total_words,
                 'longest_word': stat.longest_word,
-                'best_win_streak': stat.best_win_streak
+                'best_win_streak': stat.best_win_streak,
+                'elo_rating': stat.elo_rating or 1000,
             })
 
         return leaderboard
@@ -108,9 +122,9 @@ class StatsRepository(BaseRepository[UserStats]):
         if not stats:
             return None
 
+        current_elo = stats.elo_rating or 1000
         stmt = select(func.count(UserStats.id)).where(
-            (UserStats.wins > stats.wins) |
-            ((UserStats.wins == stats.wins) & (UserStats.highest_score > stats.highest_score))
+            UserStats.elo_rating > current_elo
         )
         result = await self.db.execute(stmt)
         rank = result.scalar()

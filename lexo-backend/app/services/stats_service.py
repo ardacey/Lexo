@@ -30,7 +30,8 @@ class StatsService:
         words: List[str],
         won: bool,
         tied: bool,
-        game_duration: int
+        game_duration: int,
+        opponent_elo: int = 1000,
     ) -> UserStats:
         try:
             return await self.stats_repo.update_after_game(
@@ -39,7 +40,8 @@ class StatsService:
                 words=words,
                 won=won,
                 tied=tied,
-                game_duration=game_duration
+                game_duration=game_duration,
+                opponent_elo=opponent_elo,
             )
         except Exception as e:
             logger.error(f"Error updating stats for user {user_id}: {e}")
