@@ -61,6 +61,69 @@ async def _alembic_version_exists(conn) -> bool:
     return bool(result.scalar())
 
 
+async def _apply_schema_patches(conn) -> None:
+    """Ensure all required schema additions are present, regardless of Alembic state.
+
+    This guards against the race condition on Render free-tier where two workers
+    can both run Alembic concurrently: one worker updates ``alembic_version`` while
+    the other's DDL transaction is rolled back, leaving the version table ahead of
+    the real schema.  All statements use IF NOT EXISTS so they are cheap no-ops
+    once the schema is correct.
+    """
+    # ── user_stats.elo_rating ─────────────────────────────────────────────────
+    await conn.execute(text(
+        "ALTER TABLE user_stats "
+        "ADD COLUMN IF NOT EXISTS elo_rating INTEGER NOT NULL DEFAULT 1000"
+    ))
+    await conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_stats_elo_rating_desc "
+        "ON user_stats (elo_rating)"
+    ))
+
+    # ── daily_challenges ──────────────────────────────────────────────────────
+    await conn.execute(text(
+        """
+        CREATE TABLE IF NOT EXISTS daily_challenges (
+            id          SERIAL PRIMARY KEY,
+            date        DATE      NOT NULL UNIQUE,
+            letter_pool VARCHAR   NOT NULL,
+            created_at  TIMESTAMP DEFAULT now()
+        )
+        """
+    ))
+    await conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_daily_challenges_date "
+        "ON daily_challenges (date)"
+    ))
+
+    # ── daily_challenge_entries ───────────────────────────────────────────────
+    await conn.execute(text(
+        """
+        CREATE TABLE IF NOT EXISTS daily_challenge_entries (
+            id             SERIAL PRIMARY KEY,
+            user_id        INTEGER   NOT NULL REFERENCES users(id),
+            challenge_date DATE      NOT NULL,
+            score          INTEGER   DEFAULT 0,
+            words          TEXT,
+            word_count     INTEGER   DEFAULT 0,
+            completed_at   TIMESTAMP DEFAULT now()
+        )
+        """
+    ))
+    await conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_daily_challenge_entries_user_id "
+        "ON daily_challenge_entries (user_id)"
+    ))
+    await conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_daily_challenge_entries_challenge_date "
+        "ON daily_challenge_entries (challenge_date)"
+    ))
+    await conn.execute(text(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_dce_user_date "
+        "ON daily_challenge_entries (user_id, challenge_date)"
+    ))
+
+
 async def init_db() -> None:
     """Initialise the database schema, handling both fresh and existing databases.
 
@@ -97,8 +160,20 @@ async def init_db() -> None:
         else:
             # ── Existing DB ───────────────────────────────────────────────────
             # Alembic upgrade already ran in the Procfile startup command.
-            # Nothing to do here — just log confirmation.
-            logger.info("Database already migrated; skipping Alembic upgrade in worker")
+            # Apply any schema patches that Alembic may have missed (e.g. when
+            # alembic_version was updated by one worker but DDL was rolled back
+            # by the concurrent second worker on Render free tier).
+            logger.info("Database already initialised; applying schema patches...")
+            try:
+                async with engine.begin() as conn:
+                    await _apply_schema_patches(conn)
+                logger.info("Schema patches applied successfully")
+            except Exception as exc:
+                # Log but don't crash — a patch failure usually means the
+                # column/table already exists and the IF NOT EXISTS guard fired,
+                # or the table being patched doesn't exist yet (will be created
+                # by create_all on first fresh deploy).
+                logger.warning(f"Schema patch step had a warning (non-fatal): {exc}")
 
         logger.info("Database initialised successfully")
     except Exception as e:
