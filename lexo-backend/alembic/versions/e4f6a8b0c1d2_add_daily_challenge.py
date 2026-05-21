@@ -16,29 +16,51 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        'daily_challenges',
-        sa.Column('id', sa.Integer(), primary_key=True, index=True),
-        sa.Column('date', sa.Date(), unique=True, index=True, nullable=False),
-        sa.Column('letter_pool', sa.String(), nullable=False),
-        sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()')),
+    # Use IF NOT EXISTS throughout so this migration is idempotent — safe to
+    # re-run if a previous attempt applied the DDL but crashed before Alembic
+    # could update alembic_version (e.g. due to a concurrent-worker race).
+    op.execute(
+        """
+        CREATE TABLE IF NOT EXISTS daily_challenges (
+            id         SERIAL PRIMARY KEY,
+            date       DATE        NOT NULL UNIQUE,
+            letter_pool VARCHAR    NOT NULL,
+            created_at TIMESTAMP   DEFAULT now()
+        )
+        """
+    )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_daily_challenges_id   ON daily_challenges (id)"
+    )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_daily_challenges_date ON daily_challenges (date)"
     )
 
-    op.create_table(
-        'daily_challenge_entries',
-        sa.Column('id', sa.Integer(), primary_key=True, index=True),
-        sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=False, index=True),
-        sa.Column('challenge_date', sa.Date(), nullable=False, index=True),
-        sa.Column('score', sa.Integer(), server_default='0'),
-        sa.Column('words', sa.Text()),
-        sa.Column('word_count', sa.Integer(), server_default='0'),
-        sa.Column('completed_at', sa.DateTime(), server_default=sa.text('now()')),
+    op.execute(
+        """
+        CREATE TABLE IF NOT EXISTS daily_challenge_entries (
+            id             SERIAL PRIMARY KEY,
+            user_id        INTEGER   NOT NULL REFERENCES users(id),
+            challenge_date DATE      NOT NULL,
+            score          INTEGER   DEFAULT 0,
+            words          TEXT,
+            word_count     INTEGER   DEFAULT 0,
+            completed_at   TIMESTAMP DEFAULT now()
+        )
+        """
     )
-    op.create_index(
-        'ix_dce_user_date',
-        'daily_challenge_entries',
-        ['user_id', 'challenge_date'],
-        unique=True,
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_daily_challenge_entries_id            ON daily_challenge_entries (id)"
+    )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_daily_challenge_entries_user_id       ON daily_challenge_entries (user_id)"
+    )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_daily_challenge_entries_challenge_date ON daily_challenge_entries (challenge_date)"
+    )
+    op.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_dce_user_date "
+        "ON daily_challenge_entries (user_id, challenge_date)"
     )
 
 

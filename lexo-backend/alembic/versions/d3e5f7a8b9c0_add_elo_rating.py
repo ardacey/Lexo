@@ -16,11 +16,16 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        'user_stats',
-        sa.Column('elo_rating', sa.Integer(), server_default='1000', nullable=False)
+    # Use IF NOT EXISTS so this migration is idempotent — safe to re-run if a
+    # previous attempt applied the DDL but crashed before updating alembic_version.
+    op.execute(
+        "ALTER TABLE user_stats "
+        "ADD COLUMN IF NOT EXISTS elo_rating INTEGER NOT NULL DEFAULT 1000"
     )
-    op.create_index('ix_stats_elo_rating_desc', 'user_stats', ['elo_rating'])
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_stats_elo_rating_desc "
+        "ON user_stats (elo_rating)"
+    )
 
 
 def downgrade() -> None:
