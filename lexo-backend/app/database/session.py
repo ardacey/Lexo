@@ -2,12 +2,33 @@ from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import text
 import logging
-import subprocess
+import os
 
 from app.core.config import settings
 from app.models.database import Base
 
 logger = logging.getLogger(__name__)
+
+# Absolute path to the lexo-backend/ directory (where alembic.ini lives).
+# session.py is at lexo-backend/app/database/session.py → three levels up.
+_BACKEND_DIR = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+
+
+def _run_alembic(command: str) -> None:
+    """Run an Alembic command via its Python API (no subprocess / PATH dependency)."""
+    from alembic.config import Config
+    from alembic import command as alembic_command
+
+    alembic_ini = os.path.join(_BACKEND_DIR, 'alembic.ini')
+    cfg = Config(alembic_ini)
+    # Make sure the script_location inside alembic.ini resolves correctly.
+    cfg.set_main_option('script_location', os.path.join(_BACKEND_DIR, 'alembic'))
+
+    if command == 'upgrade':
+        alembic_command.upgrade(cfg, 'head')
+    elif command == 'stamp':
+        alembic_command.stamp(cfg, 'head')
 
 engine = create_async_engine(
     settings.database.async_url,
@@ -54,31 +75,20 @@ async def init_db() -> None:
             await conn.run_sync(Base.metadata.create_all)
 
         if not already_stamped:
-            # Fresh DB: stamp to head so future `alembic upgrade head` works.
-            result = subprocess.run(
-                ["alembic", "stamp", "head"],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0:
+            # Fresh DB: stamp to head so future upgrades work incrementally.
+            try:
+                _run_alembic('stamp')
                 logger.info("Alembic stamped to head on fresh database")
-            else:
-                logger.warning(
-                    f"Alembic stamp failed (non-fatal): {result.stderr.strip()}"
-                )
+            except Exception as exc:
+                logger.warning(f"Alembic stamp failed (non-fatal): {exc}")
         else:
-            # Existing DB: apply any pending schema migrations automatically.
-            result = subprocess.run(
-                ["alembic", "upgrade", "head"],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0:
+            # Existing DB: apply any pending schema migrations (e.g. new columns).
+            try:
+                _run_alembic('upgrade')
                 logger.info("Alembic migrations applied (or already at head)")
-            else:
-                logger.warning(
-                    f"Alembic upgrade failed (non-fatal): {result.stderr.strip()}"
-                )
+            except Exception as exc:
+                logger.error(f"Alembic upgrade failed: {exc}")
+                raise  # surface the error so the deploy fails loudly instead of silently
 
         logger.info("Database tables created successfully")
     except Exception as e:
