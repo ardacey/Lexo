@@ -86,11 +86,11 @@ export default function StatsPage() {
   if (statsError || gamesError) {
     return (
       <SafeAreaView className="flex-1 bg-background items-center justify-center px-6">
-        <Text className="text-xl font-bold text-red-600 mb-4">Hata Oluştu</Text>
-        <Text className="text-gray-600 text-center mb-4">
-          {statsError?.message || gamesError?.message || 'Bilinmeyen bir hata oluştu'}
+        <Text className="text-xl font-bold text-red-600 mb-4">Bağlantı Hatası</Text>
+        <Text className="text-gray-600 text-center mb-6">
+          Sunucuya bağlanılamadı. Sunucu uyku modundan uyanıyor olabilir — birkaç saniye bekleyip tekrar deneyin.
         </Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={onRefresh}
           className="bg-blue-500 px-6 py-3 rounded-lg"
         >

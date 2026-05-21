@@ -278,7 +278,7 @@ export const useUserProfile = (userId: string | null, enabled: boolean = true) =
 
 export const useUserStats = (userId: string | null, enabled: boolean = true) => {
   const { getToken } = useAuth();
-  
+
   return useQuery<UserStats | null, Error>({
     queryKey: queryKeys.users.stats(userId || ''),
     queryFn: async () => {
@@ -287,7 +287,10 @@ export const useUserStats = (userId: string | null, enabled: boolean = true) => 
     },
     enabled: enabled && !!userId,
     staleTime: 1000 * 60 * 5, // 5 dakika
-    retry: false,
+    // Retry up to 3 times with a 4-second gap so the server has time to
+    // wake up from Render's free-tier sleep (can take up to ~30 s).
+    retry: 3,
+    retryDelay: 4000,
   });
 };
 
@@ -319,6 +322,8 @@ export const useInfiniteUserGames = (userId: string | null, pageSize: number = 1
     initialPageParam: 0,
     enabled: !!userId,
     staleTime: 1000 * 60 * 2,
+    retry: 3,
+    retryDelay: 4000,
   });
 };
 

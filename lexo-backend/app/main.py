@@ -86,6 +86,7 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.api.title} v{settings.api.version}")
+    logger.info(f"CORS allowed origins: {settings.api.cors_origins}")
 
     try:
         await init_db()
@@ -241,20 +242,29 @@ async def read_root():
 
 @app.get("/stats", include_in_schema=False)
 async def get_stats():
-    matchmaking_service = get_matchmaking_service()
-    word_service = get_word_service()
-    presence_service = get_presence_service()
-    stats = matchmaking_service.get_stats()
-    queue_depth, online_count = await asyncio.gather(
-        matchmaking_service.get_queue_depth(),
-        presence_service.get_online_count(),
-    )
-    return {
-        "active_rooms": stats["active_rooms"],
-        "waiting_players": queue_depth,
-        "total_words": word_service.get_word_count(),
-        "online_players": online_count,
-    }
+    try:
+        matchmaking_service = get_matchmaking_service()
+        word_service = get_word_service()
+        presence_service = get_presence_service()
+        stats = matchmaking_service.get_stats()
+        queue_depth, online_count = await asyncio.gather(
+            matchmaking_service.get_queue_depth(),
+            presence_service.get_online_count(),
+        )
+        return {
+            "active_rooms": stats["active_rooms"],
+            "waiting_players": queue_depth,
+            "total_words": word_service.get_word_count(),
+            "online_players": online_count,
+        }
+    except Exception:
+        # Return safe defaults so the home screen never gets a 500/crash
+        return {
+            "active_rooms": 0,
+            "waiting_players": 0,
+            "total_words": 0,
+            "online_players": 0,
+        }
 
 
 @app.get("/app/version")
