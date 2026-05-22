@@ -73,8 +73,8 @@
     },
     "extra": {
       "environment": "production",
-      "apiUrl": "https://api.lexomania.online",
-      "wsUrl": "wss://api.lexomania.online",
+      "apiUrl": "https://api.lexo.com.tr",
+      "wsUrl": "wss://api.lexo.com.tr",
       "supabaseUrl": "https://zsokcsneadeenbmjxagb.supabase.co",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpzb2tjc25lYWRlZW5ibWp4YWdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAyODczMjcsImV4cCI6MjA3NTg2MzMyN30.gxdn39iEjH4Mqtgi4QK0LCuNoMjeEQpgu5vM_scgjvU",
       "router": {},
