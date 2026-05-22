@@ -11,6 +11,7 @@ import {
   Modal,
   Animated,
   Easing,
+  Switch,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,6 +24,7 @@ import { useToast } from '../../context/ToastContext';
 import { getOnlineStats, respondFriendInvite } from '@/utils/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotifications } from '../../context/NotificationContext';
+import { useHapticsPreference } from '@/hooks/useHapticsPreference';
 
 export default function Page() {
   const router = useRouter();
@@ -38,6 +40,7 @@ export default function Page() {
   const [usernameError, setUsernameError] = useState('');
   const [isSavingUsername, setIsSavingUsername] = useState(false);
   const { onFriendInvite, onFriendInviteCancelled } = useNotifications();
+  const { hapticsEnabled, setEnabled: setHapticsEnabled } = useHapticsPreference();
   const [pendingInvite, setPendingInvite] = useState<{
     inviteId: string;
     fromUserId: string;
@@ -515,6 +518,21 @@ export default function Page() {
                   </View>
                 </View>
               )}
+
+              <View style={styles.divider} />
+
+              <View style={styles.settingsRow}>
+                <View>
+                  <Text style={styles.settingsTitle}>Titreşim</Text>
+                  <Text style={styles.settingsHint}>Dokunma geri bildirimi</Text>
+                </View>
+                <Switch
+                  value={hapticsEnabled}
+                  onValueChange={setHapticsEnabled}
+                  trackColor={{ false: '#cbd5e1', true: '#3b82f6' }}
+                  thumbColor="#ffffff"
+                />
+              </View>
 
               <View style={styles.divider} />
 

@@ -8,7 +8,8 @@ import {
   Animated,
   ActivityIndicator,
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { NotificationFeedbackType } from 'expo-haptics';
+import { useHapticsPreference } from '@/hooks/useHapticsPreference';
 import Reanimated, {
   useSharedValue,
   useAnimatedStyle,
@@ -60,6 +61,7 @@ export default function Multiplayer() {
 
   const createUserMutation = useCreateUser();
   const _saveGameMutation = useSaveGame();
+  const { triggerImpact, triggerNotification } = useHapticsPreference();
 
   const currentUsername = React.useMemo(() => {
     return user?.user_metadata?.username || user?.email?.split('@')[0] || baseUsername || 'Player';
@@ -484,7 +486,7 @@ export default function Multiplayer() {
       }
 
       case 'word_valid': {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        triggerNotification(NotificationFeedbackType.Success);
         wordSuccessFlash.value = withSequence(
           withTiming(1, { duration: 150 }),
           withTiming(0, { duration: 300 }),
@@ -510,7 +512,7 @@ export default function Multiplayer() {
       }
 
       case 'word_invalid':
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        triggerNotification(NotificationFeedbackType.Error);
         wordErrorFlash.value = withSequence(
           withTiming(1, { duration: 120 }),
           withTiming(0, { duration: 250 }),
@@ -775,7 +777,7 @@ export default function Multiplayer() {
 
   const handleLetterClick = useCallback((index: number) => {
     if (gameState !== 'playing' || isTimeOver) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerImpact();
 
     if (selectedIndices.includes(index)) {
       setSelectedIndices(prev => prev.filter(i => i !== index));
@@ -794,13 +796,13 @@ export default function Multiplayer() {
   }, [gameState, selectedIndices, letterPool, isTimeOver]);
 
   const handleClearWord = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerImpact();
     setSelectedIndices([]);
     setCurrentWord('');
   }, []);
 
   const handleDeleteLastLetter = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerImpact();
     setSelectedIndices(prev => {
       if (prev.length === 0) return prev;
       const updated = prev.slice(0, -1);

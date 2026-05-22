@@ -11,7 +11,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import * as Haptics from 'expo-haptics';
+import { NotificationFeedbackType } from 'expo-haptics';
+import { useHapticsPreference } from '@/hooks/useHapticsPreference';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -32,6 +33,7 @@ export default function PracticePage() {
   const router = useRouter();
   const { showToast } = useToast();
   const validateWordMutation = useValidateWord();
+  const { triggerImpact, triggerNotification } = useHapticsPreference();
   const [timeLeft, setTimeLeft] = useState(PRACTICE_DURATION);
   const [isRunning, setIsRunning] = useState(false);
   const [currentWord, setCurrentWord] = useState('');
@@ -128,7 +130,7 @@ export default function PracticePage() {
 
   const handleLetterClick = (index: number) => {
     if (!isRunning || timeLeft === 0) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerImpact();
 
     if (selectedIndices.includes(index)) {
       const updated = selectedIndices.filter((i) => i !== index);
@@ -142,13 +144,13 @@ export default function PracticePage() {
   };
 
   const handleClear = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerImpact();
     setSelectedIndices([]);
     setCurrentWord('');
   };
 
   const handleDeleteLastLetter = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerImpact();
     setSelectedIndices(prev => {
       if (prev.length === 0) return prev;
       const updated = prev.slice(0, -1);
@@ -181,7 +183,7 @@ export default function PracticePage() {
     const cached = wordCacheRef.current.get(normalized);
     if (cached === false) {
       showToast('Geçersiz kelime', 'error');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      triggerNotification(NotificationFeedbackType.Error);
       triggerErrorAnim();
       return;
     }
@@ -192,13 +194,13 @@ export default function PracticePage() {
       wordCacheRef.current.set(normalized, result.valid);
       if (!result.valid) {
         showToast(result.message || 'Geçersiz kelime', 'error');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        triggerNotification(NotificationFeedbackType.Error);
         triggerErrorAnim();
         setIsChecking(false);
         return;
       }
 
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      triggerNotification(NotificationFeedbackType.Success);
       triggerSuccessAnim();
       const score = calculateScore(normalized);
       setWords((prev) => [{ text: normalized, score }, ...prev]);
@@ -207,7 +209,7 @@ export default function PracticePage() {
       setSelectedIndices([]);
     } catch (error) {
       showToast('Kelime doğrulanamadı', 'error');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      triggerNotification(NotificationFeedbackType.Error);
     } finally {
       setIsChecking(false);
     }

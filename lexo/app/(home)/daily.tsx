@@ -12,7 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import * as Haptics from 'expo-haptics';
+import { NotificationFeedbackType } from 'expo-haptics';
+import { useHapticsPreference } from '@/hooks/useHapticsPreference';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -51,6 +52,7 @@ interface DailySession {
 export default function DailyChallengePage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { triggerImpact, triggerNotification } = useHapticsPreference();
   const { data: challengeData, isLoading, error, refetch } = useDailyChallenge();
   const submitMutation = useSubmitDailyChallenge();
   const validateWordMutation = useValidateWord();
@@ -239,7 +241,7 @@ export default function DailyChallengePage() {
 
   const handleLetterClick = (index: number) => {
     if (!isRunning || timeLeft === 0) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerImpact();
     if (selectedIndices.includes(index)) {
       const updated = selectedIndices.filter((i) => i !== index);
       setSelectedIndices(updated);
@@ -252,13 +254,13 @@ export default function DailyChallengePage() {
   };
 
   const handleClear = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerImpact();
     setSelectedIndices([]);
     setCurrentWord('');
   };
 
   const handleDeleteLastLetter = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerImpact();
     setSelectedIndices((prev) => {
       if (prev.length === 0) return prev;
       const updated = prev.slice(0, -1);
@@ -287,7 +289,7 @@ export default function DailyChallengePage() {
     const cached = wordCacheRef.current.get(normalized);
     if (cached === false) {
       showToast('Geçersiz kelime', 'error');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      triggerNotification(NotificationFeedbackType.Error);
       triggerErrorAnim();
       return;
     }
@@ -298,12 +300,12 @@ export default function DailyChallengePage() {
       wordCacheRef.current.set(normalized, result.valid);
       if (!result.valid) {
         showToast(result.message || 'Geçersiz kelime', 'error');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        triggerNotification(NotificationFeedbackType.Error);
         triggerErrorAnim();
         setIsChecking(false);
         return;
       }
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      triggerNotification(NotificationFeedbackType.Success);
       triggerSuccessAnim();
 
       const wordScore = calculateScore(normalized);
@@ -328,7 +330,7 @@ export default function DailyChallengePage() {
       }).catch(() => {});
     } catch {
       showToast('Kelime doğrulanamadı', 'error');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      triggerNotification(NotificationFeedbackType.Error);
     } finally {
       setIsChecking(false);
     }
