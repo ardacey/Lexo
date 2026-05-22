@@ -19,7 +19,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../context/AuthContext';
-import { useCheckUsername, useCreateUser, useUpdateUsername } from '@/hooks/useApi';
+import { useCheckUsername, useCreateUser, useUpdateUsername, usePrefetchUserData } from '@/hooks/useApi';
 import { useToast } from '../../context/ToastContext';
 import { getOnlineStats, respondFriendInvite } from '@/utils/api';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,6 +41,7 @@ export default function Page() {
   const [isSavingUsername, setIsSavingUsername] = useState(false);
   const { onFriendInvite, onFriendInviteCancelled } = useNotifications();
   const { hapticsEnabled, setEnabled: setHapticsEnabled } = useHapticsPreference();
+  const { prefetchUserStats, prefetchLeaderboard, prefetchUserGames } = usePrefetchUserData();
   const [pendingInvite, setPendingInvite] = useState<{
     inviteId: string;
     fromUserId: string;
@@ -102,6 +103,16 @@ export default function Page() {
       checkForActiveGame(username);
     }
   }, [user, userInitialized, createUserMutation, createUserMutation.isPending, displayUsername]);
+
+  // Prefetch stats, leaderboard and games in the background while the user
+  // is on the home screen so those pages open instantly from cache.
+  useEffect(() => {
+    if (!user?.id) return;
+    prefetchUserStats(user.id);
+    prefetchLeaderboard(100);
+    prefetchUserGames(user.id, 10);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   useEffect(() => {
     if (!isSignedIn) return;

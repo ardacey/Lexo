@@ -387,27 +387,58 @@ export const useRefreshUserData = (userId: string | null) => {
   return { refreshAll };
 };
 
-// Prefetch helper - sayfa geçişlerinde performans için
+// Prefetch helper — fire-and-forget background fetches so screens open
+// instantly from cache when the user navigates to them.
 export const usePrefetchUserData = () => {
   const queryClient = useQueryClient();
-  
+  const { getToken } = useAuth();
+
   const prefetchUserStats = (userId: string) => {
+    // Skip if already fresh in cache.
+    const existing = queryClient.getQueryState(queryKeys.users.stats(userId));
+    if (existing?.dataUpdatedAt && Date.now() - existing.dataUpdatedAt < 1000 * 60 * 5) return;
+
     queryClient.prefetchQuery({
       queryKey: queryKeys.users.stats(userId),
-      queryFn: () => getUserStats(userId),
+      queryFn: async () => {
+        const token = await getToken();
+        return getUserStats(userId, token ?? undefined);
+      },
       staleTime: 1000 * 60 * 5,
     });
   };
-  
+
   const prefetchLeaderboard = (limit: number = 100) => {
+    const existing = queryClient.getQueryState(queryKeys.leaderboard.list(limit));
+    if (existing?.dataUpdatedAt && Date.now() - existing.dataUpdatedAt < 1000 * 60 * 5) return;
+
     queryClient.prefetchQuery({
       queryKey: queryKeys.leaderboard.list(limit),
-      queryFn: () => getLeaderboard(limit),
+      queryFn: async () => {
+        const token = await getToken();
+        return getLeaderboard(limit, token ?? undefined);
+      },
       staleTime: 1000 * 60 * 5,
     });
   };
-  
-  return { prefetchUserStats, prefetchLeaderboard };
+
+  const prefetchUserGames = (userId: string, pageSize = 10) => {
+    const qKey = [...queryKeys.users.all(), 'games-infinite', userId];
+    const existing = queryClient.getQueryState(qKey);
+    if (existing?.dataUpdatedAt && Date.now() - existing.dataUpdatedAt < 1000 * 60 * 2) return;
+
+    queryClient.prefetchInfiniteQuery({
+      queryKey: qKey,
+      queryFn: async ({ pageParam = 0 }) => {
+        const token = await getToken();
+        return getUserGames(userId, pageSize, pageParam as number, token ?? undefined);
+      },
+      initialPageParam: 0,
+      staleTime: 1000 * 60 * 2,
+    });
+  };
+
+  return { prefetchUserStats, prefetchLeaderboard, prefetchUserGames };
 };
 
 // Optimistic update helper - daha hızlı UI güncellemeleri için
