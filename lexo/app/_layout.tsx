@@ -74,8 +74,10 @@ function AppContent() {
         staleTime: 1000 * 60 * 5,
         // 10 dakika boyunca cache'te tutulur
         gcTime: 1000 * 60 * 10,
-        // Hata durumunda 1 kez tekrar dene
-        retry: 1,
+        // Render free-tier sleep can take ~30 s to wake up; retry 3 times
+        // with a 4-second gap so the stats page recovers automatically.
+        retry: 3,
+        retryDelay: 4000,
         // Pencere focus olduğunda otomatik refetch yapma
         refetchOnWindowFocus: false,
         // Network yeniden bağlandığında otomatik refetch

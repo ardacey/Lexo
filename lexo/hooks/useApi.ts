@@ -287,10 +287,9 @@ export const useUserStats = (userId: string | null, enabled: boolean = true) => 
     },
     enabled: enabled && !!userId,
     staleTime: 1000 * 60 * 5, // 5 dakika
-    // Retry up to 3 times with a 4-second gap so the server has time to
-    // wake up from Render's free-tier sleep (can take up to ~30 s).
-    retry: 3,
-    retryDelay: 4000,
+    // Retry/retryDelay are intentionally NOT set here so that the app-level
+    // QueryClient default (retry: 3, retryDelay: 4000) applies in production
+    // AND the test-level QueryClient (retry: false) applies during tests.
   });
 };
 
@@ -322,8 +321,7 @@ export const useInfiniteUserGames = (userId: string | null, pageSize: number = 1
     initialPageParam: 0,
     enabled: !!userId,
     staleTime: 1000 * 60 * 2,
-    retry: 3,
-    retryDelay: 4000,
+    // Retry/retryDelay deferred to app-level QueryClient defaults.
   });
 };
 
