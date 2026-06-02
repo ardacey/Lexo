@@ -2,7 +2,7 @@
 
 Bu rehber, bilgisayarında **Ollama + Mistral** kurulu olan bir kullanıcının Lexo projesini ayağa kaldırıp test etmesi için hazırlanmıştır.
 
-> Not: Lexo doğrudan `config.toml` ile çalışmaz; backend ayarları `.env` üzerinden yönetilir. Bu rehberdeki `config.toml` adımı, Ollama/Mistral bağlantı bilgilerini tek bir dosyada toplamak isteyen kullanıcılar için pratik bir başlangıç şablonu sunar.
+> Not: Lexo doğrudan `config.toml` okumaz; runtime ayarları `.env` dosyalarından alınır. Bu rehberdeki `config.toml` adımı **opsiyoneldir** ve Ollama/Mistral bağlantı bilgilerini kişisel bir referans dosyasında tutmak isteyenler içindir.
 
 ## 1) Projeyi Klonlama
 
@@ -56,7 +56,19 @@ npm install
 
 ## 4) Konfigürasyon (`config.toml`) – Ollama/Mistral Entegrasyonu
 
-Proje kökünde bir `config.toml` oluştur:
+Önce Lexo'nun gerçekten kullandığı ortam dosyalarını hazırla:
+
+```bash
+# Backend
+cd lexo-backend
+cp .env.example .env
+
+# Frontend (web arayüzü çalıştıracaksan)
+cd ../lexo
+cp .env.example .env
+```
+
+Ardından (opsiyonel) proje kökünde bir `config.toml` oluştur. Bu dosya uygulama tarafından otomatik tüketilmez; Ollama/Mistral ayarlarını tek yerde tutmak için bir referans şablonudur:
 
 ```toml
 [llm]
