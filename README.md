@@ -25,6 +25,7 @@ Race to form Turkish words from a shared letter pool — solo or against a frien
 - [Environment Variables](#environment-variables)
 - [API Reference](#api-reference)
 - [Development](#development)
+- [Türkçe Ollama + Mistral Başlangıç Rehberi](docs/ollama-mistral-baslangic-rehberi.md)
 - [Building for Production](#building-for-production)
 - [License](#license)
 
