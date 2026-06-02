@@ -54,7 +54,7 @@ npm install
 
 ---
 
-## 4) Konfigürasyon (`config.toml`) – Ollama/Mistral Entegrasyonu
+## 4) Konfigürasyon (`.env`) – Ollama/Mistral Entegrasyonu
 
 Önce Lexo'nun gerçekten kullandığı ortam dosyalarını hazırla:
 
@@ -68,7 +68,7 @@ cd ../lexo
 cp .env.example .env
 ```
 
-Ardından (opsiyonel) proje kökünde bir `config.toml` oluştur. Bu dosya uygulama tarafından otomatik tüketilmez; Ollama/Mistral ayarlarını tek yerde tutmak için bir referans şablonudur:
+Opsiyonel olarak proje kökünde bir `config.toml` da oluşturabilirsin. Bu dosya uygulama tarafından otomatik tüketilmez; Ollama/Mistral ayarlarını tek yerde tutmak için sadece referans şablonudur:
 
 ```toml
 [llm]
